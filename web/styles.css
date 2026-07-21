@@ -405,3 +405,21 @@ svg.ico { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-widt
 .props-grid input, .props-grid select { font-family: var(--font-body); font-size:13.5px; color: var(--text-primary);
   background: rgba(255,255,255,.05); border:1px solid var(--stroke); border-radius:10px; padding:10px 12px; outline:none; }
 .props-grid input:focus, .props-grid select:focus { border-color: var(--accent); }
+
+/* ---- Share & Sync modal ---- */
+.share-card { display:flex; flex-direction:column; }
+.share-card .share-h { font-family: var(--font-display); font-weight:700; font-size:19px; color: var(--text-primary);
+  display:flex; align-items:center; gap:9px; }
+.share-card .share-h .ico { color: var(--accent); font-size:16px; }
+.share-sub { font-size:12.5px; line-height:1.5; color: var(--text-secondary); margin:8px 0 4px; }
+.share-note { font-size:12px; line-height:1.5; color: var(--text-tertiary); margin:4px 0 6px; }
+.share-label { font-family: var(--font-display); font-weight:700; font-size:10.5px; letter-spacing:1.2px;
+  color: var(--text-tertiary); margin-top:14px; margin-bottom:7px; }
+.share-box { width:100%; box-sizing:border-box; resize:none; font-family: var(--font-mono); font-size:12px;
+  line-height:1.5; color: var(--text-primary); background: rgba(255,255,255,.05); border:1px solid var(--stroke);
+  border-radius:10px; padding:10px 12px; outline:none; word-break:break-all; }
+.share-box:focus { border-color: var(--accent); }
+.share-row { display:flex; gap:10px; margin-top:10px; }
+.share-btn { width:auto; padding:9px 16px; }
+.share-loading { display:flex; align-items:center; gap:10px; font-size:12.5px; color: var(--text-tertiary); margin:16px 0 4px; }
+.share-divider { height:1px; background: var(--stroke); margin:18px 0 2px; }

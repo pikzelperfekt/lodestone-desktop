@@ -24,6 +24,12 @@ contextBridge.exposeInMainWorld("lodestone", {
     remove: (opts) => call("content:remove", opts),
   },
   importModpack: (path) => call("import:mrpack", { path }),
+  share: {
+    code: (id) => call("share:code", { id }),
+    mrpack: (id, name) => call("share:mrpack", { id, name }),
+    syncFromCode: (opts) => call("share:sync", opts),
+    createFromCode: (code) => call("share:create", { code }),
+  },
   worlds: {
     list: (instanceId) => call("worlds:list", { instanceId }),
     backups: (instanceId) => call("worlds:backups", { instanceId }),

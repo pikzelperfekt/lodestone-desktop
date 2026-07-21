@@ -8,6 +8,7 @@ const install = require("./install");
 const loaders = require("./loaders");
 const content = require("./content");
 const importer = require("./import");
+const share = require("./share");
 const curseforge = require("./curseforge");
 const worlds = require("./worlds");
 const auth = require("./auth");
@@ -210,6 +211,47 @@ async function importModpack(filePath) {
   throw new Error("Unrecognized modpack: expected a Modrinth .mrpack or a CurseForge .zip.");
 }
 
+// ---- Share & sync (share code + .mrpack export, one-click sync) ----
+// A share code / .mrpack moves a pack (its Modrinth mod list) between machines offline.
+// "Sync now" reconciles an instance's mods to a shared definition. Live cross-machine
+// auto-sync waits on the accounts backend; these are the manual, offline-capable pieces.
+function exportInstanceCode(id) {
+  const inst = readInstances().find((i) => i.id === id);
+  if (!inst) throw new Error("Instance not found.");
+  return share.encodeCode(share.packDef(inst));
+}
+async function exportInstanceMrpack(id, outPath) {
+  const inst = readInstances().find((i) => i.id === id);
+  if (!inst) throw new Error("Instance not found.");
+  return share.exportMrpack(DATA_DIR, inst, outPath);
+}
+async function syncInstanceFromCode({ id, code }) {
+  const list = readInstances();
+  const inst = list.find((i) => i.id === id);
+  if (!inst) throw new Error("Instance not found.");
+  const def = share.decodeCode(code);
+  const summary = await share.syncInstance({
+    dataDir: DATA_DIR, instance: inst, def,
+    onLog: (line) => emit("content:log", { instanceId: id, line }),
+  });
+  writeInstances(list);
+  return {
+    instance: inst,
+    added: summary.added.length, removed: summary.removed.length, unchanged: summary.unchanged.length,
+  };
+}
+async function createInstanceFromCode(code) {
+  const def = share.decodeCode(code);
+  const { instance, summary } = await share.createFromDef({
+    dataDir: DATA_DIR, def, createInstance, persist: persistInstance,
+    onLog: (line) => emit("content:log", { line }),
+  });
+  return {
+    instance,
+    added: summary.added.length, removed: summary.removed.length, unchanged: summary.unchanged.length,
+  };
+}
+
 // ---- Worlds (singleplayer saves per instance) ----
 function worldList(instanceId) { return worlds.list(DATA_DIR, instanceId); }
 function worldBackups(instanceId) { return worlds.backups(DATA_DIR, instanceId); }
@@ -318,6 +360,7 @@ module.exports = {
   listVersions, modrinthSearch, curseforgeSearch,
   installContent, installCurseforgeContent, listContent, removeContent,
   importModpack,
+  exportInstanceCode, exportInstanceMrpack, syncInstanceFromCode, createInstanceFromCode,
   worldList, worldBackups, worldBackup, worldRestore, worldRename, worldRemove,
   account, signOut, signInStart, signInComplete,
   launch, stop, isRunning,

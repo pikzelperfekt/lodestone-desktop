@@ -57,6 +57,7 @@ async function renderInstances() {
     <div class="page-head">
       <h1 class="page-title">Instances</h1>
       <div class="head-actions">
+        <button class="btn-soft" id="add-from-code">${ico("i-bolt")} Add from code</button>
         <button class="btn-soft" id="import-pack">${ico("i-download")} Import</button>
         <button class="btn-soft" id="new-inst">${ico("i-plus")} New Instance</button>
       </div>
@@ -84,6 +85,7 @@ async function renderInstances() {
       btn.disabled = false; btn.innerHTML = original;
     }
   };
+  document.getElementById("add-from-code").onclick = () => openAddFromCodeModal();
   document.getElementById("new-inst").onclick = () => { creating = !creating; toggleNewPanel(); };
   if (creating) toggleNewPanel();
   bindCommon();
@@ -124,6 +126,7 @@ async function renderInstanceDetail(id) {
         <div class="detail-actions">
           <button class="btn-accent" data-play="${inst.id}">${ico("i-play")} Play</button>
           <button class="btn-soft" id="detail-add">${ico("i-plus")} Browse mods</button>
+          <button class="btn-soft" id="detail-share">${ico("i-bolt")} Share &amp; Sync</button>
         </div>
       </div>
     </div>
@@ -160,6 +163,7 @@ async function renderInstanceDetail(id) {
 
   bindCommon();
   document.getElementById("detail-add").onclick = () => openDiscoverFor(inst.id);
+  document.getElementById("detail-share").onclick = () => openShareModal(inst);
   el().querySelectorAll("[data-remove]").forEach((b) => b.onclick = async () => {
     b.disabled = true;
     await API.content.remove({ instanceId: id, projectId: b.dataset.remove });
@@ -209,6 +213,123 @@ async function renderInstanceDetail(id) {
     try { await API.worlds.restore({ instanceId: id, backup }); toast("Backup restored."); renderInstanceDetail(id); }
     catch (err) { b.disabled = false; toast("Restore failed: " + err.message); }
   });
+}
+
+// ---------- SHARE & SYNC ----------
+// Copy text to the clipboard, with a select-and-execCommand fallback for odd environments.
+async function copyText(text, sourceEl) {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch {
+    try {
+      if (sourceEl) { sourceEl.focus(); sourceEl.select(); }
+      return document.execCommand("copy");
+    } catch { return false; }
+  }
+}
+
+// Share modal for an instance: shows the pasteable share code (+ Copy), an "Export .mrpack
+// file" button, and a "Sync from a code" box that reconciles this instance's mods to a code.
+async function openShareModal(inst) {
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-bolt")} Share &amp; Sync</div>
+      <p class="share-sub">A code or <b>.mrpack</b> file shares <b>${esc(inst.name)}</b>'s mod list so a friend can rebuild the same pack. Live auto-sync across machines is coming with accounts.</p>
+      <div class="share-loading"><span class="spinner"></span> Building share code…</div>
+    </div>`);
+  let code = "";
+  try { code = await API.share.code(inst.id); }
+  catch (e) { toast("Couldn't build a share code: " + e.message); hideModal(); return; }
+
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-bolt")} Share &amp; Sync</div>
+      <p class="share-sub">A code or <b>.mrpack</b> file shares <b>${esc(inst.name)}</b>'s mod list so a friend can rebuild the same pack. Live auto-sync across machines is coming with accounts.</p>
+
+      <div class="share-label">SHARE CODE</div>
+      <textarea id="share-code" class="share-box" readonly rows="3">${esc(code)}</textarea>
+      <div class="share-row">
+        <button class="btn-accent share-btn" id="share-copy">${ico("i-download")} Copy code</button>
+        <button class="btn-soft" id="share-mrpack">${ico("i-download")} Export .mrpack file</button>
+      </div>
+
+      <div class="share-divider"></div>
+
+      <div class="share-label">SYNC FROM A CODE</div>
+      <p class="share-note">Paste a code to make this instance match it: missing mods are installed, changed ones updated, and mods it doesn't include are removed.</p>
+      <textarea id="sync-code" class="share-box" rows="3" placeholder="Paste a Lodestone share code…"></textarea>
+      <div class="np-actions">
+        <button class="btn-ghost" id="share-close">Close</button>
+        <button class="btn-accent share-btn" id="sync-now">${ico("i-bolt")} Sync now</button>
+      </div>
+    </div>`);
+
+  document.getElementById("share-close").onclick = hideModal;
+
+  document.getElementById("share-copy").onclick = async () => {
+    const ok = await copyText(code, document.getElementById("share-code"));
+    toast(ok ? "Share code copied to the clipboard." : "Couldn't copy — select the code and copy it by hand.");
+  };
+
+  document.getElementById("share-mrpack").onclick = async (e) => {
+    const btn = e.currentTarget; const original = btn.innerHTML;
+    btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Exporting…`;
+    try {
+      const res = await API.share.mrpack(inst.id, inst.name);
+      if (res) toast(`Exported ${res.files} mod${res.files === 1 ? "" : "s"} to ${res.path}${res.skipped ? ` (${res.skipped} skipped)` : ""}.`);
+      btn.disabled = false; btn.innerHTML = original;
+    } catch (err) {
+      toast("Couldn't export: " + err.message);
+      btn.disabled = false; btn.innerHTML = original;
+    }
+  };
+
+  document.getElementById("sync-now").onclick = async (e) => {
+    const value = document.getElementById("sync-code").value.trim();
+    if (!value) { toast("Paste a share code to sync from."); return; }
+    const btn = e.currentTarget; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Syncing…`;
+    try {
+      const r = await API.share.syncFromCode({ id: inst.id, code: value });
+      hideModal();
+      const parts = [];
+      if (r.added) parts.push(`${r.added} added`);
+      if (r.removed) parts.push(`${r.removed} removed`);
+      toast(parts.length ? `Synced ${inst.name}: ${parts.join(", ")}.` : `${inst.name} already matches that pack.`);
+      renderInstanceDetail(inst.id);
+    } catch (err) {
+      btn.disabled = false; btn.innerHTML = `${ico("i-bolt")} Sync now`;
+      toast("Couldn't sync: " + err.message);
+    }
+  };
+}
+
+// "Add from code" on the Instances page: paste a share code to spin up a new instance
+// whose mods are synced to match the shared pack.
+function openAddFromCodeModal() {
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-bolt")} Add from code</div>
+      <p class="share-sub">Paste a Lodestone share code to create a new instance with the same mods. A code shares the pack; live auto-sync across machines is coming with accounts.</p>
+      <textarea id="add-code" class="share-box" rows="3" placeholder="Paste a Lodestone share code…"></textarea>
+      <div class="np-actions">
+        <button class="btn-ghost" id="add-close">Cancel</button>
+        <button class="btn-accent share-btn" id="add-create">${ico("i-plus")} Create instance</button>
+      </div>
+    </div>`);
+  document.getElementById("add-close").onclick = hideModal;
+  document.getElementById("add-create").onclick = async (e) => {
+    const value = document.getElementById("add-code").value.trim();
+    if (!value) { toast("Paste a share code first."); return; }
+    const btn = e.currentTarget; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Creating…`;
+    try {
+      const r = await API.share.createFromCode(value);
+      hideModal();
+      toast(`Created ${r.instance ? r.instance.name : "instance"}${r.added ? ` with ${r.added} mod${r.added === 1 ? "" : "s"}` : ""}.`);
+      renderInstances();
+    } catch (err) {
+      btn.disabled = false; btn.innerHTML = `${ico("i-plus")} Create instance`;
+      toast("Couldn't create from code: " + err.message);
+    }
+  };
 }
 
 // Turn an absolute filesystem path into a file:// URL the renderer can load (handles

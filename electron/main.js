@@ -66,6 +66,19 @@ handle("import:mrpack", async (a) => {
   }
   return engine.importModpack(filePath);
 });
+handle("share:code", (a) => engine.exportInstanceCode(a.id));
+handle("share:sync", (a) => engine.syncInstanceFromCode(a));
+handle("share:create", (a) => engine.createInstanceFromCode(a.code));
+handle("share:mrpack", async (a) => {
+  const base = String((a && a.name) || "modpack").replace(/[\\/:*?"<>|]+/g, " ").trim() || "modpack";
+  const res = await dialog.showSaveDialog(win, {
+    title: "Export modpack (.mrpack)",
+    defaultPath: `${base}.mrpack`,
+    filters: [{ name: "Modrinth modpack", extensions: ["mrpack"] }],
+  });
+  if (res.canceled || !res.filePath) return null;
+  return engine.exportInstanceMrpack(a.id, res.filePath);
+});
 handle("worlds:list", (a) => engine.worldList(a.instanceId));
 handle("worlds:backups", (a) => engine.worldBackups(a.instanceId));
 handle("worlds:backup", (a) => engine.worldBackup(a));

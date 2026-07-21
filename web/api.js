@@ -104,6 +104,28 @@
       async remove(opts) { return bridge ? unwrap(await bridge.content.remove(opts)) : true; },
     },
 
+    // Share & sync: a share code / .mrpack moves a pack between machines; "Sync now"
+    // reconciles an instance's mods to a pasted code. Browser preview returns stand-ins.
+    share: {
+      async code(id) {
+        if (bridge) return unwrap(await bridge.share.code(id));
+        const i = sample.instances.find((x) => x.id === id) || { name: "Sample", loader: "fabric", mcVersion: "1.20.1" };
+        const def = { name: i.name, loader: i.loader, mcVersion: i.mcVersion, mods: [] };
+        return btoa(JSON.stringify(def)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      },
+      async mrpack(id, name) { return bridge ? unwrap(await bridge.share.mrpack(id, name)) : null; },
+      async syncFromCode(opts) {
+        if (bridge) return unwrap(await bridge.share.syncFromCode(opts));
+        return { instance: null, added: 0, removed: 0, unchanged: 0 };
+      },
+      async createFromCode(code) {
+        if (bridge) return unwrap(await bridge.share.createFromCode(code));
+        const i = { id: "n" + Date.now(), name: "Shared pack", mcVersion: "1.20.1", loader: "fabric", accent: "#B57BE6", mods: 0, created: Date.now(), lastPlayed: null };
+        sample.instances.unshift(i);
+        return { instance: i, added: 0, removed: 0, unchanged: 0 };
+      },
+    },
+
     worlds: {
       async list(instanceId) { return bridge ? unwrap(await bridge.worlds.list(instanceId)) : []; },
       async backups(instanceId) { return bridge ? unwrap(await bridge.worlds.backups(instanceId)) : []; },

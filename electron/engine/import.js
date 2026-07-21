@@ -144,4 +144,4 @@ async function importModpack({ dataDir, filePath, createInstance, persist, onLog
   return instance;
 }
 
-module.exports = { importModpack, pickLoader, clientWanted, contentRecordFor };
+module.exports = { importModpack, pickLoader, clientWanted, contentRecordFor, safeJoin, extractOverrides };

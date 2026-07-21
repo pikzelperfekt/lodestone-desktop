@@ -11,6 +11,7 @@ const DEFAULTS = {
   defaultRamMB: null,     // MB of RAM to seed new instances with; null = let Lodestone size it
   javaPath: "",           // path to your own Java binary; "" = use the Java Lodestone installs for you
   keepLauncherOpen: true, // keep the launcher window open while Minecraft runs
+  curseforgeKey: "",      // your own CurseForge API key (console.curseforge.com); "" = CurseForge browse/import off
 };
 
 function init(dataDir) { DATA_DIR = dataDir || path.join(os.homedir(), ".lodestone"); }
@@ -25,6 +26,7 @@ function normalize(raw) {
     ? null : Math.max(512, Math.round(ram));
   s.javaPath = typeof s.javaPath === "string" ? s.javaPath.trim() : "";
   s.keepLauncherOpen = s.keepLauncherOpen !== false; // anything but an explicit false stays true
+  s.curseforgeKey = typeof s.curseforgeKey === "string" ? s.curseforgeKey.trim() : "";
   return s;
 }
 

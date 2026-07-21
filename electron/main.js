@@ -45,7 +45,9 @@ handle("instance:update", (a) => engine.updateInstance(a));
 handle("instances:delete", (a) => engine.deleteInstance(a.id));
 handle("versions:list", () => engine.listVersions());
 handle("modrinth:search", (a) => engine.modrinthSearch(a));
+handle("curseforge:search", (a) => engine.curseforgeSearch(a));
 handle("content:install", (a) => engine.installContent(a));
+handle("content:installCurseforge", (a) => engine.installCurseforgeContent(a));
 handle("content:list", (a) => engine.listContent(a.instanceId));
 handle("content:remove", (a) => engine.removeContent(a));
 handle("import:mrpack", async (a) => {
@@ -53,7 +55,11 @@ handle("import:mrpack", async (a) => {
   if (!filePath) {
     const res = await dialog.showOpenDialog(win, {
       properties: ["openFile"],
-      filters: [{ name: "Modrinth modpack", extensions: ["mrpack"] }],
+      filters: [
+        { name: "Modpack", extensions: ["mrpack", "zip"] },
+        { name: "Modrinth modpack", extensions: ["mrpack"] },
+        { name: "CurseForge modpack", extensions: ["zip"] },
+      ],
     });
     if (res.canceled || !res.filePaths.length) return null;
     filePath = res.filePaths[0];

@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld("lodestone", {
     create: (opts) => call("instances:create", opts),
     update: (opts) => call("instance:update", opts),
     delete: (id) => call("instances:delete", { id }),
+    repair: (id) => call("instance:repair", { id }),
+    updateAll: (id) => call("instance:updateAll", { id }),
   },
   versions: () => call("versions:list"),
   modrinthSearch: (opts) => call("modrinth:search", opts),

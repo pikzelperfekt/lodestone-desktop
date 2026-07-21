@@ -11,7 +11,7 @@ Legend: [x] done · [~] partial · [ ] not started
 - [x] Microsoft sign-in (device code)
 - [x] Launch Vanilla
 - [x] Launch Fabric + Quilt (loader install + overlay)
-- [ ] Launch NeoForge / Forge (needs the installer-jar step)
+- [x] Launch NeoForge / Forge (runs the official installer once, overlays the profile)
 - [x] Browse Modrinth (search)
 - [x] **Mod install + management** — add mods/resource packs/shaders from Discover into an
       instance (with automatic required-dependency resolution), instance detail page, remove
@@ -21,7 +21,7 @@ Legend: [x] done · [~] partial · [ ] not started
 
 ## Power tools
 - [x] Settings screen (default RAM, Java path override, data folder, update check, about)
-- [ ] CurseForge browse + install
+- [x] CurseForge browse + install + `.zip` import (needs a user CurseForge API key)
 - [ ] Resource pack / shader / datapack managers (dedicated views)
 - [ ] Keybinds manager
 - [ ] Repair (clear cached game files)
@@ -30,8 +30,8 @@ Legend: [x] done · [~] partial · [ ] not started
 - [ ] Crash doctor
 
 ## Servers & multiplayer
-- [ ] Servers tab + dashboard + console
-- [ ] Hosting: LAN / Tailscale / playit / exaroton
+- [x] Servers tab + console (create vanilla/Paper/Fabric, start/stop, console, server.properties editor)
+- [ ] Hosting: LAN / Tailscale / playit / exaroton (make a server public)
 - [ ] LAN worlds
 - [ ] Share a pack to a friend + keep a shared pack in sync (instant sharing / auto-sync)
 - [ ] Squads

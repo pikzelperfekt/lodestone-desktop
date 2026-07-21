@@ -232,7 +232,7 @@ async function launch(id) {
   const loader = inst.loader || "vanilla";
   if (loader !== "vanilla" && !loaders.supported(loader)) {
     const nice = loader[0].toUpperCase() + loader.slice(1);
-    return { started: false, message: `${nice} launch is the next milestone — Vanilla, Fabric, and Quilt launch fully now.` };
+    return { started: false, message: `${nice} isn't supported. Vanilla, Fabric, Quilt, NeoForge, and Forge all launch.` };
   }
 
   const session = auth.currentSession() || offlineSession(account()?.name || "Player");

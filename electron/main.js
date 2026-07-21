@@ -1,0 +1,92 @@
+// Lodestone desktop (Electron). The main process hosts the "engine" — the
+// cross-platform stand-in for the Swift sidecar. It exposes a small JSON API over
+// IPC that the web UI (web/) calls, and drives auto-updates via electron-updater
+// (GitHub Releases feed configured in package.json's build.publish).
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const path = require("path");
+const { autoUpdater } = require("electron-updater");
+const engine = require("./engine");
+
+let win;
+
+function createWindow() {
+  win = new BrowserWindow({
+    width: 1120,
+    height: 760,
+    minWidth: 940,
+    minHeight: 640,
+    backgroundColor: "#06080B",
+    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+    title: "Lodestone",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  win.loadFile(path.join(__dirname, "..", "web", "index.html"));
+}
+
+// ---- Engine IPC surface (mirrors the planned sidecar JSON API) ----
+function handle(channel, fn) {
+  ipcMain.handle(channel, async (_event, args) => {
+    try {
+      return { ok: true, data: await fn(args || {}) };
+    } catch (err) {
+      return { ok: false, error: String(err && err.message ? err.message : err) };
+    }
+  });
+}
+
+handle("engine:info", () => engine.info());
+handle("instances:list", () => engine.listInstances());
+handle("instances:create", (a) => engine.createInstance(a));
+handle("instances:delete", (a) => engine.deleteInstance(a.id));
+handle("versions:list", () => engine.listVersions());
+handle("modrinth:search", (a) => engine.modrinthSearch(a));
+handle("launch", (a) => engine.launch(a.id));
+handle("launch:stop", (a) => engine.stop(a.id));
+handle("account:get", () => engine.account());
+handle("account:signOut", () => engine.signOut());
+handle("auth:start", () => engine.signInStart());
+handle("auth:complete", (a) => engine.signInComplete(a.device));
+ipcMain.handle("open:dataDir", () => shell.openPath(engine.dataDir()));
+ipcMain.handle("open:external", (_e, a) => shell.openExternal(a.url));
+
+// ---- Auto-update (electron-updater over the GitHub Releases feed) ----
+// Only meaningful in a packaged, installed build; a dev run has no version to update.
+function sendUpdate(payload) { if (win && !win.isDestroyed()) win.webContents.send("update:state", payload); }
+
+function setupUpdates() {
+  autoUpdater.autoDownload = true;          // pull the new version in the background
+  autoUpdater.autoInstallOnAppQuit = true;  // apply it on next quit if the user doesn't restart now
+  autoUpdater.on("checking-for-update", () => sendUpdate({ status: "checking" }));
+  autoUpdater.on("update-available", (info) => sendUpdate({ status: "downloading", version: info.version, percent: 0 }));
+  autoUpdater.on("update-not-available", () => sendUpdate({ status: "current" }));
+  autoUpdater.on("download-progress", (p) => sendUpdate({ status: "downloading", percent: Math.round(p.percent) }));
+  autoUpdater.on("update-downloaded", (info) => sendUpdate({ status: "ready", version: info.version }));
+  autoUpdater.on("error", (err) => sendUpdate({ status: "error", message: String(err && err.message ? err.message : err) }));
+
+  if (app.isPackaged) {
+    autoUpdater.checkForUpdates().catch(() => {});
+    setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 6 * 60 * 60 * 1000); // re-check every 6h
+  }
+}
+
+// Renderer-triggered update actions.
+ipcMain.handle("update:check", () => (app.isPackaged ? autoUpdater.checkForUpdates().catch(() => null) : null));
+ipcMain.handle("update:install", () => { autoUpdater.quitAndInstall(); });
+
+app.whenReady().then(() => {
+  engine.init(app.getPath("userData"));
+  engine.setEmitter((channel, payload) => { if (win && !win.isDestroyed()) win.webContents.send(channel, payload); });
+  createWindow();
+  setupUpdates();
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
+});

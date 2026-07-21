@@ -1,0 +1,68 @@
+/*
+ * Lodestone design tokens — the exact visual language of the SwiftUI Mac app,
+ * ported to CSS so the cross-platform (Windows) UI looks identical.
+ *
+ * Source of truth: Sources/Lodestone/Design/Theme.swift. Keep in sync.
+ * Deep near-black canvas · emerald→cyan accent · SF Rounded display type.
+ */
+
+:root {
+  /* --- Accent --- */
+  --accent:      #5EE6A0;   /* Theme.accent      */
+  --accent-alt:  #36C9E0;   /* Theme.accentAlt   */
+  --danger:      #FF6B6B;   /* Theme.danger      */
+  --warn:        #F2C14E;   /* Theme.warn        */
+
+  /* topLeading → bottomTrailing == a 135° diagonal */
+  --accent-gradient: linear-gradient(135deg, #5EE6A0, #36C9E0);
+  --danger-gradient: linear-gradient(135deg, #FF7A6B, #E0497A);
+
+  /* --- Canvas (window background) --- */
+  --bg-top:    #12161D;     /* Theme.bgTop    */
+  --bg-bottom: #06080B;     /* Theme.bgBottom */
+  --app-background: radial-gradient(120% 120% at 50% 0%, #12161D 0%, #06080B 100%);
+
+  /* --- Surfaces / strokes (white at low alpha, like the SwiftUI tokens) --- */
+  --stroke:        rgba(255, 255, 255, 0.09);   /* Theme.stroke        */
+  --stroke-strong: rgba(255, 255, 255, 0.16);   /* Theme.strokeStrong  */
+  --fill-soft:     rgba(255, 255, 255, 0.05);   /* card/chip fills      */
+  --fill-hover:    rgba(255, 255, 255, 0.03);
+
+  /* --- Text --- */
+  --text-primary:   rgba(255, 255, 255, 0.95);  /* Theme.textPrimary   */
+  --text-secondary: rgba(255, 255, 255, 0.58);  /* Theme.textSecondary */
+  --text-tertiary:  rgba(255, 255, 255, 0.34);  /* Theme.textTertiary  */
+
+  /* --- Typography ---
+   * SwiftUI uses SF Rounded for display + SF Mono. On Windows, SF isn't present,
+   * so fall back to the closest rounded/mono faces. Bundling "SF Pro Rounded"
+   * (or a libre rounded face like "Nunito"/"Quicksand") gets a pixel-match.
+   */
+  --font-display: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif;
+  --font-body:    system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:    ui-monospace, "SF Mono", "Cascadia Code", "Consolas", monospace;
+
+  /* --- Radii (from the SwiftUI RoundedRectangle corners used across the app) --- */
+  --radius-card:  16px;
+  --radius-panel: 14px;
+  --radius-pill:  999px;
+  --radius-chip:  9px;
+
+  /* --- "Glass card" — SwiftUI's .ultraThinMaterial ---
+   * Approximate with a translucent fill + heavy backdrop blur + hairline stroke.
+   */
+  --glass-fill: rgba(255, 255, 255, 0.05);
+  --glass-blur: blur(30px) saturate(1.3);
+}
+
+/* Reusable primitives the web UI can lean on so panels/cards/pills match 1:1. */
+.ld-app-bg      { background: var(--app-background); color: var(--text-primary); font-family: var(--font-body); }
+.ld-glass-card  { background: var(--glass-fill); -webkit-backdrop-filter: var(--glass-blur);
+                  backdrop-filter: var(--glass-blur); border: 1px solid var(--stroke);
+                  border-radius: var(--radius-card); }
+.ld-accent-btn  { background: var(--accent-gradient); color: rgba(0, 0, 0, 0.82);
+                  font-family: var(--font-display); font-weight: 700; border: none;
+                  border-radius: var(--radius-pill); }
+.ld-chip        { background: var(--fill-soft); border: 1px solid var(--stroke);
+                  border-radius: var(--radius-chip); }
+.ld-mono        { font-family: var(--font-mono); }

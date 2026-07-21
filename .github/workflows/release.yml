@@ -1,0 +1,30 @@
+name: release
+
+# Push a version tag (e.g. v0.2.1) and this builds the Windows installer on a real
+# Windows runner and publishes it to GitHub Releases with the update feed (latest.yml)
+# electron-updater reads. Installed apps then update themselves.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write   # let GITHUB_TOKEN create the Release + upload the installer
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build & publish Windows installer
+        run: npx electron-builder --win nsis --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

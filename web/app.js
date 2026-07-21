@@ -1,0 +1,292 @@
+// Lodestone UI — wired to the engine (window.API). Home + Instances + Discover are
+// functional; the rest port next.
+
+const ico = (id) => `<svg class="ico"><use href="#${id}"/></svg>`;
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const el = () => document.getElementById("content");
+
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 4200);
+}
+
+function loaderLabel(l) { return l === "vanilla" ? "Vanilla" : l[0].toUpperCase() + l.slice(1); }
+function subtitle(i) { return i.loader === "vanilla" ? i.mcVersion : `${loaderLabel(i.loader)} ${i.mcVersion}`; }
+const fmtCount = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : "" + n);
+const accentFor = (hex) => `linear-gradient(135deg, ${hex}, ${hex}aa)`;
+
+function greeting() { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; }
+
+// ---------- HOME ----------
+async function renderHome() {
+  el().innerHTML = `<div class="placeholder">${ico("i-home")}<h2>Loading…</h2></div>`;
+  const [info, instances] = await Promise.all([API.info(), API.instances()]);
+  const recent = instances[0];
+
+  el().innerHTML = `
+    <section class="hero">
+      <div>
+        <div class="hero-greeting">${greeting()}, KingEstel.</div>
+        <div class="hero-sub">${recent ? `Jump back into ${esc(recent.name)} — ${esc(subtitle(recent))}.` : "Create your first instance to start playing."}</div>
+      </div>
+      <div class="hero-spacer"></div>
+      ${recent
+        ? `<button class="play-btn" data-play="${recent.id}">${ico("i-play")} Play ${esc(recent.name)}</button>`
+        : `<button class="play-btn" data-goto="instances">${ico("i-plus")} New Instance</button>`}
+    </section>
+
+    <div class="engine-chip">${ico("i-server")} Engine: <b>${esc(info.platform)}</b> · ${esc(info.engine)} ${info.electron ? "· Electron " + esc(info.electron) : ""}
+      <span class="engine-path" title="${esc(info.dataDir)}">${esc(info.dataDir)}</span></div>
+
+    <section class="section">
+      <div class="section-head"><span class="section-title">RECENT INSTANCES</span>
+        <span class="section-action" data-goto="instances">All</span></div>
+      ${instances.length ? `<div class="scroll-row">${instances.slice(0, 8).map(instCard).join("")}</div>`
+        : `<div class="empty-line">No instances yet — head to <a data-goto="instances">Instances</a>.</div>`}
+    </section>`;
+  bindCommon();
+}
+
+// ---------- INSTANCES ----------
+let creating = false;
+async function renderInstances() {
+  el().innerHTML = `<div class="placeholder">${ico("i-stack")}<h2>Loading…</h2></div>`;
+  const instances = await API.instances();
+  el().innerHTML = `
+    <div class="page-head">
+      <h1 class="page-title">Instances</h1>
+      <button class="btn-soft" id="new-inst">${ico("i-plus")} New Instance</button>
+    </div>
+    <div id="new-panel"></div>
+    <div class="grid">
+      ${instances.map(instGridCard).join("") || `<div class="empty-line">No instances yet — create one.</div>`}
+    </div>`;
+  document.getElementById("new-inst").onclick = () => { creating = !creating; toggleNewPanel(); };
+  if (creating) toggleNewPanel();
+  bindCommon();
+  el().querySelectorAll("[data-del]").forEach((b) => b.onclick = async (e) => {
+    e.stopPropagation();
+    await API.deleteInstance(b.dataset.del); toast("Instance deleted."); renderInstances();
+  });
+}
+
+async function toggleNewPanel() {
+  const panel = document.getElementById("new-panel");
+  if (!creating) { panel.innerHTML = ""; return; }
+  panel.innerHTML = `<div class="glass new-panel"><div class="np-row"><span>Loading versions…</span></div></div>`;
+  const v = await API.versions();
+  const loaders = ["vanilla", "fabric", "quilt", "neoforge", "forge"];
+  panel.innerHTML = `
+    <div class="glass new-panel">
+      <div class="np-grid">
+        <label>NAME<input id="np-name" placeholder="My Instance" /></label>
+        <label>LOADER
+          <div class="seg" id="np-loader">${loaders.map((l, i) => `<button data-l="${l}" class="${i === 0 ? "on" : ""}">${loaderLabel(l)}</button>`).join("")}</div>
+        </label>
+        <label>MINECRAFT VERSION
+          <select id="np-version">${v.releases.slice(0, 60).map((r) => `<option>${r}</option>`).join("")}</select>
+        </label>
+      </div>
+      <div class="np-actions">
+        <button class="btn-ghost" id="np-cancel">Cancel</button>
+        <button class="btn-accent np-create">${ico("i-plus")} Create</button>
+      </div>
+    </div>`;
+  let loader = "vanilla";
+  panel.querySelectorAll("#np-loader button").forEach((b) => b.onclick = () => {
+    panel.querySelectorAll("#np-loader button").forEach((x) => x.classList.remove("on"));
+    b.classList.add("on"); loader = b.dataset.l;
+  });
+  panel.querySelector("#np-cancel").onclick = () => { creating = false; toggleNewPanel(); };
+  panel.querySelector(".np-create").onclick = async () => {
+    const name = panel.querySelector("#np-name").value;
+    const mcVersion = panel.querySelector("#np-version").value;
+    try {
+      const inst = await API.createInstance({ name, mcVersion, loader });
+      creating = false; toast(`Created ${inst.name}.`); renderInstances();
+    } catch (e) { toast("Couldn't create: " + e.message); }
+  };
+}
+
+const instGridCard = (i) => `
+  <div class="glass inst-card wide">
+    <div class="inst-art" style="background:${accentFor(i.accent)}33">${ico("i-stack")}
+      <button class="card-del" data-del="${i.id}" title="Delete">${ico("i-trash")}</button>
+    </div>
+    <div class="inst-body">
+      <div class="inst-name">${esc(i.name)}</div>
+      <div class="inst-sub">${esc(subtitle(i))}${i.mods ? ` · ${i.mods} mods` : ""}</div>
+      <button class="btn-accent" data-play="${i.id}" style="margin-top:10px">${ico("i-play")} Play</button>
+    </div>
+  </div>`;
+
+const instCard = (i) => `
+  <div class="glass inst-card" data-play="${i.id}">
+    <div class="inst-art" style="background:${accentFor(i.accent)}33">${ico("i-stack")}</div>
+    <div class="inst-body">
+      <div class="inst-name">${esc(i.name)}</div>
+      <div class="inst-sub">${esc(subtitle(i))}${i.mods ? ` · ${i.mods} mods` : ""}</div>
+    </div>
+  </div>`;
+
+// ---------- DISCOVER ----------
+let searchTimer = null;
+async function renderDiscover() {
+  el().innerHTML = `
+    <div class="page-head"><h1 class="page-title">Discover</h1></div>
+    <div class="searchbar glass">${ico("i-search")}<input id="q" placeholder="Search mods on Modrinth…" autofocus /></div>
+    <div id="results" class="results"></div>`;
+  const q = document.getElementById("q");
+  const run = async () => {
+    document.getElementById("results").innerHTML = `<div class="empty-line">Searching…</div>`;
+    try {
+      const hits = await API.search({ query: q.value, type: "mod" });
+      document.getElementById("results").innerHTML = hits.map(hitRow).join("") || `<div class="empty-line">No results.</div>`;
+    } catch (e) { document.getElementById("results").innerHTML = `<div class="empty-line">Search failed: ${esc(e.message)}</div>`; }
+  };
+  q.oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(run, 280); };
+  run();
+}
+
+const hitRow = (h) => `
+  <div class="glass hit-row">
+    ${h.icon ? `<img class="hit-icon" src="${esc(h.icon)}" />` : `<div class="hit-icon ph">${ico("i-grid")}</div>`}
+    <div class="hit-meta">
+      <div class="hit-title">${esc(h.title)} <span class="hit-author">by ${esc(h.author || "—")}</span></div>
+      <div class="hit-desc">${esc(h.description || "")}</div>
+    </div>
+    <div class="hit-dl">${ico("i-download")} ${fmtCount(h.downloads || 0)}</div>
+  </div>`;
+
+// ---------- nav ----------
+function placeholder(title) {
+  return `<div class="placeholder">${ico("i-grid")}<h2>${title}</h2><p>Ports next — Home, Instances &amp; Discover are live.</p></div>`;
+}
+
+function bindCommon() {
+  el().querySelectorAll("[data-play]").forEach((n) => n.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    try {
+      const r = await API.launch(n.dataset.play);
+      if (!r.started) toast(r.message || "");
+    } catch (err) { toast("Launch failed: " + err.message); }
+  }));
+  el().querySelectorAll("[data-goto]").forEach((n) => n.addEventListener("click", () => navigate(n.dataset.goto)));
+}
+
+function navigate(section) {
+  document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("is-active", b.dataset.section === section));
+  ({ home: renderHome, instances: renderInstances, discover: renderDiscover }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
+}
+
+// ---------- Account / sign-in ----------
+async function renderAccount() {
+  const acc = await API.account.get();
+  const node = document.getElementById("account");
+  if (acc) {
+    node.classList.remove("signin");
+    node.innerHTML = `
+      <img class="avatar" src="https://mc-heads.net/avatar/${esc(acc.uuid.replace(/-/g, ""))}/64" />
+      <div class="account-meta"><div class="account-name">${esc(acc.name)}</div><div class="account-sub">Signed in</div></div>
+      <button class="account-more" id="acc-out" title="Sign out">⋯</button>`;
+    document.getElementById("acc-out").onclick = async () => { await API.account.signOut(); toast("Signed out."); renderAccount(); };
+  } else {
+    node.classList.add("signin");
+    node.innerHTML = `<button class="signin-btn" id="acc-in">${ico("i-play")} Sign in with Microsoft</button>`;
+    document.getElementById("acc-in").onclick = signIn;
+  }
+}
+
+async function signIn() {
+  let device;
+  try { device = await API.account.start(); }
+  catch (e) { return toast("Couldn't start sign-in: " + e.message); }
+  showModal(`
+    <div class="signin-card">
+      <div class="signin-h">Sign in to Microsoft</div>
+      <p>Open this page and enter the code (we'll open it for you):</p>
+      <a class="signin-link" id="si-link">${esc(device.verificationUri)}</a>
+      <div class="signin-code">${esc(device.userCode)}</div>
+      <div class="signin-wait"><span class="spinner"></span> Waiting for you to finish in the browser…</div>
+      <div class="np-actions"><button class="btn-ghost" id="si-cancel">Cancel</button></div>
+    </div>`);
+  document.getElementById("si-link").onclick = () => API.openExternal(device.verificationUri);
+  API.openExternal(device.verificationUri);
+  let cancelled = false;
+  document.getElementById("si-cancel").onclick = () => { cancelled = true; hideModal(); };
+  try {
+    const acc = await API.account.complete(device);
+    if (cancelled) return;
+    hideModal(); toast(`Signed in as ${acc.name}.`); renderAccount();
+  } catch (e) {
+    if (!cancelled) { hideModal(); toast("Sign-in failed: " + e.message); }
+  }
+}
+
+function showModal(html) { const m = document.getElementById("modal"); m.innerHTML = `<div class="modal-card glass">${html}</div>`; m.hidden = false; }
+function hideModal() { const m = document.getElementById("modal"); m.hidden = true; m.innerHTML = ""; }
+
+// ---------- Launch overlay ----------
+function setupLaunchOverlay() {
+  const ov = document.getElementById("overlay");
+  const logs = [];
+  const phaseLabel = { resolving: "Resolving", assets: "Downloading assets", java: "Downloading Java", loader: "Installing loader", server: "Server" };
+  const show = (html) => { ov.innerHTML = html; ov.hidden = false; };
+
+  API.on("launch:state", (s) => {
+    if (s.status === "installing" || s.status === "running") {
+      logs.length = 0;
+      show(`<div class="launch-card glass">
+        <div class="launch-title">${ico("i-play")} ${s.status === "running" ? "Starting Minecraft…" : "Preparing…"}</div>
+        <div class="bar"><div class="bar-fill" id="lp"></div></div>
+        <div class="launch-phase" id="lphase">Getting ready…</div>
+        <pre class="launch-log" id="llog"></pre>
+        <button class="btn-soft" id="lstop">Stop</button></div>`);
+      document.getElementById("lstop").onclick = () => API.stop(s.id);
+    } else if (s.status === "idle") {
+      ov.hidden = true;
+      if (s.code != null && s.code !== 0) toast("Minecraft exited (code " + s.code + ").");
+    }
+  });
+  API.on("launch:progress", (p) => {
+    const bar = document.getElementById("lp"); const ph = document.getElementById("lphase");
+    if (bar && p.total) bar.style.width = Math.round((p.done / p.total) * 100) + "%";
+    if (ph) ph.textContent = `${phaseLabel[p.phase] || p.phase} — ${p.done}/${p.total}`;
+  });
+  API.on("launch:log", (l) => {
+    const log = document.getElementById("llog");
+    logs.push(l.line); if (logs.length > 9) logs.shift();
+    if (log) { log.textContent = logs.join("\n"); }
+    const ph = document.getElementById("lphase");
+    if (ph && /Setting user:|LWJGL|Sound engine|OpenAL/.test(l.line)) ph.textContent = "Almost there…";
+  });
+}
+
+// ---------- Auto-update banner ----------
+function setupUpdates() {
+  const bar = document.getElementById("update-banner");
+  if (!bar) return;
+  API.on("update:state", (s) => {
+    if (s.status === "downloading") {
+      bar.hidden = false;
+      bar.innerHTML = `<span class="spinner"></span><span class="ub-text">Downloading update<span class="ub-sub">${s.percent ? s.percent + "%" : ""}</span></span>`;
+    } else if (s.status === "ready") {
+      bar.hidden = false;
+      bar.innerHTML = `<span class="ub-text">Update ready<span class="ub-sub">v${esc(s.version || "")}</span></span>
+        <button class="ub-btn" id="ub-restart">Restart</button>
+        <button class="ub-x" id="ub-dismiss" title="Later">×</button>`;
+      document.getElementById("ub-restart").onclick = () => API.update.install();
+      document.getElementById("ub-dismiss").onclick = () => { bar.hidden = true; };
+    } else {
+      // checking / current / error — stay quiet; no update to act on.
+      bar.hidden = true;
+    }
+  });
+}
+
+document.querySelectorAll(".nav-item").forEach((btn) => btn.addEventListener("click", () => navigate(btn.dataset.section)));
+renderAccount();
+setupLaunchOverlay();
+setupUpdates();
+navigate("home");

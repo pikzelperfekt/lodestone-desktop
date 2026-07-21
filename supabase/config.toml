@@ -1,0 +1,38 @@
+# Supabase project config. Source of truth for `supabase start` (local Docker
+# dev) and for the linked cloud project (`supabase link` + `supabase db push`).
+# See SETUP.md for the two-minute provisioning step.
+project_id = "lodestone"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[realtime]
+enabled = true
+
+[auth]
+enabled = true
+# The desktop app deep-links back in via this scheme for OAuth (Discord, etc.).
+site_url = "lodestone://auth-callback"
+additional_redirect_urls = ["lodestone://auth-callback", "http://localhost:54321"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+# Off for launch so email/password signup works instantly without SMTP. Turn on
+# once a real SMTP sender is configured (see SETUP.md, "Hardening").
+enable_confirmations = false

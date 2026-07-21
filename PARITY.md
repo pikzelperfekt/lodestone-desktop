@@ -36,8 +36,18 @@ Legend: [x] done · [~] partial · [ ] not started
 - [~] Share a pack (share code + .mrpack) + one-click Sync now done; live cross-machine auto-sync needs accounts
 - [ ] Squads
 
+## Accounts & backend (Supabase)
+- [x] **Accounts foundation** — Supabase project (Postgres + Auth + Realtime + RLS),
+      full schema migration (`supabase/migrations`), a main-process client
+      (`electron/engine/cloud.js`) with disk-persisted sessions + realtime shim,
+      `cloud:*` IPC, and an **Account** tab (sign up / in / out, profile edit,
+      link Minecraft). Runs fully offline until a project is connected (`SETUP.md`).
+- [ ] Connect a live project (2-min manual step — see `SETUP.md`) + smoke test end to end
+- [ ] Cloud sync of instances (vertical A — `synced_instances` + share.js reconcile)
+
 ## Social & extras
-- [ ] Friends / presence / chat (needs the backend)
+- [~] Friends / presence / chat — **backend ready** (`friendships`, `messages`,
+      `squads`, Realtime); verticals B (friends+presence) & C (chat+squads) next
 - [ ] Plugins (JS sandbox)
 - [ ] Skins
 - [ ] Themes

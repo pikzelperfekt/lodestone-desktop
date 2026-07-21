@@ -81,6 +81,25 @@
       },
     },
 
+    // Lodestone cloud account (Supabase). In browser preview there's no engine,
+    // so it reports "not configured" and the UI shows the setup state — never a crash.
+    cloud: {
+      async status() { return bridge ? unwrap(await bridge.cloud.status()) : { configured: false, signedIn: false, profile: null }; },
+      async signUp(opts) {
+        if (bridge) return unwrap(await bridge.cloud.signUp(opts));
+        throw new Error("Cloud accounts run in the desktop app.");
+      },
+      async signIn(opts) {
+        if (bridge) return unwrap(await bridge.cloud.signIn(opts));
+        throw new Error("Cloud accounts run in the desktop app.");
+      },
+      async signOut() { return bridge ? unwrap(await bridge.cloud.signOut()) : true; },
+      async profile() { return bridge ? unwrap(await bridge.cloud.profile()) : null; },
+      async updateProfile(patch) { return bridge ? unwrap(await bridge.cloud.updateProfile(patch)) : null; },
+      async linkMinecraft() { return bridge ? unwrap(await bridge.cloud.linkMinecraft()) : null; },
+      async searchProfiles(query) { return bridge ? unwrap(await bridge.cloud.searchProfiles(query)) : []; },
+    },
+
     on(channel, fn) { return bridge ? bridge.on(channel, fn) : () => {}; },
     openExternal(url) { if (bridge) bridge.openExternal(url); else window.open(url, "_blank"); },
     openDataDir() { if (bridge) bridge.openDataDir(); },

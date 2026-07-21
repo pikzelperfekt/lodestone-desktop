@@ -11,8 +11,10 @@
     "release": "electron-builder --win nsis --publish always"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.8",
     "adm-zip": "^0.5.17",
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.3.9",
+    "ws": "^8.21.1"
   },
   "devDependencies": {
     "electron": "^33.2.0",
@@ -31,7 +33,9 @@
       "package.json"
     ],
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "build/icon.ico",
       "artifactName": "${productName}-Setup.${ext}"
     },

@@ -12,6 +12,7 @@ const share = require("./share");
 const curseforge = require("./curseforge");
 const worlds = require("./worlds");
 const auth = require("./auth");
+const cloud = require("./cloud");
 const settings = require("./settings");
 const serverEngine = require("./server");
 const maintenance = require("./maintenance");
@@ -25,13 +26,24 @@ function init(userDataPath) {
   DATA_DIR = userDataPath || path.join(os.homedir(), ".lodestone");
   fs.mkdirSync(path.join(DATA_DIR, "instances"), { recursive: true });
   auth.init(DATA_DIR);
+  cloud.init(DATA_DIR);
   settings.init(DATA_DIR);
 }
 
 // ---- App settings (memory / Java override / launcher behavior) ----
 function getSettings() { return settings.getSettings(); }
 function setSettings(patch) { return settings.setSettings(patch); }
-function setEmitter(fn) { emit = fn || (() => {}); }
+function setEmitter(fn) { emit = fn || (() => {}); cloud.setEmitter(emit); }
+
+// ---- Cloud account (Lodestone social/sync identity — distinct from Minecraft) ----
+function cloudStatus() { return cloud.status(); }
+function cloudSignUp(a) { return cloud.signUp(a); }
+function cloudSignIn(a) { return cloud.signIn(a); }
+function cloudSignOut() { return cloud.signOut(); }
+function cloudProfile() { return cloud.getProfile(); }
+function cloudUpdateProfile(a) { return cloud.updateProfile(a); }
+function cloudLinkMinecraft() { return cloud.linkMinecraft(auth.account()); }
+function cloudSearchProfiles(a) { return cloud.searchProfiles(a && a.query); }
 function dataDir() { return DATA_DIR; }
 
 function info() {
@@ -387,6 +399,8 @@ module.exports = {
   exportInstanceCode, exportInstanceMrpack, syncInstanceFromCode, createInstanceFromCode,
   worldList, worldBackups, worldBackup, worldRestore, worldRename, worldRemove,
   account, signOut, signInStart, signInComplete,
+  cloudStatus, cloudSignUp, cloudSignIn, cloudSignOut,
+  cloudProfile, cloudUpdateProfile, cloudLinkMinecraft, cloudSearchProfiles,
   launch, stop, isRunning,
   repairInstance, updateAllContent,
   listServers, createServer, startServer, stopServer, serverCommand,

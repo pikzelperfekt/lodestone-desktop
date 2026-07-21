@@ -1,0 +1,5 @@
+{
+  "_comment": "Public Supabase connection for the Lodestone cloud backend. The anon key is public by design — RLS in supabase/migrations is the real security boundary, so this is safe to ship in the installer and commit. Fill both fields after creating your project (see SETUP.md). Until then the app runs fully offline and cloud features show a 'not configured' state instead of erroring. A cloud.config.json placed in the app data dir overrides this bundled copy.",
+  "url": "",
+  "anonKey": ""
+}

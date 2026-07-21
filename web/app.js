@@ -1039,7 +1039,7 @@ function bindCommon() {
 function navigate(section) {
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("is-active", b.dataset.section === section));
   if (section === "discover") discoverTarget = null;   // sidebar Discover = browse for any instance
-  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, settings: renderSettings }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
+  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, cloud: renderCloud, settings: renderSettings }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
 }
 
 // ---------- Command palette (Ctrl/Cmd-K) ----------
@@ -1229,6 +1229,162 @@ async function signIn() {
 function showModal(html) { const m = document.getElementById("modal"); m.innerHTML = `<div class="modal-card glass">${html}</div>`; m.hidden = false; }
 function hideModal() { const m = document.getElementById("modal"); m.hidden = true; m.innerHTML = ""; }
 
+// ---------- Cloud account (Lodestone social/sync identity) ----------
+// Distinct from the Minecraft sidebar widget above: this is the account that
+// powers friends, chat, squads and cross-machine sync. Three states: backend
+// not configured yet, signed out, and signed in.
+let cloudAuthState = null;   // last { signedIn, profile } pushed from the engine
+
+async function renderCloud() {
+  let status;
+  try { status = await API.cloud.status(); }
+  catch (e) { el().innerHTML = `<div class="placeholder">${ico("i-user")}<h2>Account</h2><p>${esc(e.message)}</p></div>`; return; }
+  cloudAuthState = { signedIn: status.signedIn, profile: status.profile };
+
+  if (!status.configured) {
+    el().innerHTML = `
+      <div class="cloud-wrap">
+        <div class="cloud-head"><h1>Account</h1><p class="cloud-sub">Friends, chat, squads and cross-machine sync run on a Lodestone account.</p></div>
+        <div class="cloud-card glass cloud-setup">
+          ${ico("i-globe")}
+          <h2>Cloud backend not set up yet</h2>
+          <p>The launcher works fully offline without this. To turn on accounts and the social features, connect a Supabase project once — it takes about two minutes.</p>
+          <p class="cloud-hint">See <b>SETUP.md</b> in the repo for the exact steps, then restart Lodestone.</p>
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (!status.signedIn) { renderCloudSignedOut(); return; }
+  renderCloudSignedIn(status);
+}
+
+function renderCloudSignedOut() {
+  el().innerHTML = `
+    <div class="cloud-wrap">
+      <div class="cloud-head"><h1>Account</h1><p class="cloud-sub">Sign in to sync your instances and connect with friends.</p></div>
+      <div class="cloud-card glass">
+        <div class="cloud-tabs">
+          <button class="cloud-tab on" data-ctab="in">Sign in</button>
+          <button class="cloud-tab" data-ctab="up">Create account</button>
+        </div>
+        <form class="cloud-form" id="cloud-form" autocomplete="off">
+          <label class="cloud-field cloud-up" hidden><span>Username</span><input id="cf-username" placeholder="how friends find you" spellcheck="false" /></label>
+          <label class="cloud-field"><span>Email</span><input id="cf-email" type="email" placeholder="you@example.com" spellcheck="false" /></label>
+          <label class="cloud-field"><span>Password</span><input id="cf-password" type="password" placeholder="at least 8 characters" /></label>
+          <div class="cloud-err" id="cf-err" hidden></div>
+          <button class="btn-soft cloud-submit" id="cf-submit" type="submit">Sign in</button>
+        </form>
+      </div>
+    </div>`;
+
+  let mode = "in";
+  const err = document.getElementById("cf-err");
+  const setMode = (m) => {
+    mode = m;
+    el().querySelectorAll(".cloud-tab").forEach((t) => t.classList.toggle("on", t.dataset.ctab === m));
+    el().querySelectorAll(".cloud-up").forEach((n) => (n.hidden = m !== "up"));
+    document.getElementById("cf-submit").textContent = m === "up" ? "Create account" : "Sign in";
+    err.hidden = true;
+  };
+  el().querySelectorAll(".cloud-tab").forEach((t) => (t.onclick = () => setMode(t.dataset.ctab)));
+
+  document.getElementById("cloud-form").onsubmit = async (e) => {
+    e.preventDefault();
+    err.hidden = true;
+    const email = document.getElementById("cf-email").value.trim();
+    const password = document.getElementById("cf-password").value;
+    const username = document.getElementById("cf-username").value.trim();
+    const btn = document.getElementById("cf-submit");
+    btn.disabled = true; btn.textContent = mode === "up" ? "Creating…" : "Signing in…";
+    try {
+      if (mode === "up") {
+        const r = await API.cloud.signUp({ email, password, username });
+        if (r.needsConfirmation) { toast("Check your email to confirm, then sign in."); setMode("in"); }
+        else { toast("Account created."); renderCloud(); }
+      } else {
+        await API.cloud.signIn({ email, password });
+        toast("Signed in."); renderCloud();
+      }
+    } catch (ex) {
+      err.textContent = ex.message; err.hidden = false;
+      btn.disabled = false; btn.textContent = mode === "up" ? "Create account" : "Sign in";
+    }
+  };
+}
+
+function renderCloudSignedIn(status) {
+  const p = status.profile || {};
+  const mcLinked = !!p.minecraft_uuid;
+  const avatar = mcLinked
+    ? `<img class="cloud-avatar" src="https://mc-heads.net/avatar/${esc(p.minecraft_uuid.replace(/-/g, ""))}/96" />`
+    : `<div class="cloud-avatar cloud-avatar-empty">${ico("i-user")}</div>`;
+  el().innerHTML = `
+    <div class="cloud-wrap">
+      <div class="cloud-head"><h1>Account</h1><p class="cloud-sub">Your Lodestone identity for friends &amp; sync.</p></div>
+      <div class="cloud-card glass cloud-profile">
+        ${avatar}
+        <div class="cloud-ident">
+          <div class="cloud-name">${esc(p.display_name || p.username || "Player")}</div>
+          <div class="cloud-handle">@${esc(p.username || "player")}</div>
+          <div class="cloud-email">${esc(status.email || "")}</div>
+        </div>
+        <button class="btn-ghost" id="cloud-out">Sign out</button>
+      </div>
+
+      <div class="cloud-card glass">
+        <h2 class="cloud-h2">Profile</h2>
+        <label class="cloud-field"><span>Display name</span><input id="cp-display" value="${esc(p.display_name || "")}" placeholder="shown to friends" /></label>
+        <label class="cloud-field"><span>Username</span><input id="cp-username" value="${esc(p.username || "")}" spellcheck="false" /></label>
+        <div class="cloud-err" id="cp-err" hidden></div>
+        <button class="btn-soft" id="cp-save">Save profile</button>
+      </div>
+
+      <div class="cloud-card glass cloud-mc">
+        <div class="cloud-mc-row">
+          <div>
+            <h2 class="cloud-h2">Minecraft</h2>
+            <p class="cloud-sub-inline">${mcLinked
+              ? `Linked to <b>${esc(p.minecraft_name || "your account")}</b> — friends see this name and skin.`
+              : `Link your Minecraft account so friends recognize you by your in-game name and skin.`}</p>
+          </div>
+          <button class="btn-soft" id="cloud-linkmc">${ico("i-link")} ${mcLinked ? "Relink" : "Link Minecraft"}</button>
+        </div>
+      </div>
+
+      <div class="cloud-card glass cloud-soon">
+        <p><b>Friends, chat &amp; sync</b> light up here as they ship — this account is what they run on.</p>
+      </div>
+    </div>`;
+
+  document.getElementById("cloud-out").onclick = async () => {
+    await API.cloud.signOut(); toast("Signed out."); renderCloud();
+  };
+  document.getElementById("cp-save").onclick = async () => {
+    const err = document.getElementById("cp-err"); err.hidden = true;
+    const display_name = document.getElementById("cp-display").value.trim();
+    const username = document.getElementById("cp-username").value.trim();
+    const btn = document.getElementById("cp-save"); btn.disabled = true; btn.textContent = "Saving…";
+    try { await API.cloud.updateProfile({ display_name, username }); toast("Profile saved."); renderCloud(); }
+    catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; btn.textContent = "Save profile"; }
+  };
+  document.getElementById("cloud-linkmc").onclick = async () => {
+    const mc = await API.account.get();
+    if (!mc) return toast("Sign in to Minecraft first (bottom-left), then link it.");
+    try { await API.cloud.linkMinecraft(); toast(`Linked ${mc.name}.`); renderCloud(); }
+    catch (ex) { toast("Couldn't link: " + ex.message); }
+  };
+}
+
+// Keep the Account view + nav badge honest as the session changes / refreshes.
+function setupCloud() {
+  API.on("cloud:auth", (s) => {
+    cloudAuthState = s;
+    const active = document.querySelector('.nav-item[data-section="cloud"].is-active');
+    if (active) renderCloud();
+  });
+}
+
 // ---------- Launch overlay ----------
 function setupLaunchOverlay() {
   const ov = document.getElementById("overlay");
@@ -1291,5 +1447,6 @@ document.querySelectorAll(".nav-item").forEach((btn) => btn.addEventListener("cl
 renderAccount();
 setupLaunchOverlay();
 setupUpdates();
+setupCloud();
 setupCommandPalette();
 navigate("home");

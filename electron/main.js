@@ -105,6 +105,15 @@ handle("account:get", () => engine.account());
 handle("account:signOut", () => engine.signOut());
 handle("auth:start", () => engine.signInStart());
 handle("auth:complete", (a) => engine.signInComplete(a.device));
+// Lodestone cloud account (social/sync identity — separate from the MC account).
+handle("cloud:status", () => engine.cloudStatus());
+handle("cloud:signUp", (a) => engine.cloudSignUp(a));
+handle("cloud:signIn", (a) => engine.cloudSignIn(a));
+handle("cloud:signOut", () => engine.cloudSignOut());
+handle("cloud:profile", () => engine.cloudProfile());
+handle("cloud:updateProfile", (a) => engine.cloudUpdateProfile(a));
+handle("cloud:linkMinecraft", () => engine.cloudLinkMinecraft());
+handle("cloud:searchProfiles", (a) => engine.cloudSearchProfiles(a));
 ipcMain.handle("open:dataDir", () => shell.openPath(engine.dataDir()));
 ipcMain.handle("open:external", (_e, a) => shell.openExternal(a.url));
 

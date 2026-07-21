@@ -60,6 +60,17 @@ contextBridge.exposeInMainWorld("lodestone", {
     start: () => call("auth:start"),
     complete: (device) => call("auth:complete", { device }),
   },
+  // Lodestone cloud account — the social/sync identity (Supabase-backed).
+  cloud: {
+    status: () => call("cloud:status"),
+    signUp: (opts) => call("cloud:signUp", opts),
+    signIn: (opts) => call("cloud:signIn", opts),
+    signOut: () => call("cloud:signOut"),
+    profile: () => call("cloud:profile"),
+    updateProfile: (patch) => call("cloud:updateProfile", patch),
+    linkMinecraft: () => call("cloud:linkMinecraft"),
+    searchProfiles: (query) => call("cloud:searchProfiles", { query }),
+  },
   openDataDir: () => call("open:dataDir"),
   openExternal: (url) => call("open:external", { url }),
   // App settings (memory / Java override / launcher behavior).
@@ -74,7 +85,8 @@ contextBridge.exposeInMainWorld("lodestone", {
   },
   // Launch + update lifecycle events.
   on: (channel, fn) => {
-    const allowed = ["launch:progress", "launch:log", "launch:state", "update:state", "content:log", "server:log", "server:state"];
+    const allowed = ["launch:progress", "launch:log", "launch:state", "update:state", "content:log", "server:log", "server:state",
+      "cloud:auth", "cloud:friends", "cloud:presence", "cloud:message", "cloud:sync"];
     if (!allowed.includes(channel)) return () => {};
     const handler = (_e, payload) => fn(payload);
     ipcRenderer.on(channel, handler);

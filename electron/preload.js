@@ -31,6 +31,11 @@ contextBridge.exposeInMainWorld("lodestone", {
   },
   openDataDir: () => call("open:dataDir"),
   openExternal: (url) => call("open:external", { url }),
+  // App settings (memory / Java override / launcher behavior).
+  settings: {
+    get: () => call("settings:get"),
+    set: (patch) => call("settings:set", patch),
+  },
   // Auto-update: subscribe to state, ask for a check, or install a downloaded update.
   update: {
     check: () => call("update:check"),

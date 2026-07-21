@@ -13,6 +13,7 @@
       { id: "s2", name: "Fabric Perf", mcVersion: "1.20.1", loader: "fabric", accent: "#B57BE6", mods: 8, lastPlayed: Date.now() - 5e6 },
     ],
     versions: { releases: ["1.20.4", "1.20.1", "1.19.2", "1.18.2", "1.16.5"], latest: "1.20.4" },
+    settings: { defaultRamMB: null, javaPath: "", keepLauncherOpen: true },
   };
 
   window.API = {
@@ -61,6 +62,14 @@
     update: {
       check() { if (bridge) bridge.update.check(); },
       install() { if (bridge) bridge.update.install(); },
+    },
+
+    settings: {
+      async get() { return bridge ? unwrap(await bridge.settings.get()) : { ...sample.settings }; },
+      async set(patch) {
+        if (bridge) return unwrap(await bridge.settings.set(patch));
+        Object.assign(sample.settings, patch); return { ...sample.settings };
+      },
     },
 
     content: {

@@ -61,6 +61,8 @@ handle("import:mrpack", async (a) => {
 });
 handle("launch", (a) => engine.launch(a.id));
 handle("launch:stop", (a) => engine.stop(a.id));
+handle("settings:get", () => engine.getSettings());
+handle("settings:set", (a) => engine.setSettings(a));
 handle("account:get", () => engine.account());
 handle("account:signOut", () => engine.signOut());
 handle("auth:start", () => engine.signInStart());

@@ -9,6 +9,7 @@ const loaders = require("./loaders");
 const content = require("./content");
 const importer = require("./import");
 const auth = require("./auth");
+const settings = require("./settings");
 const { launch: doLaunch, offlineSession } = require("./launch");
 
 let DATA_DIR = null;
@@ -19,7 +20,12 @@ function init(userDataPath) {
   DATA_DIR = userDataPath || path.join(os.homedir(), ".lodestone");
   fs.mkdirSync(path.join(DATA_DIR, "instances"), { recursive: true });
   auth.init(DATA_DIR);
+  settings.init(DATA_DIR);
 }
+
+// ---- App settings (memory / Java override / launcher behavior) ----
+function getSettings() { return settings.getSettings(); }
+function setSettings(patch) { return settings.setSettings(patch); }
 function setEmitter(fn) { emit = fn || (() => {}); }
 function dataDir() { return DATA_DIR; }
 
@@ -43,10 +49,13 @@ function createInstance({ name, mcVersion, loader }) {
   const list = readInstances();
   const id = Math.random().toString(16).slice(2, 14);
   const ldr = loader || "vanilla";
+  const prefs = settings.getSettings();
   const inst = {
     id, name: (name && name.trim()) || (ldr === "vanilla" ? "Vanilla" : ldr[0].toUpperCase() + ldr.slice(1)),
     mcVersion, loader: ldr, accent: ACCENTS[ldr] || ACCENTS.vanilla,
-    ramMB: ldr === "vanilla" ? null : Math.min(12288, Math.max(4096, Math.round(os.totalmem() / 1048576) - 2048)),
+    ramMB: prefs.defaultRamMB != null
+      ? prefs.defaultRamMB
+      : (ldr === "vanilla" ? null : Math.min(12288, Math.max(4096, Math.round(os.totalmem() / 1048576) - 2048))),
     mods: 0, content: [], created: Date.now(), lastPlayed: null,
   };
   fs.mkdirSync(path.join(DATA_DIR, "instances", id), { recursive: true });
@@ -174,6 +183,14 @@ async function launch(id) {
       emit("launch:log", { line: `${loader[0].toUpperCase() + loader.slice(1)} ${overlay.loaderVersion} ready.` });
     }
 
+    // A user-supplied Java override wins when it points at a real binary; otherwise
+    // stick with the exact Mojang runtime install.js just downloaded.
+    const prefs = settings.getSettings();
+    if (prefs.javaPath && fs.existsSync(prefs.javaPath)) {
+      built.javaBinary = prefs.javaPath;
+      emit("launch:log", { line: `Using your Java: ${prefs.javaPath}` });
+    }
+
     const p = install.paths(DATA_DIR);
     const gameDir = p.instanceDir(id); fs.mkdirSync(gameDir, { recursive: true });
 
@@ -200,6 +217,7 @@ function isRunning(id) { return !!running[id]; }
 
 module.exports = {
   init, setEmitter, dataDir, info,
+  getSettings, setSettings,
   listInstances, createInstance, deleteInstance,
   listVersions, modrinthSearch,
   installContent, listContent, removeContent,

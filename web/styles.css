@@ -268,3 +268,41 @@ svg.ico { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-widt
   background: var(--accent-gradient); padding:7px 14px; border-radius:999px; }
 .update-banner .ub-x { border:none; background:transparent; color:var(--text-secondary); cursor:pointer;
   font-size:16px; line-height:1; padding:2px 4px; }
+
+/* ---- Discover: add-to-instance ---- */
+.hit-side { display:flex; align-items:center; gap:14px; margin-left:auto; }
+.hit-add { display:inline-flex; align-items:center; gap:6px; border:none; cursor:pointer; white-space:nowrap;
+  font-weight:700; font-size:12.5px; color:#06080B; background: var(--accent-gradient);
+  padding:8px 14px; border-radius:999px; }
+.hit-add:disabled { opacity:.7; cursor:default; filter:saturate(.6); }
+.target-chip { display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:12px; margin-bottom:12px;
+  font-size:13px; border:1px solid var(--stroke-strong); }
+.target-chip .target-sub { color:var(--text-secondary); }
+.target-chip .target-x { margin-left:auto; border:1px solid var(--stroke-strong); background:transparent;
+  color:var(--text-secondary); cursor:pointer; font-size:12px; padding:5px 10px; border-radius:999px; }
+
+/* ---- Instance picker popover ---- */
+.picker { position:fixed; z-index:60; min-width:240px; max-height:60vh; overflow:auto; padding:6px;
+  border-radius:12px; border:1px solid var(--stroke-strong); box-shadow:0 16px 50px rgba(0,0,0,.55); }
+.picker-h { font-size:11px; letter-spacing:.06em; color:var(--text-secondary); text-transform:uppercase;
+  padding:8px 10px 6px; }
+.picker-row { display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; text-align:left;
+  border:none; background:transparent; color:var(--text-primary); cursor:pointer; padding:9px 10px; border-radius:8px;
+  font-size:13px; font-weight:600; }
+.picker-row:hover { background: var(--glass-fill); }
+.picker-row .picker-sub { font-size:11.5px; font-weight:400; color:var(--text-secondary); }
+
+/* ---- Instance detail + mods list ---- */
+.detail-hero { display:flex; gap:18px; align-items:center; padding:18px; border-radius:16px; }
+.inst-art.lg { width:84px; height:84px; flex:none; border-radius:14px; display:flex; align-items:center;
+  justify-content:center; }
+.inst-art.lg .ico { width:32px; height:32px; }
+.detail-meta { display:flex; flex-direction:column; gap:6px; }
+.detail-name { font-family: var(--font-display); font-size:24px; font-weight:800; }
+.detail-sub { color:var(--text-secondary); font-size:13px; }
+.detail-actions { display:flex; gap:10px; margin-top:6px; }
+.mods-list { display:flex; flex-direction:column; gap:10px; margin-top:12px; }
+.mod-row { display:flex; align-items:center; gap:14px; padding:12px 14px; border-radius:12px; }
+.mod-row .mod-x { margin-left:auto; border:none; background:transparent; cursor:pointer; color:var(--text-secondary);
+  padding:6px; border-radius:8px; }
+.mod-row .mod-x:hover { color:#ff8080; background: var(--glass-fill); }

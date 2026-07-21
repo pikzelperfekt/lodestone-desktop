@@ -69,7 +69,55 @@ async function renderInstances() {
     e.stopPropagation();
     await API.deleteInstance(b.dataset.del); toast("Instance deleted."); renderInstances();
   });
+  // Click a card (but not its Play/Delete buttons) to open its detail + mods.
+  el().querySelectorAll("[data-open]").forEach((n) => n.addEventListener("click", (e) => {
+    if (e.target.closest("[data-play],[data-del]")) return;
+    renderInstanceDetail(n.dataset.open);
+  }));
 }
+
+// ---------- INSTANCE DETAIL (mods management) ----------
+async function renderInstanceDetail(id) {
+  el().innerHTML = `<div class="placeholder">${ico("i-stack")}<h2>Loading…</h2></div>`;
+  const [instances, mods] = await Promise.all([API.instances(), API.content.list(id)]);
+  const inst = instances.find((i) => i.id === id);
+  if (!inst) { navigate("instances"); return; }
+  const modCount = mods.filter((m) => m.kind === "mod").length;
+  el().innerHTML = `
+    <div class="page-head"><button class="btn-ghost" data-goto="instances">${ico("i-arrow-right")} Instances</button></div>
+    <div class="detail-hero glass">
+      <div class="inst-art lg" style="background:${accentFor(inst.accent)}33">${ico("i-stack")}</div>
+      <div class="detail-meta">
+        <div class="detail-name">${esc(inst.name)}</div>
+        <div class="detail-sub">${esc(subtitle(inst))} · ${modCount} mod${modCount === 1 ? "" : "s"}</div>
+        <div class="detail-actions">
+          <button class="btn-accent" data-play="${inst.id}">${ico("i-play")} Play</button>
+          <button class="btn-soft" id="detail-add">${ico("i-plus")} Browse mods</button>
+        </div>
+      </div>
+    </div>
+    <div class="section-head" style="margin-top:22px"><span class="section-title">CONTENT</span></div>
+    <div class="mods-list">
+      ${mods.length ? mods.map(modRow).join("") : `<div class="empty-line">No mods yet. Hit “Browse mods” to add some from Modrinth.</div>`}
+    </div>`;
+  bindCommon();
+  document.getElementById("detail-add").onclick = () => openDiscoverFor(inst.id);
+  el().querySelectorAll("[data-remove]").forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    await API.content.remove({ instanceId: id, projectId: b.dataset.remove });
+    toast("Removed."); renderInstanceDetail(id);
+  });
+}
+
+const modRow = (m) => `
+  <div class="glass mod-row">
+    ${m.iconURL ? `<img class="hit-icon" src="${esc(m.iconURL)}" />` : `<div class="hit-icon ph">${ico("i-grid")}</div>`}
+    <div class="hit-meta">
+      <div class="hit-title">${esc(m.title)} <span class="hit-author">${esc(m.versionNumber || "")}</span></div>
+      <div class="hit-desc">${m.kind !== "mod" ? esc(m.kind) + " · " : ""}${m.requiredBy ? "dependency of " + esc(m.requiredBy) : esc(m.fileName)}</div>
+    </div>
+    <button class="btn-ghost mod-x" data-remove="${esc(m.projectId)}" title="Remove">${ico("i-trash")}</button>
+  </div>`;
 
 async function toggleNewPanel() {
   const panel = document.getElementById("new-panel");
@@ -110,13 +158,13 @@ async function toggleNewPanel() {
 }
 
 const instGridCard = (i) => `
-  <div class="glass inst-card wide">
+  <div class="glass inst-card wide" data-open="${i.id}">
     <div class="inst-art" style="background:${accentFor(i.accent)}33">${ico("i-stack")}
       <button class="card-del" data-del="${i.id}" title="Delete">${ico("i-trash")}</button>
     </div>
     <div class="inst-body">
       <div class="inst-name">${esc(i.name)}</div>
-      <div class="inst-sub">${esc(subtitle(i))}${i.mods ? ` · ${i.mods} mods` : ""}</div>
+      <div class="inst-sub">${esc(subtitle(i))}${i.mods ? ` · ${i.mods} mod${i.mods === 1 ? "" : "s"}` : ""}</div>
       <button class="btn-accent" data-play="${i.id}" style="margin-top:10px">${ico("i-play")} Play</button>
     </div>
   </div>`;
@@ -132,17 +180,28 @@ const instCard = (i) => `
 
 // ---------- DISCOVER ----------
 let searchTimer = null;
+let discoverTarget = null;   // instance id to add mods to, when Discover is opened from a detail page
 async function renderDiscover() {
+  const instances = await API.instances();
+  const target = discoverTarget ? instances.find((i) => i.id === discoverTarget) : null;
+  // Search scoped to the target instance's loader + MC when we have one, so hits are installable.
+  const scope = target ? { loader: target.loader, mc: target.mcVersion } : {};
   el().innerHTML = `
     <div class="page-head"><h1 class="page-title">Discover</h1></div>
+    ${target ? `<div class="target-chip glass">${ico("i-plus")} Adding to <b>${esc(target.name)}</b>
+        <span class="target-sub">${esc(subtitle(target))}</span>
+        <button class="target-x" id="clear-target">Any instance</button></div>` : ""}
     <div class="searchbar glass">${ico("i-search")}<input id="q" placeholder="Search mods on Modrinth…" autofocus /></div>
     <div id="results" class="results"></div>`;
+  if (target) document.getElementById("clear-target").onclick = () => { discoverTarget = null; renderDiscover(); };
   const q = document.getElementById("q");
   const run = async () => {
     document.getElementById("results").innerHTML = `<div class="empty-line">Searching…</div>`;
     try {
-      const hits = await API.search({ query: q.value, type: "mod" });
-      document.getElementById("results").innerHTML = hits.map(hitRow).join("") || `<div class="empty-line">No results.</div>`;
+      const hits = await API.search({ query: q.value, type: "mod", ...scope });
+      const box = document.getElementById("results");
+      box.innerHTML = hits.map(hitRow).join("") || `<div class="empty-line">No results.</div>`;
+      bindAdd(box);
     } catch (e) { document.getElementById("results").innerHTML = `<div class="empty-line">Search failed: ${esc(e.message)}</div>`; }
   };
   q.oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(run, 280); };
@@ -156,8 +215,65 @@ const hitRow = (h) => `
       <div class="hit-title">${esc(h.title)} <span class="hit-author">by ${esc(h.author || "—")}</span></div>
       <div class="hit-desc">${esc(h.description || "")}</div>
     </div>
-    <div class="hit-dl">${ico("i-download")} ${fmtCount(h.downloads || 0)}</div>
+    <div class="hit-side">
+      <div class="hit-dl">${ico("i-download")} ${fmtCount(h.downloads || 0)}</div>
+      <button class="btn-accent hit-add" data-add="${esc(h.id)}" data-title="${esc(h.title)}">${ico("i-plus")} Add</button>
+    </div>
   </div>`;
+
+// Wire each result's "Add" button: choose a target instance (or use the pinned one), install.
+function bindAdd(container) {
+  container.querySelectorAll("[data-add]").forEach((b) => b.onclick = async (e) => {
+    e.stopPropagation();
+    const instanceId = await pickInstance(b);
+    if (!instanceId) return;
+    await installTo(instanceId, b.dataset.add, b.dataset.title, b);
+  });
+}
+
+// Resolve which instance to install into: the pinned target, the only instance, or a picker.
+async function pickInstance(anchor) {
+  if (discoverTarget) return discoverTarget;
+  const instances = await API.instances();
+  if (!instances.length) { toast("Create an instance first."); return null; }
+  if (instances.length === 1) return instances[0].id;
+  return new Promise((resolve) => {
+    const menu = document.createElement("div");
+    menu.className = "picker glass";
+    menu.innerHTML = `<div class="picker-h">Add to…</div>` + instances.map((i) =>
+      `<button class="picker-row" data-pick="${i.id}">${esc(i.name)}<span class="picker-sub">${esc(subtitle(i))}</span></button>`).join("");
+    document.body.appendChild(menu);
+    const r = anchor.getBoundingClientRect();
+    menu.style.top = Math.min(r.bottom + 6, window.innerHeight - menu.offsetHeight - 12) + "px";
+    menu.style.right = (window.innerWidth - r.right) + "px";
+    const close = (id) => { menu.remove(); document.removeEventListener("mousedown", onDoc, true); resolve(id); };
+    menu.querySelectorAll("[data-pick]").forEach((b) => b.onclick = () => close(b.dataset.pick));
+    function onDoc(ev) { if (!menu.contains(ev.target)) close(null); }
+    setTimeout(() => document.addEventListener("mousedown", onDoc, true), 0);
+  });
+}
+
+async function installTo(instanceId, projectId, title, btn) {
+  const inst = (await API.instances()).find((i) => i.id === instanceId);
+  const original = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Adding…`;
+  try {
+    const res = await API.content.install({ instanceId, projectId });
+    const extra = res.installed.length - 1;
+    toast(`Added ${title}${extra > 0 ? ` + ${extra} dependenc${extra === 1 ? "y" : "ies"}` : ""} to ${inst ? inst.name : "instance"}.`);
+    btn.innerHTML = `✓ Added`;
+  } catch (e) {
+    toast("Couldn't add: " + e.message);
+    btn.disabled = false; btn.innerHTML = original;
+  }
+}
+
+// Open Discover pre-targeted at an instance (from its detail page).
+function openDiscoverFor(id) {
+  discoverTarget = id;
+  document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("is-active", b.dataset.section === "discover"));
+  renderDiscover();
+}
 
 // ---------- nav ----------
 function placeholder(title) {
@@ -177,6 +293,7 @@ function bindCommon() {
 
 function navigate(section) {
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("is-active", b.dataset.section === section));
+  if (section === "discover") discoverTarget = null;   // sidebar Discover = browse for any instance
   ({ home: renderHome, instances: renderInstances, discover: renderDiscover }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
 }
 

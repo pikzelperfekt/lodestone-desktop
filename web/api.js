@@ -61,5 +61,14 @@
       check() { if (bridge) bridge.update.check(); },
       install() { if (bridge) bridge.update.install(); },
     },
+
+    content: {
+      async install(opts) {
+        if (bridge) return unwrap(await bridge.content.install(opts));
+        return { installed: [{ projectId: opts.projectId, title: "Sample mod", kind: "mod", fileName: "sample.jar" }], content: [] };
+      },
+      async list(instanceId) { return bridge ? unwrap(await bridge.content.list(instanceId)) : []; },
+      async remove(opts) { return bridge ? unwrap(await bridge.content.remove(opts)) : true; },
+    },
   };
 })();

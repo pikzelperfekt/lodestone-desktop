@@ -15,6 +15,11 @@ contextBridge.exposeInMainWorld("lodestone", {
   },
   versions: () => call("versions:list"),
   modrinthSearch: (opts) => call("modrinth:search", opts),
+  content: {
+    install: (opts) => call("content:install", opts),
+    list: (instanceId) => call("content:list", { instanceId }),
+    remove: (opts) => call("content:remove", opts),
+  },
   launch: (id) => call("launch", { id }),
   stop: (id) => call("launch:stop", { id }),
   account: {
@@ -32,7 +37,7 @@ contextBridge.exposeInMainWorld("lodestone", {
   },
   // Launch + update lifecycle events.
   on: (channel, fn) => {
-    const allowed = ["launch:progress", "launch:log", "launch:state", "update:state"];
+    const allowed = ["launch:progress", "launch:log", "launch:state", "update:state", "content:log"];
     if (!allowed.includes(channel)) return () => {};
     const handler = (_e, payload) => fn(payload);
     ipcRenderer.on(channel, handler);

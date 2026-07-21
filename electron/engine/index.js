@@ -6,6 +6,7 @@ const os = require("os");
 const platform = require("./platform");
 const install = require("./install");
 const loaders = require("./loaders");
+const content = require("./content");
 const auth = require("./auth");
 const { launch: doLaunch, offlineSession } = require("./launch");
 
@@ -45,7 +46,7 @@ function createInstance({ name, mcVersion, loader }) {
     id, name: (name && name.trim()) || (ldr === "vanilla" ? "Vanilla" : ldr[0].toUpperCase() + ldr.slice(1)),
     mcVersion, loader: ldr, accent: ACCENTS[ldr] || ACCENTS.vanilla,
     ramMB: ldr === "vanilla" ? null : Math.min(12288, Math.max(4096, Math.round(os.totalmem() / 1048576) - 2048)),
-    mods: 0, created: Date.now(), lastPlayed: null,
+    mods: 0, content: [], created: Date.now(), lastPlayed: null,
   };
   fs.mkdirSync(path.join(DATA_DIR, "instances", id), { recursive: true });
   list.unshift(inst); writeInstances(list);
@@ -82,6 +83,40 @@ async function modrinthSearch({ query, type, loader, mc }) {
   if (!res.ok) throw new Error(`Modrinth ${res.status}`);
   const json = await res.json();
   return json.hits.map((h) => ({ id: h.project_id, title: h.title, author: h.author, description: h.description, downloads: h.downloads, icon: h.icon_url, type: h.project_type }));
+}
+
+// ---- Content (mods / resource packs / shaders) ----
+async function installContent({ instanceId, projectId, versionId }) {
+  const list = readInstances();
+  const inst = list.find((i) => i.id === instanceId);
+  if (!inst) throw new Error("Instance not found.");
+  const records = await content.install({
+    dataDir: DATA_DIR, instance: inst, projectId, versionId,
+    onLog: (m) => emit("content:log", { instanceId, line: m }),
+  });
+  inst.content = inst.content || [];
+  for (const r of records) {
+    const existing = inst.content.findIndex((c) => c.projectId === r.projectId);
+    if (existing >= 0) inst.content[existing] = r; else inst.content.push(r);   // upgrade-in-place or add
+  }
+  inst.mods = inst.content.filter((c) => c.kind === "mod").length;
+  writeInstances(list);
+  return { installed: records, content: inst.content };
+}
+function listContent(instanceId) {
+  const inst = readInstances().find((i) => i.id === instanceId);
+  return (inst && inst.content) || [];
+}
+function removeContent({ instanceId, projectId }) {
+  const list = readInstances();
+  const inst = list.find((i) => i.id === instanceId);
+  if (!inst || !inst.content) return false;
+  const item = inst.content.find((c) => c.projectId === projectId);
+  if (item) content.remove({ dataDir: DATA_DIR, instance: inst, fileName: item.fileName, kind: item.kind });
+  inst.content = inst.content.filter((c) => c.projectId !== projectId);
+  inst.mods = inst.content.filter((c) => c.kind === "mod").length;
+  writeInstances(list);
+  return true;
 }
 
 // ---- Account / sign-in ----
@@ -149,6 +184,7 @@ module.exports = {
   init, setEmitter, dataDir, info,
   listInstances, createInstance, deleteInstance,
   listVersions, modrinthSearch,
+  installContent, listContent, removeContent,
   account, signOut, signInStart, signInComplete,
   launch, stop, isRunning,
 };

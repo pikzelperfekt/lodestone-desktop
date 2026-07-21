@@ -32,6 +32,16 @@ contextBridge.exposeInMainWorld("lodestone", {
   },
   launch: (id) => call("launch", { id }),
   stop: (id) => call("launch:stop", { id }),
+  servers: {
+    list: () => call("servers:list"),
+    create: (opts) => call("servers:create", opts),
+    start: (id) => call("servers:start", { id }),
+    stop: (id) => call("servers:stop", { id }),
+    command: (id, command) => call("servers:command", { id, command }),
+    properties: (id) => call("servers:properties", { id }),
+    setProperties: (id, patch) => call("servers:setProperties", { id, patch }),
+    remove: (id) => call("servers:remove", { id }),
+  },
   account: {
     get: () => call("account:get"),
     signOut: () => call("account:signOut"),
@@ -52,7 +62,7 @@ contextBridge.exposeInMainWorld("lodestone", {
   },
   // Launch + update lifecycle events.
   on: (channel, fn) => {
-    const allowed = ["launch:progress", "launch:log", "launch:state", "update:state", "content:log"];
+    const allowed = ["launch:progress", "launch:log", "launch:state", "update:state", "content:log", "server:log", "server:state"];
     if (!allowed.includes(channel)) return () => {};
     const handler = (_e, payload) => fn(payload);
     ipcRenderer.on(channel, handler);

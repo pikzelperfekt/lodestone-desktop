@@ -14,6 +14,12 @@
     ],
     versions: { releases: ["1.20.4", "1.20.1", "1.19.2", "1.18.2", "1.16.5"], latest: "1.20.4" },
     settings: { defaultRamMB: null, javaPath: "", keepLauncherOpen: true },
+    servers: [
+      { id: "srv1", name: "Survival SMP", platform: "paper", mcVersion: "1.20.1", ramMB: 2048, accent: "#E8E4DC", running: false, created: Date.now() - 8e6, lastStarted: Date.now() - 8e6 },
+    ],
+    serverProps: {
+      "srv1": { motd: "Survival SMP", gamemode: "survival", difficulty: "normal", "max-players": "10", "online-mode": "true", pvp: "true" },
+    },
   };
 
   window.API = {
@@ -94,6 +100,39 @@
       async restore(opts) { return bridge ? unwrap(await bridge.worlds.restore(opts)) : true; },
       async rename(opts) { return bridge ? unwrap(await bridge.worlds.rename(opts)) : true; },
       async remove(opts) { return bridge ? unwrap(await bridge.worlds.remove(opts)) : true; },
+    },
+
+    servers: {
+      async list() { return bridge ? unwrap(await bridge.servers.list()) : sample.servers.slice(); },
+      async create(opts) {
+        if (bridge) return unwrap(await bridge.servers.create(opts));
+        const s = { id: "srv" + Date.now(), name: (opts.name && opts.name.trim()) || `${opts.platform} ${opts.mcVersion}`,
+          platform: opts.platform, mcVersion: opts.mcVersion, ramMB: 2048, accent: "#5EE6A0",
+          running: false, created: Date.now(), lastStarted: null };
+        sample.servers.unshift(s);
+        sample.serverProps[s.id] = { motd: s.name, gamemode: "survival", difficulty: "easy", "max-players": "20", "online-mode": "true", pvp: "true" };
+        return s;
+      },
+      async start(id) {
+        if (bridge) return unwrap(await bridge.servers.start(id));
+        const s = sample.servers.find((x) => x.id === id); if (s) s.running = true;
+        return { started: true };
+      },
+      async stop(id) {
+        if (bridge) return unwrap(await bridge.servers.stop(id));
+        const s = sample.servers.find((x) => x.id === id); if (s) s.running = false;
+        return true;
+      },
+      async command(id, command) { return bridge ? unwrap(await bridge.servers.command(id, command)) : true; },
+      async properties(id) { return bridge ? unwrap(await bridge.servers.properties(id)) : { ...(sample.serverProps[id] || {}) }; },
+      async setProperties(id, patch) {
+        if (bridge) return unwrap(await bridge.servers.setProperties(id, patch));
+        sample.serverProps[id] = { ...(sample.serverProps[id] || {}), ...patch }; return { ...sample.serverProps[id] };
+      },
+      async remove(id) {
+        if (bridge) return unwrap(await bridge.servers.remove(id));
+        sample.servers = sample.servers.filter((x) => x.id !== id); delete sample.serverProps[id]; return true;
+      },
     },
   };
 })();

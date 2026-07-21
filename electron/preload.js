@@ -16,8 +16,10 @@ contextBridge.exposeInMainWorld("lodestone", {
   },
   versions: () => call("versions:list"),
   modrinthSearch: (opts) => call("modrinth:search", opts),
+  curseforgeSearch: (opts) => call("curseforge:search", opts),
   content: {
     install: (opts) => call("content:install", opts),
+    installCurseforge: (opts) => call("content:installCurseforge", opts),
     list: (instanceId) => call("content:list", { instanceId }),
     remove: (opts) => call("content:remove", opts),
   },

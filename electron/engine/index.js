@@ -8,6 +8,7 @@ const install = require("./install");
 const loaders = require("./loaders");
 const content = require("./content");
 const importer = require("./import");
+const curseforge = require("./curseforge");
 const worlds = require("./worlds");
 const auth = require("./auth");
 const settings = require("./settings");
@@ -110,6 +111,15 @@ async function modrinthSearch({ query, type, loader, mc }) {
   return json.hits.map((h) => ({ id: h.project_id, title: h.title, author: h.author, description: h.description, downloads: h.downloads, icon: h.icon_url, type: h.project_type }));
 }
 
+// ---- CurseForge search ----
+// Uses the user's own API key (Settings → CurseForge). Returns hits in the same shape
+// as modrinthSearch, tagged source:"curseforge", so the Discover UI renders them the same.
+async function curseforgeSearch({ query, type, loader, mc }) {
+  const key = settings.getSettings().curseforgeKey;
+  if (!key) throw new Error("Add your CurseForge API key in Settings to browse CurseForge.");
+  return curseforge.search({ query, type, loader, mc, key });
+}
+
 // ---- Content (mods / resource packs / shaders) ----
 async function installContent({ instanceId, projectId, versionId }) {
   const list = readInstances();
@@ -128,6 +138,25 @@ async function installContent({ instanceId, projectId, versionId }) {
   writeInstances(list);
   return { installed: records, content: inst.content };
 }
+// Install a single CurseForge mod into an instance (the CurseForge counterpart of
+// installContent). Records upgrade-in-place by projectId, exactly like the Modrinth path.
+async function installCurseforgeContent({ instanceId, modId }) {
+  const key = settings.getSettings().curseforgeKey;
+  if (!key) throw new Error("Add your CurseForge API key in Settings to install from CurseForge.");
+  const list = readInstances();
+  const inst = list.find((i) => i.id === instanceId);
+  if (!inst) throw new Error("Instance not found.");
+  const record = await curseforge.installMod({
+    dataDir: DATA_DIR, instance: inst, modId, key,
+    onLog: (m) => emit("content:log", { instanceId, line: m }),
+  });
+  inst.content = inst.content || [];
+  const existing = inst.content.findIndex((c) => c.projectId === record.projectId);
+  if (existing >= 0) inst.content[existing] = record; else inst.content.push(record);
+  inst.mods = inst.content.filter((c) => c.kind === "mod").length;
+  writeInstances(list);
+  return { installed: [record], content: inst.content };
+}
 function listContent(instanceId) {
   const inst = readInstances().find((i) => i.id === instanceId);
   return (inst && inst.content) || [];
@@ -144,21 +173,40 @@ function removeContent({ instanceId, projectId }) {
   return true;
 }
 
-// ---- Modpack import (.mrpack) ----
-// Parse a Modrinth modpack, spin up a new instance, download its files + overrides,
-// and persist the populated instance. Reuses createInstance for the instance shape.
+// ---- Modpack import (.mrpack or CurseForge .zip) ----
+// Peek the archive to route: a Modrinth pack has modrinth.index.json, a CurseForge pack
+// has manifest.json. Both spin up a new instance, download files + overrides, and persist
+// the populated instance, reusing createInstance for the instance shape.
+const AdmZip = require("adm-zip");
+function persistInstance(inst) {
+  const list = readInstances();
+  const idx = list.findIndex((i) => i.id === inst.id);
+  if (idx >= 0) { list[idx] = inst; writeInstances(list); }
+}
 async function importModpack(filePath) {
-  return importer.importModpack({
-    dataDir: DATA_DIR,
-    filePath,
-    createInstance,
-    persist: (inst) => {
-      const list = readInstances();
-      const idx = list.findIndex((i) => i.id === inst.id);
-      if (idx >= 0) { list[idx] = inst; writeInstances(list); }
-    },
-    onLog: (line) => emit("content:log", { line }),
-  });
+  if (!filePath || !fs.existsSync(filePath)) throw new Error("Modpack file not found.");
+  let format = null;
+  try {
+    const zip = new AdmZip(filePath);
+    if (zip.getEntry("modrinth.index.json")) format = "modrinth";
+    else if (zip.getEntry("manifest.json")) format = "curseforge";
+  } catch { throw new Error("That file isn't a readable modpack archive."); }
+
+  if (format === "curseforge") {
+    const key = settings.getSettings().curseforgeKey;
+    if (!key) throw new Error("Importing a CurseForge modpack needs a CurseForge API key. Add one in Settings.");
+    return curseforge.importZip({
+      dataDir: DATA_DIR, filePath, key, createInstance, persist: persistInstance,
+      onLog: (line) => emit("content:log", { line }),
+    });
+  }
+  if (format === "modrinth") {
+    return importer.importModpack({
+      dataDir: DATA_DIR, filePath, createInstance, persist: persistInstance,
+      onLog: (line) => emit("content:log", { line }),
+    });
+  }
+  throw new Error("Unrecognized modpack: expected a Modrinth .mrpack or a CurseForge .zip.");
 }
 
 // ---- Worlds (singleplayer saves per instance) ----
@@ -244,8 +292,8 @@ module.exports = {
   init, setEmitter, dataDir, info,
   getSettings, setSettings,
   listInstances, createInstance, deleteInstance, updateInstance,
-  listVersions, modrinthSearch,
-  installContent, listContent, removeContent,
+  listVersions, modrinthSearch, curseforgeSearch,
+  installContent, installCurseforgeContent, listContent, removeContent,
   importModpack,
   worldList, worldBackups, worldBackup, worldRestore, worldRename, worldRemove,
   account, signOut, signInStart, signInComplete,

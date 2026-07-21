@@ -13,7 +13,7 @@
       { id: "s2", name: "Fabric Perf", mcVersion: "1.20.1", loader: "fabric", accent: "#B57BE6", mods: 8, lastPlayed: Date.now() - 5e6 },
     ],
     versions: { releases: ["1.20.4", "1.20.1", "1.19.2", "1.18.2", "1.16.5"], latest: "1.20.4" },
-    settings: { defaultRamMB: null, javaPath: "", keepLauncherOpen: true },
+    settings: { defaultRamMB: null, javaPath: "", keepLauncherOpen: true, curseforgeKey: "" },
   };
 
   window.API = {
@@ -42,6 +42,13 @@
       return [
         { id: "AANobbMI", title: "Sodium", author: "jellysquid3", description: "Modern rendering engine + huge FPS boost.", downloads: 12000000, icon: null, type: "mod" },
         { id: "YL57xq9U", title: "Iris Shaders", author: "coderbot", description: "Shader support on Fabric.", downloads: 8000000, icon: null, type: "mod" },
+      ];
+    },
+    async searchCurseforge(opts) {
+      if (bridge) return unwrap(await bridge.curseforgeSearch(opts));
+      return [
+        { id: 238222, title: "Just Enough Items (JEI)", author: "mezz", description: "View items and recipes.", downloads: 400000000, icon: null, source: "curseforge" },
+        { id: 306612, title: "Fabric API", author: "modmuss50", description: "Core hooks for Fabric mods.", downloads: 300000000, icon: null, source: "curseforge" },
       ];
     },
     async importModpack() { return bridge ? unwrap(await bridge.importModpack()) : null; },
@@ -82,6 +89,10 @@
       async install(opts) {
         if (bridge) return unwrap(await bridge.content.install(opts));
         return { installed: [{ projectId: opts.projectId, title: "Sample mod", kind: "mod", fileName: "sample.jar" }], content: [] };
+      },
+      async installCurseforge(opts) {
+        if (bridge) return unwrap(await bridge.content.installCurseforge(opts));
+        return { installed: [{ projectId: "cf:" + opts.modId, title: "Sample CurseForge mod", kind: "mod", fileName: "sample.jar", source: "curseforge" }], content: [] };
       },
       async list(instanceId) { return bridge ? unwrap(await bridge.content.list(instanceId)) : []; },
       async remove(opts) { return bridge ? unwrap(await bridge.content.remove(opts)) : true; },

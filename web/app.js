@@ -71,7 +71,13 @@ async function renderInstances() {
     btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Importing…`;
     try {
       const inst = await API.importModpack();
-      if (inst) { toast(`Imported ${inst.name}.`); renderInstances(); }
+      if (inst) {
+        const manual = (inst.manualDownloads && inst.manualDownloads.length) || 0;
+        toast(manual
+          ? `Imported ${inst.name}. ${manual} mod${manual === 1 ? "" : "s"} must be added by hand (the author blocked API downloads).`
+          : `Imported ${inst.name}.`);
+        renderInstances();
+      }
       else { btn.disabled = false; btn.innerHTML = original; }   // dialog canceled
     } catch (e) {
       toast("Couldn't import: " + e.message);
@@ -313,29 +319,46 @@ const instCard = (i) => `
 // ---------- DISCOVER ----------
 let searchTimer = null;
 let discoverTarget = null;   // instance id to add mods to, when Discover is opened from a detail page
+let discoverSource = "modrinth";   // which catalog to browse: "modrinth" | "curseforge"
 async function renderDiscover() {
-  const instances = await API.instances();
+  const [instances, settings] = await Promise.all([API.instances(), API.settings.get()]);
   const target = discoverTarget ? instances.find((i) => i.id === discoverTarget) : null;
   // Search scoped to the target instance's loader + MC when we have one, so hits are installable.
   const scope = target ? { loader: target.loader, mc: target.mcVersion } : {};
+  const sources = [["modrinth", "Modrinth"], ["curseforge", "CurseForge"]];
   el().innerHTML = `
     <div class="page-head"><h1 class="page-title">Discover</h1></div>
     ${target ? `<div class="target-chip glass">${ico("i-plus")} Adding to <b>${esc(target.name)}</b>
         <span class="target-sub">${esc(subtitle(target))}</span>
         <button class="target-x" id="clear-target">Any instance</button></div>` : ""}
-    <div class="searchbar glass">${ico("i-search")}<input id="q" placeholder="Search mods on Modrinth…" autofocus /></div>
+    <div class="source-toggle"><div class="seg" id="disc-source">${sources.map(([id, label]) =>
+      `<button data-src="${id}" class="${id === discoverSource ? "on" : ""}">${label}</button>`).join("")}</div></div>
+    <div class="searchbar glass">${ico("i-search")}<input id="q" placeholder="Search mods on ${discoverSource === "curseforge" ? "CurseForge" : "Modrinth"}…" autofocus /></div>
     <div id="results" class="results"></div>`;
   if (target) document.getElementById("clear-target").onclick = () => { discoverTarget = null; renderDiscover(); };
   const q = document.getElementById("q");
   const run = async () => {
-    document.getElementById("results").innerHTML = `<div class="empty-line">Searching…</div>`;
+    const box = document.getElementById("results");
+    // CurseForge needs the user's own API key; guide them to Settings instead of erroring.
+    if (discoverSource === "curseforge" && !settings.curseforgeKey) {
+      box.innerHTML = `<div class="empty-line">Browsing CurseForge needs your CurseForge API key. Add one in <a data-goto="settings">Settings</a>.</div>`;
+      box.querySelectorAll("[data-goto]").forEach((n) => n.addEventListener("click", () => navigate(n.dataset.goto)));
+      return;
+    }
+    box.innerHTML = `<div class="empty-line">Searching…</div>`;
     try {
-      const hits = await API.search({ query: q.value, type: "mod", ...scope });
-      const box = document.getElementById("results");
+      const hits = discoverSource === "curseforge"
+        ? await API.searchCurseforge({ query: q.value, type: "mod", ...scope })
+        : await API.search({ query: q.value, type: "mod", ...scope });
       box.innerHTML = hits.map(hitRow).join("") || `<div class="empty-line">No results.</div>`;
       bindAdd(box);
-    } catch (e) { document.getElementById("results").innerHTML = `<div class="empty-line">Search failed: ${esc(e.message)}</div>`; }
+    } catch (e) { box.innerHTML = `<div class="empty-line">Search failed: ${esc(e.message)}</div>`; }
   };
+  document.querySelectorAll("#disc-source button").forEach((b) => b.onclick = () => {
+    if (b.dataset.src === discoverSource) return;
+    discoverSource = b.dataset.src;
+    renderDiscover();
+  });
   q.oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(run, 280); };
   run();
 }
@@ -349,7 +372,7 @@ const hitRow = (h) => `
     </div>
     <div class="hit-side">
       <div class="hit-dl">${ico("i-download")} ${fmtCount(h.downloads || 0)}</div>
-      <button class="btn-accent hit-add" data-add="${esc(h.id)}" data-title="${esc(h.title)}">${ico("i-plus")} Add</button>
+      <button class="btn-accent hit-add" data-add="${esc(h.id)}" data-title="${esc(h.title)}" data-source="${esc(h.source || "modrinth")}">${ico("i-plus")} Add</button>
     </div>
   </div>`;
 
@@ -359,7 +382,7 @@ function bindAdd(container) {
     e.stopPropagation();
     const instanceId = await pickInstance(b);
     if (!instanceId) return;
-    await installTo(instanceId, b.dataset.add, b.dataset.title, b);
+    await installTo(instanceId, b.dataset.add, b.dataset.title, b, b.dataset.source);
   });
 }
 
@@ -385,12 +408,16 @@ async function pickInstance(anchor) {
   });
 }
 
-async function installTo(instanceId, projectId, title, btn) {
+async function installTo(instanceId, projectId, title, btn, source) {
   const inst = (await API.instances()).find((i) => i.id === instanceId);
   const original = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Adding…`;
   try {
-    const res = await API.content.install({ instanceId, projectId });
+    // Route by source: CurseForge mods install by numeric mod id; Modrinth by project id
+    // (and resolves required dependencies). Modrinth stays the exact existing path.
+    const res = source === "curseforge"
+      ? await API.content.installCurseforge({ instanceId, modId: Number(projectId) })
+      : await API.content.install({ instanceId, projectId });
     const extra = res.installed.length - 1;
     toast(`Added ${title}${extra > 0 ? ` + ${extra} dependenc${extra === 1 ? "y" : "ies"}` : ""} to ${inst ? inst.name : "instance"}.`);
     btn.innerHTML = `✓ Added`;
@@ -453,6 +480,21 @@ async function renderSettings() {
       </div>
     </div>
 
+    <div class="section-head" style="margin-top:22px"><span class="section-title">CONTENT SOURCES</span></div>
+    <div class="glass settings-card">
+      <div class="set-row">
+        <div class="set-label">
+          <div class="set-name">CurseForge API key</div>
+          <div class="set-hint">Needed to browse and import CurseForge mods and modpacks. CurseForge requires each user to bring their own key. Get a free one at <a id="set-cf-link">console.curseforge.com</a>.</div>
+        </div>
+        <div class="set-control wide">
+          <input id="set-cf" class="set-input" type="password" spellcheck="false" autocomplete="off"
+            placeholder="Paste your CurseForge API key"
+            value="${esc(settings.curseforgeKey || "")}" />
+        </div>
+      </div>
+    </div>
+
     <div class="section-head" style="margin-top:22px"><span class="section-title">DATA &amp; UPDATES</span></div>
     <div class="glass settings-card">
       <div class="set-row">
@@ -509,6 +551,14 @@ async function renderSettings() {
     keep.setAttribute("aria-checked", on ? "true" : "false");
     save({ keepLauncherOpen: on }, on ? "Launcher will stay open while you play." : "Launcher will tuck away while you play.");
   };
+
+  const cf = document.getElementById("set-cf");
+  cf.onchange = () => {
+    const val = cf.value.trim();
+    cf.value = val;
+    save({ curseforgeKey: val }, val ? "CurseForge key saved." : "CurseForge key cleared.");
+  };
+  document.getElementById("set-cf-link").onclick = () => API.openExternal("https://console.curseforge.com/#/api-keys");
 
   document.getElementById("set-open-data").onclick = () => API.openDataDir();
   document.getElementById("set-check-update").onclick = () => { API.update.check(); toast("Checking for updates…"); };

@@ -14,6 +14,7 @@ const worlds = require("./worlds");
 const auth = require("./auth");
 const cloud = require("./cloud");
 const sync = require("./sync"); // [Cloud Sync — Vertical A]
+const social = require("./social"); // Vertical B — Friends + Presence
 const settings = require("./settings");
 const serverEngine = require("./server");
 const maintenance = require("./maintenance");
@@ -28,6 +29,7 @@ function init(userDataPath) {
   fs.mkdirSync(path.join(DATA_DIR, "instances"), { recursive: true });
   auth.init(DATA_DIR);
   cloud.init(DATA_DIR);
+  social.init(); // Vertical B: presence/friends realtime follow the cloud session
   settings.init(DATA_DIR);
   // [Cloud Sync — Vertical A] inject the instance store + reconcile path, then
   // open the realtime channel if a session was restored from disk.
@@ -43,7 +45,7 @@ function init(userDataPath) {
 // ---- App settings (memory / Java override / launcher behavior) ----
 function getSettings() { return settings.getSettings(); }
 function setSettings(patch) { return settings.setSettings(patch); }
-function setEmitter(fn) { emit = fn || (() => {}); cloud.setEmitter(emit); sync.setEmitter(emit); }
+function setEmitter(fn) { emit = fn || (() => {}); cloud.setEmitter(emit); sync.setEmitter(emit); social.setEmitter(emit); }
 
 // ---- Cloud account (Lodestone social/sync identity — distinct from Minecraft) ----
 function cloudStatus() { return cloud.status(); }
@@ -54,6 +56,16 @@ function cloudProfile() { return cloud.getProfile(); }
 function cloudUpdateProfile(a) { return cloud.updateProfile(a); }
 function cloudLinkMinecraft() { return cloud.linkMinecraft(auth.account()); }
 function cloudSearchProfiles(a) { return cloud.searchProfiles(a && a.query); }
+
+// ---- Friends + Presence (Vertical B — social.js) ----
+function friendsList() { return social.listFriends(); }
+function friendsSearch(a) { return social.searchPeople(a && a.query); }
+function friendsRequest(a) { return social.sendRequest(a); }
+function friendsRespond(a) { return social.respond(a); }
+function friendsRemove(a) { return social.remove(a); }
+function friendsBlock(a) { return social.block(a); }
+function friendsSetActivity(a) { return social.setActivity(a && a.text); }
+
 function dataDir() { return DATA_DIR; }
 
 // ---- Cloud Sync (Vertical A) — instance manifests ⇄ synced_instances ----
@@ -349,8 +361,9 @@ async function launch(id) {
     const child = doLaunch(detail, built, session,
       { gameDir, assetsRoot: p.assets, librariesDir: p.libraries, ramMB: inst.ramMB || undefined, extraJvm, overlay },
       (line) => emit("launch:log", { line }),
-      (code) => { delete running[id]; emit("launch:state", { id, status: "idle", code }); });
+      (code) => { delete running[id]; emit("launch:state", { id, status: "idle", code }); social.setActivity(null); });
     running[id] = child;
+    social.setActivity(`Playing ${inst.name}`); // Vertical B: broadcast presence activity
 
     const list = readInstances(); const idx = list.findIndex((x) => x.id === id);
     if (idx >= 0) { list[idx].lastPlayed = Date.now(); writeInstances(list); }
@@ -426,6 +439,8 @@ module.exports = {
   cloudProfile, cloudUpdateProfile, cloudLinkMinecraft, cloudSearchProfiles,
   // [Cloud Sync — Vertical A]
   cloudSyncPush, cloudSyncList, cloudSyncPull, cloudSyncRemove, cloudSyncStatus,
+  // [Friends + Presence — Vertical B]
+  friendsList, friendsSearch, friendsRequest, friendsRespond, friendsRemove, friendsBlock, friendsSetActivity,
   launch, stop, isRunning,
   repairInstance, updateAllContent,
   listServers, createServer, startServer, stopServer, serverCommand,

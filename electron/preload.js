@@ -78,6 +78,17 @@ contextBridge.exposeInMainWorld("lodestone", {
       remove: (id) => call("cloud:sync:remove", { id }),
       status: (instanceId) => call("cloud:sync:status", { instanceId }),
     },
+    // Friends + Presence (Vertical B). Event channels cloud:friends / cloud:presence
+    // are already in the `on` allowlist below.
+    friends: {
+      list: () => call("cloud:friends:list"),
+      search: (query) => call("cloud:friends:search", { query }),
+      request: (userId) => call("cloud:friends:request", { userId }),
+      respond: (id, accept) => call("cloud:friends:respond", { id, accept }),
+      remove: (id) => call("cloud:friends:remove", { id }),
+      block: (userId) => call("cloud:friends:block", { userId }),
+      setActivity: (text) => call("cloud:friends:setActivity", { text }),
+    },
   },
   openDataDir: () => call("open:dataDir"),
   openExternal: (url) => call("open:external", { url }),

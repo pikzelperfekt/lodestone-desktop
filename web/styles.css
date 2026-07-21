@@ -554,3 +554,43 @@ svg.ico { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-widt
   .sync-panel { flex-direction: column; align-items: stretch; }
   .sync-actions { justify-content: flex-end; }
 }
+
+/* ---------- Friends + Presence (Vertical B) ---------- */
+.friends-find { padding: 8px 14px 12px; }
+.friends-searchbar { margin: 0; padding: 6px 4px; }
+.friends-searchbar input { font-size: 13.5px; }
+.friends-results { display: flex; flex-direction: column; margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--stroke); }
+.friends-results[hidden] { display: none; }
+
+#fr-requests { display: flex; flex-direction: column; gap: 16px; }
+#fr-requests:empty { display: none; }
+
+.friend-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; }
+.friend-row + .friend-row { border-top: 1px solid var(--stroke); }
+.friend-hit { padding: 8px 4px; }
+
+.friend-avatar { width: 40px; height: 40px; border-radius: 10px; image-rendering: pixelated; flex: 0 0 auto; }
+.friend-avatar-empty { display: flex; align-items: center; justify-content: center;
+  background: var(--fill-soft); border: 1px solid var(--stroke); color: var(--text-tertiary); }
+.friend-avatar-empty .ico { font-size: 20px; }
+
+.friend-ident { flex: 1; min-width: 0; }
+.friend-name { font-family: var(--font-display); font-weight: 700; font-size: 14px; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.friend-handle { font-size: 12px; color: var(--accent); margin-top: 1px; }
+.friend-status { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-tertiary); margin-top: 3px; }
+.friend-status.online { color: var(--text-secondary); }
+.pdot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-tertiary); opacity: .5; flex: 0 0 auto; }
+.pdot.on { background: var(--accent); opacity: 1; box-shadow: 0 0 0 3px rgba(94,230,160,.16); }
+
+.friend-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.friends-btn { padding: 7px 12px; }
+.friends-icon-btn { display: inline-flex; align-items: center; }
+.friends-icon-btn .ico { font-size: 14px; }
+.btn-accent.friends-btn { width: auto; padding: 7px 14px; }
+
+.friends-count { font-family: var(--font-body); font-weight: 700; font-size: 11px; color: rgba(0,0,0,.82);
+  background: var(--accent-gradient); border-radius: 999px; padding: 1px 7px; margin-left: 4px; vertical-align: middle; }
+.friends-empty { color: var(--text-tertiary); font-size: 13px; padding: 10px 4px; }
+.friends-tag { font-family: var(--font-display); font-weight: 600; font-size: 11.5px; color: var(--accent); }
+.friends-tag.muted { color: var(--text-tertiary); }

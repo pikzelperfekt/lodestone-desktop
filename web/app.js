@@ -76,13 +76,22 @@ async function renderInstances() {
   }));
 }
 
-// ---------- INSTANCE DETAIL (mods management) ----------
+// ---------- INSTANCE DETAIL (mods + worlds + settings) ----------
 async function renderInstanceDetail(id) {
   el().innerHTML = `<div class="placeholder">${ico("i-stack")}<h2>Loading…</h2></div>`;
-  const [instances, mods] = await Promise.all([API.instances(), API.content.list(id)]);
+  const [instances, mods, versions, worlds, backups] = await Promise.all([
+    API.instances(), API.content.list(id), API.versions(), API.worlds.list(id), API.worlds.backups(id),
+  ]);
   const inst = instances.find((i) => i.id === id);
   if (!inst) { navigate("instances"); return; }
   const modCount = mods.filter((m) => m.kind === "mod").length;
+
+  // Version <select>: releases from the engine, with the instance's current version
+  // guaranteed present (even if it's a snapshot Mojang no longer lists as a release).
+  const releases = ((versions && versions.releases) || []).slice(0, 80);
+  const versionOpts = (releases.includes(inst.mcVersion) ? releases : [inst.mcVersion, ...releases])
+    .map((r) => `<option${r === inst.mcVersion ? " selected" : ""}>${esc(r)}</option>`).join("");
+
   el().innerHTML = `
     <div class="page-head"><button class="btn-ghost" data-goto="instances">${ico("i-arrow-right")} Instances</button></div>
     <div class="detail-hero glass">
@@ -96,10 +105,37 @@ async function renderInstanceDetail(id) {
         </div>
       </div>
     </div>
+
     <div class="section-head" style="margin-top:22px"><span class="section-title">CONTENT</span></div>
     <div class="mods-list">
-      ${mods.length ? mods.map(modRow).join("") : `<div class="empty-line">No mods yet. Hit “Browse mods” to add some from Modrinth.</div>`}
+      ${mods.length ? mods.map(modRow).join("") : `<div class="empty-line">No mods yet. Hit "Browse mods" to add some from Modrinth.</div>`}
+    </div>
+
+    <div class="section-head" style="margin-top:26px"><span class="section-title">WORLDS</span></div>
+    <div class="worlds-list">
+      ${worlds.length ? worlds.map(worldRow).join("") : `<div class="empty-line">No worlds yet. Play the instance to create one.</div>`}
+    </div>
+    ${backups.length ? `
+    <div class="section-head" style="margin-top:26px"><span class="section-title">BACKUPS</span></div>
+    <div class="worlds-list">
+      ${backups.map(backupRow).join("")}
+    </div>` : ""}
+
+    <div class="section-head" style="margin-top:26px"><span class="section-title">SETTINGS</span></div>
+    <div class="glass edit-panel">
+      <div class="np-grid edit-grid">
+        <label>NAME<input id="ed-name" value="${esc(inst.name)}" /></label>
+        <label>MINECRAFT VERSION<select id="ed-version">${versionOpts}</select></label>
+        <label>RAM (MB)<input id="ed-ram" type="number" min="512" step="256" placeholder="Default" value="${inst.ramMB != null ? inst.ramMB : ""}" /></label>
+      </div>
+      <label class="edit-full">JAVA ARGUMENTS
+        <input id="ed-java" placeholder="e.g. -XX:+UseG1GC -XX:MaxGCPauseMillis=50" value="${esc(inst.javaArgs || "")}" />
+      </label>
+      <div class="np-actions">
+        <button class="btn-accent ed-save" style="width:auto;padding:9px 18px">Save changes</button>
+      </div>
     </div>`;
+
   bindCommon();
   document.getElementById("detail-add").onclick = () => openDiscoverFor(inst.id);
   el().querySelectorAll("[data-remove]").forEach((b) => b.onclick = async () => {
@@ -107,7 +143,87 @@ async function renderInstanceDetail(id) {
     await API.content.remove({ instanceId: id, projectId: b.dataset.remove });
     toast("Removed."); renderInstanceDetail(id);
   });
+
+  // Save instance settings.
+  el().querySelector(".ed-save").onclick = async (e) => {
+    const btn = e.currentTarget; btn.disabled = true;
+    const ram = el().querySelector("#ed-ram").value.trim();
+    try {
+      const updated = await API.updateInstance({
+        id,
+        name: el().querySelector("#ed-name").value,
+        mcVersion: el().querySelector("#ed-version").value,
+        ramMB: ram === "" ? null : Number(ram),
+        javaArgs: el().querySelector("#ed-java").value,
+      });
+      toast(`Saved ${updated.name}.`); renderInstanceDetail(id);
+    } catch (err) { btn.disabled = false; toast("Couldn't save: " + err.message); }
+  };
+
+  // Worlds: backup / rename / delete.
+  el().querySelectorAll("[data-wbackup]").forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    try { await API.worlds.backup({ instanceId: id, world: b.dataset.wbackup }); toast(`Backed up ${b.dataset.wbackup}.`); renderInstanceDetail(id); }
+    catch (err) { b.disabled = false; toast("Backup failed: " + err.message); }
+  });
+  el().querySelectorAll("[data-wrename]").forEach((b) => b.onclick = async () => {
+    const current = b.dataset.wrename;
+    const name = prompt(`Rename world "${current}" to:`, current);
+    if (name == null || !name.trim() || name.trim() === current) return;
+    try { await API.worlds.rename({ instanceId: id, world: current, name: name.trim() }); toast("World renamed."); renderInstanceDetail(id); }
+    catch (err) { toast("Rename failed: " + err.message); }
+  });
+  el().querySelectorAll("[data-wdelete]").forEach((b) => b.onclick = async () => {
+    const world = b.dataset.wdelete;
+    if (!confirm(`Delete "${world}" permanently? This cannot be undone.`)) return;
+    try { await API.worlds.remove({ instanceId: id, world }); toast("World deleted."); renderInstanceDetail(id); }
+    catch (err) { toast("Delete failed: " + err.message); }
+  });
+  // Backups: restore.
+  el().querySelectorAll("[data-wrestore]").forEach((b) => b.onclick = async () => {
+    const backup = b.dataset.wrestore;
+    if (!confirm(`Restore "${backup}"? Any current files in that world folder will be overwritten.`)) return;
+    b.disabled = true;
+    try { await API.worlds.restore({ instanceId: id, backup }); toast("Backup restored."); renderInstanceDetail(id); }
+    catch (err) { b.disabled = false; toast("Restore failed: " + err.message); }
+  });
 }
+
+// Turn an absolute filesystem path into a file:// URL the renderer can load (handles
+// spaces and Windows drive paths).
+function fileURL(p) {
+  let s = String(p).replace(/\\/g, "/");
+  if (!s.startsWith("/")) s = "/" + s; // C:/… → /C:/… so it becomes file:///C:/…
+  return "file://" + encodeURI(s);
+}
+const fmtDate = (ms) => (ms ? new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "unknown");
+const fmtSize = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : n >= 1024 ? Math.round(n / 1024) + " KB" : (n || 0) + " B");
+
+const worldRow = (w) => `
+  <div class="glass world-row">
+    ${w.icon ? `<img class="hit-icon" src="${esc(fileURL(w.icon))}?v=${w.modified}" />` : `<div class="hit-icon ph">${ico("i-globe")}</div>`}
+    <div class="hit-meta">
+      <div class="hit-title">${esc(w.name)}</div>
+      <div class="hit-desc">Updated ${esc(fmtDate(w.modified))}</div>
+    </div>
+    <div class="world-actions">
+      <button class="btn-soft" data-wbackup="${esc(w.name)}">${ico("i-download")} Backup</button>
+      <button class="btn-soft" data-wrename="${esc(w.name)}">Rename</button>
+      <button class="btn-ghost world-x" data-wdelete="${esc(w.name)}" title="Delete permanently">${ico("i-trash")}</button>
+    </div>
+  </div>`;
+
+const backupRow = (b) => `
+  <div class="glass world-row">
+    <div class="hit-icon ph">${ico("i-download")}</div>
+    <div class="hit-meta">
+      <div class="hit-title">${esc(b.world)}</div>
+      <div class="hit-desc">${esc(fmtDate(b.created))} · ${esc(fmtSize(b.size))}</div>
+    </div>
+    <div class="world-actions">
+      <button class="btn-soft" data-wrestore="${esc(b.name)}">Restore</button>
+    </div>
+  </div>`;
 
 const modRow = (m) => `
   <div class="glass mod-row">

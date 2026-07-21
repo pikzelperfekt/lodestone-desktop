@@ -38,6 +38,7 @@ function flatten(args, subs, features) {
 }
 
 // detail = version JSON; install = { classpath, nativesDir, javaBinary }.
+// opts.extraJvm (optional) = extra JVM tokens from the instance's javaArgs.
 // opts.overlay (optional) = a mod-loader overlay from loaders.js:
 //   { mainClass, extraClasspath:[absPaths], extraJvm:[], extraGame:[] }.
 // Loader libraries go *ahead* of the vanilla classpath so the loader's classes win,
@@ -76,6 +77,8 @@ function buildArgs(detail, install, session, opts) {
 
   if (opts.ramMB) jvm.unshift(`-Xmx${opts.ramMB}M`);
   if (overlay.extraJvm && overlay.extraJvm.length) jvm.push(...flatten(overlay.extraJvm, subs, features));
+  // Per-instance user JVM args (free text, already split on whitespace by index.js).
+  if (opts.extraJvm && opts.extraJvm.length) jvm.push(...opts.extraJvm.map((a) => resolve(a, subs)));
 
   let game = [];
   if (detail.arguments && detail.arguments.game) game = flatten(detail.arguments.game, subs, features);

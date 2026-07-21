@@ -306,3 +306,21 @@ svg.ico { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-widt
 .mod-row .mod-x { margin-left:auto; border:none; background:transparent; cursor:pointer; color:var(--text-secondary);
   padding:6px; border-radius:8px; }
 .mod-row .mod-x:hover { color:#ff8080; background: var(--glass-fill); }
+
+/* ---- Instance detail: worlds + settings ---- */
+.worlds-list { display:flex; flex-direction:column; gap:10px; margin-top:12px; }
+.world-row { display:flex; align-items:center; gap:14px; padding:12px 14px; border-radius:12px; }
+.world-row .hit-icon.ph .ico { font-size:18px; }
+.world-actions { display:flex; align-items:center; gap:8px; margin-left:auto; }
+.world-actions .btn-soft { display:inline-flex; align-items:center; gap:6px; }
+.world-x { border:none; background:transparent; cursor:pointer; color:var(--text-secondary); padding:7px; border-radius:8px; }
+.world-x:hover { color:#ff8080; background: var(--glass-fill); }
+
+.edit-panel { margin-top:12px; padding:16px; display:flex; flex-direction:column; gap:14px; }
+.edit-grid { grid-template-columns: 1.4fr 1fr 1fr; }
+.edit-full { display:flex; flex-direction:column; gap:6px; font-family: var(--font-display); font-weight:600;
+  font-size:10.5px; letter-spacing:1.2px; color: var(--text-tertiary); }
+.edit-full input { font-family: var(--font-mono); font-size:12.5px; color: var(--text-primary);
+  background: rgba(255,255,255,.05); border:1px solid var(--stroke); border-radius:10px; padding:10px 12px; outline:none; }
+.edit-full input:focus { border-color: var(--accent); }
+.edit-panel .np-actions { margin-top:0; }

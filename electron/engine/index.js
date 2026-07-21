@@ -7,6 +7,7 @@ const platform = require("./platform");
 const install = require("./install");
 const loaders = require("./loaders");
 const content = require("./content");
+const worlds = require("./worlds");
 const auth = require("./auth");
 const { launch: doLaunch, offlineSession } = require("./launch");
 
@@ -57,6 +58,20 @@ function deleteInstance(id) {
   writeInstances(readInstances().filter((i) => i.id !== id));
   try { fs.rmSync(path.join(DATA_DIR, "instances", id), { recursive: true, force: true }); } catch {}
   return true;
+}
+// Edit the mutable fields of an instance in place and persist. Only the keys that are
+// supplied are touched; ramMB "" / 0 clears back to the auto default, javaArgs is free
+// text appended to the JVM args at launch.
+function updateInstance({ id, name, ramMB, javaArgs, mcVersion }) {
+  const list = readInstances();
+  const inst = list.find((i) => i.id === id);
+  if (!inst) throw new Error("Instance not found.");
+  if (name !== undefined) { const n = String(name).trim(); if (n) inst.name = n; }
+  if (ramMB !== undefined) { const n = Number(ramMB); inst.ramMB = Number.isFinite(n) && n > 0 ? Math.round(n) : null; }
+  if (javaArgs !== undefined) inst.javaArgs = String(javaArgs).trim();
+  if (mcVersion !== undefined) { const v = String(mcVersion).trim(); if (v) inst.mcVersion = v; }
+  writeInstances(list);
+  return inst;
 }
 
 // ---- Mojang versions ----
@@ -119,6 +134,14 @@ function removeContent({ instanceId, projectId }) {
   return true;
 }
 
+// ---- Worlds (singleplayer saves per instance) ----
+function worldList(instanceId) { return worlds.list(DATA_DIR, instanceId); }
+function worldBackups(instanceId) { return worlds.backups(DATA_DIR, instanceId); }
+function worldBackup({ instanceId, world }) { return worlds.backup(DATA_DIR, instanceId, world); }
+function worldRestore({ instanceId, backup }) { return worlds.restore(DATA_DIR, instanceId, backup); }
+function worldRename({ instanceId, world, name }) { return worlds.rename(DATA_DIR, instanceId, world, name); }
+function worldRemove({ instanceId, world }) { return worlds.remove(DATA_DIR, instanceId, world); }
+
 // ---- Account / sign-in ----
 function account() { return auth.account(); }
 function signOut() { return auth.signOut(); }
@@ -160,8 +183,9 @@ async function launch(id) {
     const gameDir = p.instanceDir(id); fs.mkdirSync(gameDir, { recursive: true });
 
     emit("launch:state", { id, status: "running" });
+    const extraJvm = inst.javaArgs ? String(inst.javaArgs).split(/\s+/).filter(Boolean) : [];
     const child = doLaunch(detail, built, session,
-      { gameDir, assetsRoot: p.assets, librariesDir: p.libraries, ramMB: inst.ramMB || undefined, overlay },
+      { gameDir, assetsRoot: p.assets, librariesDir: p.libraries, ramMB: inst.ramMB || undefined, extraJvm, overlay },
       (line) => emit("launch:log", { line }),
       (code) => { delete running[id]; emit("launch:state", { id, status: "idle", code }); });
     running[id] = child;
@@ -182,9 +206,10 @@ function isRunning(id) { return !!running[id]; }
 
 module.exports = {
   init, setEmitter, dataDir, info,
-  listInstances, createInstance, deleteInstance,
+  listInstances, createInstance, deleteInstance, updateInstance,
   listVersions, modrinthSearch,
   installContent, listContent, removeContent,
+  worldList, worldBackups, worldBackup, worldRestore, worldRename, worldRemove,
   account, signOut, signInStart, signInComplete,
   launch, stop, isRunning,
 };

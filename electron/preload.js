@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("lodestone", {
   instances: {
     list: () => call("instances:list"),
     create: (opts) => call("instances:create", opts),
+    update: (opts) => call("instance:update", opts),
     delete: (id) => call("instances:delete", { id }),
   },
   versions: () => call("versions:list"),
@@ -19,6 +20,14 @@ contextBridge.exposeInMainWorld("lodestone", {
     install: (opts) => call("content:install", opts),
     list: (instanceId) => call("content:list", { instanceId }),
     remove: (opts) => call("content:remove", opts),
+  },
+  worlds: {
+    list: (instanceId) => call("worlds:list", { instanceId }),
+    backups: (instanceId) => call("worlds:backups", { instanceId }),
+    backup: (opts) => call("worlds:backup", opts),
+    restore: (opts) => call("worlds:restore", opts),
+    rename: (opts) => call("worlds:rename", opts),
+    remove: (opts) => call("worlds:remove", opts),
   },
   launch: (id) => call("launch", { id }),
   stop: (id) => call("launch:stop", { id }),

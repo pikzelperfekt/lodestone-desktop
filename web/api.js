@@ -25,6 +25,12 @@
       const i = { id: "n" + Date.now(), accent: "#5EE6A0", mods: 0, created: Date.now(), lastPlayed: null, ...opts };
       sample.instances.unshift(i); return i;
     },
+    async updateInstance(opts) {
+      if (bridge) return unwrap(await bridge.instances.update(opts));
+      const i = sample.instances.find((x) => x.id === opts.id);
+      if (i) Object.assign(i, opts);
+      return i || opts;
+    },
     async deleteInstance(id) {
       if (bridge) return unwrap(await bridge.instances.delete(id));
       sample.instances = sample.instances.filter((i) => i.id !== id); return true;
@@ -69,6 +75,15 @@
       },
       async list(instanceId) { return bridge ? unwrap(await bridge.content.list(instanceId)) : []; },
       async remove(opts) { return bridge ? unwrap(await bridge.content.remove(opts)) : true; },
+    },
+
+    worlds: {
+      async list(instanceId) { return bridge ? unwrap(await bridge.worlds.list(instanceId)) : []; },
+      async backups(instanceId) { return bridge ? unwrap(await bridge.worlds.backups(instanceId)) : []; },
+      async backup(opts) { return bridge ? unwrap(await bridge.worlds.backup(opts)) : true; },
+      async restore(opts) { return bridge ? unwrap(await bridge.worlds.restore(opts)) : true; },
+      async rename(opts) { return bridge ? unwrap(await bridge.worlds.rename(opts)) : true; },
+      async remove(opts) { return bridge ? unwrap(await bridge.worlds.remove(opts)) : true; },
     },
   };
 })();

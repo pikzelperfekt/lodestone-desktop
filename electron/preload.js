@@ -70,6 +70,18 @@ contextBridge.exposeInMainWorld("lodestone", {
     updateProfile: (patch) => call("cloud:updateProfile", patch),
     linkMinecraft: () => call("cloud:linkMinecraft"),
     searchProfiles: (query) => call("cloud:searchProfiles", { query }),
+    // Chat + Squads (Vertical C) — live delivery arrives on the "cloud:message" event.
+    chat: {
+      createSquad: (opts) => call("cloud:createSquad", opts),
+      joinSquad: (opts) => call("cloud:joinSquad", opts),
+      leaveSquad: (squadId) => call("cloud:leaveSquad", { squadId }),
+      listSquads: () => call("cloud:listSquads"),
+      squadInvite: (squadId) => call("cloud:squadInvite", { squadId }),
+      startDm: (userId) => call("cloud:startDm", { userId }),
+      listDMs: () => call("cloud:listDMs"),
+      history: (opts) => call("cloud:chatHistory", opts),
+      send: (opts) => call("cloud:chatSend", opts),
+    },
   },
   openDataDir: () => call("open:dataDir"),
   openExternal: (url) => call("open:external", { url }),

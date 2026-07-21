@@ -98,6 +98,35 @@
       async updateProfile(patch) { return bridge ? unwrap(await bridge.cloud.updateProfile(patch)) : null; },
       async linkMinecraft() { return bridge ? unwrap(await bridge.cloud.linkMinecraft()) : null; },
       async searchProfiles(query) { return bridge ? unwrap(await bridge.cloud.searchProfiles(query)) : []; },
+
+      // Chat + Squads (Vertical C). Reads fail soft to empty in browser preview;
+      // mutations explain that squads/chat run in the desktop app — never a crash.
+      chat: {
+        async listSquads() { return bridge ? unwrap(await bridge.cloud.chat.listSquads()) : []; },
+        async createSquad(opts) {
+          if (bridge) return unwrap(await bridge.cloud.chat.createSquad(opts));
+          throw new Error("Squads run in the desktop app.");
+        },
+        async joinSquad(opts) {
+          if (bridge) return unwrap(await bridge.cloud.chat.joinSquad(opts));
+          throw new Error("Squads run in the desktop app.");
+        },
+        async leaveSquad(squadId) { return bridge ? unwrap(await bridge.cloud.chat.leaveSquad(squadId)) : true; },
+        async squadInvite(squadId) {
+          if (bridge) return unwrap(await bridge.cloud.chat.squadInvite(squadId));
+          throw new Error("Squads run in the desktop app.");
+        },
+        async startDm(userId) {
+          if (bridge) return unwrap(await bridge.cloud.chat.startDm(userId));
+          throw new Error("Chat runs in the desktop app.");
+        },
+        async listDMs() { return bridge ? unwrap(await bridge.cloud.chat.listDMs()) : []; },
+        async history(opts) { return bridge ? unwrap(await bridge.cloud.chat.history(opts)) : []; },
+        async send(opts) {
+          if (bridge) return unwrap(await bridge.cloud.chat.send(opts));
+          throw new Error("Chat runs in the desktop app.");
+        },
+      },
     },
 
     on(channel, fn) { return bridge ? bridge.on(channel, fn) : () => {}; },

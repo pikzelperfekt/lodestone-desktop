@@ -1039,7 +1039,7 @@ function bindCommon() {
 function navigate(section) {
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("is-active", b.dataset.section === section));
   if (section === "discover") discoverTarget = null;   // sidebar Discover = browse for any instance
-  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, cloud: renderCloud, settings: renderSettings }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
+  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, cloud: renderCloud, squads: renderSquads, settings: renderSettings }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
 }
 
 // ---------- Command palette (Ctrl/Cmd-K) ----------
@@ -1382,7 +1382,440 @@ function setupCloud() {
     cloudAuthState = s;
     const active = document.querySelector('.nav-item[data-section="cloud"].is-active');
     if (active) renderCloud();
+    // A fresh sign-in / sign-out changes what squads + chat can see; refresh if open.
+    if (document.getElementById("squads-root")) renderSquads();
   });
+}
+
+// ---------- Squads + Chat (Vertical C) ----------
+// A two-pane messenger on the Lodestone account: squad group channels down the
+// left with DMs, a live chat pane on the right. Messages arrive over the
+// "cloud:message" event (RLS-filtered to the user's channels) and are deduped by
+// id so the optimistic echo on send never doubles up with the Realtime delivery.
+let chatSubs = [];              // active "cloud:message" subscriptions
+let chatActive = null;          // { type:'squad'|'dm', id, key, title, squad?, partner? }
+let chatMsgs = [];              // messages in the open channel (shaped, chronological)
+let chatMe = null;             // my profile (id + Minecraft skin for "me" rows)
+let squadsCache = [];           // last-loaded squads (with rosters)
+let dmsCache = [];              // last-loaded DM conversations
+const chatUnread = new Set();   // channel keys with unseen messages while another is open
+function clearChatSubs() { chatSubs.forEach((u) => { try { u(); } catch {} }); chatSubs = []; }
+
+function chatName(p, isMe) {
+  if (isMe) return "You";
+  if (!p) return "Player";
+  return p.display_name || p.username || p.minecraft_name || "Player";
+}
+function chatAvatar(p, cls) {
+  const uuid = p && p.minecraft_uuid ? String(p.minecraft_uuid).replace(/-/g, "") : null;
+  if (uuid) return `<img class="${cls}" src="https://mc-heads.net/avatar/${esc(uuid)}/64" alt="" />`;
+  const src = p && (p.display_name || p.username || p.minecraft_name);
+  return `<div class="${cls} ph">${esc(src ? src[0].toUpperCase() : "?")}</div>`;
+}
+function chatTime(iso) { try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch { return ""; } }
+
+async function renderSquads() {
+  clearChatSubs();
+  el().innerHTML = `<div class="placeholder">${ico("i-chat")}<h2>Loading…</h2></div>`;
+  let status;
+  try { status = await API.cloud.status(); }
+  catch (e) { el().innerHTML = `<div class="placeholder">${ico("i-chat")}<h2>Squads</h2><p>${esc(e.message)}</p></div>`; return; }
+
+  if (!status.configured) {
+    el().innerHTML = `
+      <div class="cloud-wrap">
+        <div class="cloud-head"><h1>Squads</h1><p class="cloud-sub">Group up and chat in squads and direct messages.</p></div>
+        <div class="cloud-card glass cloud-setup">${ico("i-chat")}
+          <h2>Cloud backend not set up yet</h2>
+          <p>Squads and chat run on a Lodestone account. Connect a Supabase project once to turn them on — the launcher works fully offline without it.</p>
+          <p class="cloud-hint">See <b>SETUP.md</b> in the repo, then restart Lodestone.</p>
+        </div>
+      </div>`;
+    return;
+  }
+  if (!status.signedIn) {
+    el().innerHTML = `
+      <div class="cloud-wrap">
+        <div class="cloud-head"><h1>Squads</h1><p class="cloud-sub">Group up and chat in squads and direct messages.</p></div>
+        <div class="cloud-card glass cloud-setup">${ico("i-chat")}
+          <h2>Sign in to chat</h2>
+          <p>Squads and messages live on your Lodestone account. Sign in to create a squad, invite friends, and start talking.</p>
+          <button class="btn-accent" style="width:auto;padding:9px 20px" id="sq-go-account">Go to Account</button>
+        </div>
+      </div>`;
+    document.getElementById("sq-go-account").onclick = () => navigate("cloud");
+    return;
+  }
+
+  chatMe = status.profile || (await API.cloud.profile().catch(() => null));
+  [squadsCache, dmsCache] = await Promise.all([
+    API.cloud.chat.listSquads().catch(() => []),
+    API.cloud.chat.listDMs().catch(() => []),
+  ]);
+
+  el().innerHTML = `
+    <div class="page-head">
+      <h1 class="page-title">Squads</h1>
+      <div class="head-actions">
+        <button class="btn-soft" id="sq-join">${ico("i-arrow-right")} Join</button>
+        <button class="btn-soft" id="sq-new">${ico("i-plus")} New squad</button>
+      </div>
+    </div>
+    <div class="chat-layout" id="squads-root">
+      <aside class="chat-side glass">
+        <div class="chat-side-sec">SQUADS</div>
+        <div class="chat-side-list" id="squad-list">${squadListHTML()}</div>
+        <div class="chat-side-sec">DIRECT MESSAGES<button class="chat-side-add" id="dm-new" title="New message">${ico("i-plus")}</button></div>
+        <div class="chat-side-list" id="dm-list">${dmListHTML()}</div>
+      </aside>
+      <section class="chat-main glass" id="chat-main"></section>
+    </div>`;
+
+  document.getElementById("sq-new").onclick = openNewSquadModal;
+  document.getElementById("sq-join").onclick = openJoinSquadModal;
+  document.getElementById("dm-new").onclick = openNewDmModal;
+  bindSideLists();
+
+  // Re-open the last channel if it still exists, else show the empty state.
+  if (chatActive && chatActive.type === "squad") {
+    const s = squadsCache.find((x) => x.id === chatActive.id);
+    if (s) chatActive.squad = s; else chatActive = null;
+  }
+  highlightActive();
+  renderChatPane();
+
+  chatSubs.push(API.on("cloud:message", onChatIncoming));
+}
+
+function squadListHTML() {
+  if (!squadsCache.length) return `<div class="chat-side-empty">No squads yet. Create one or join with a code.</div>`;
+  return squadsCache.map((s) => {
+    const key = `squad:${s.id}`;
+    const count = (s.members || []).length;
+    return `<button class="chat-chan${key === (chatActive && chatActive.key) ? " on" : ""}${chatUnread.has(key) ? " has-unread" : ""}" data-chan="${esc(key)}" data-kind="squad" data-id="${esc(s.id)}">
+      <div class="chan-glyph">${ico("i-chat")}</div>
+      <div class="chan-meta"><div class="chan-name">${esc(s.name)}</div><div class="chan-sub">${count} member${count === 1 ? "" : "s"}${s.isOwner ? " · owner" : ""}</div></div>
+      <span class="chan-unread"></span>
+    </button>`;
+  }).join("");
+}
+function dmListHTML() {
+  if (!dmsCache.length) return `<div class="chat-side-empty">No messages yet. Hit + to start one.</div>`;
+  return dmsCache.map((d) => {
+    const key = `dm:${d.channelId}`;
+    return `<button class="chat-chan${key === (chatActive && chatActive.key) ? " on" : ""}${chatUnread.has(key) ? " has-unread" : ""}" data-chan="${esc(key)}" data-kind="dm" data-id="${esc(d.channelId)}">
+      ${chatAvatar(d.partner, "chan-avatar")}
+      <div class="chan-meta"><div class="chan-name">${esc(chatName(d.partner, false))}</div><div class="chan-sub">${esc(d.lastBody || "")}</div></div>
+      <span class="chan-unread"></span>
+    </button>`;
+  }).join("");
+}
+
+function bindSideLists() {
+  document.querySelectorAll(".chat-chan").forEach((b) => b.onclick = () => {
+    if (b.dataset.kind === "squad") {
+      const s = squadsCache.find((x) => x.id === b.dataset.id);
+      if (s) openSquadChannel(s);
+    } else {
+      const d = dmsCache.find((x) => x.channelId === b.dataset.id);
+      if (d) openDmChannel(d);
+    }
+  });
+}
+function highlightActive() {
+  document.querySelectorAll(".chat-chan").forEach((b) => b.classList.toggle("on", chatActive && b.dataset.chan === chatActive.key));
+}
+
+function openSquadChannel(s) { chatActive = { type: "squad", id: s.id, key: `squad:${s.id}`, title: s.name, squad: s }; afterOpen(); }
+function openDmChannel(d) { chatActive = { type: "dm", id: d.channelId, key: `dm:${d.channelId}`, title: chatName(d.partner, false), partner: d.partner }; afterOpen(); }
+function afterOpen() {
+  chatUnread.delete(chatActive.key);
+  const item = document.querySelector(`.chat-chan[data-chan="${chatActive.key}"]`);
+  if (item) item.classList.remove("has-unread");
+  highlightActive();
+  renderChatPane();
+}
+
+async function renderChatPane() {
+  const main = document.getElementById("chat-main");
+  if (!main) return;
+  if (!chatActive) { main.innerHTML = `<div class="chat-empty">${ico("i-chat")}<h2>Pick a channel</h2><p>Choose a squad or start a direct message to begin chatting.</p></div>`; return; }
+
+  main.innerHTML = `
+    ${chatHeaderHTML()}
+    <div class="chat-log" id="chat-log"><div class="chat-loading"><span class="spinner"></span></div></div>
+    <div class="chat-compose">
+      <input id="chat-input" placeholder="Message ${esc(chatActive.title)}…" autocomplete="off" />
+      <button class="btn-accent chat-send" id="chat-send">${ico("i-arrow-right")}</button>
+    </div>`;
+
+  // Header actions (squad only): invite + leave/delete.
+  if (chatActive.type === "squad") {
+    const s = chatActive.squad || {};
+    const inv = document.getElementById("sq-invite"); if (inv) inv.onclick = () => openSquadInviteModal(s);
+    const lv = document.getElementById("sq-leave"); if (lv) lv.onclick = () => leaveSquadFlow(s);
+  }
+
+  const input = document.getElementById("chat-input");
+  const doSend = async () => {
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    try {
+      const m = await API.cloud.chat.send({ channelType: chatActive.type, channelId: chatActive.id, body: text });
+      appendChatMessage(m);
+      bumpChannelPreview(m);
+    } catch (e) { input.value = text; toast("Couldn't send: " + e.message); }
+  };
+  document.getElementById("chat-send").onclick = doSend;
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doSend(); } });
+  input.focus();
+
+  try {
+    chatMsgs = await API.cloud.chat.history({ channelType: chatActive.type, channelId: chatActive.id, limit: 200 });
+  } catch (e) {
+    const log = document.getElementById("chat-log");
+    if (log) log.innerHTML = `<div class="empty-line">Couldn't load messages: ${esc(e.message)}</div>`;
+    return;
+  }
+  renderLog();
+}
+
+function chatHeaderHTML() {
+  if (chatActive.type === "squad") {
+    const s = chatActive.squad || {};
+    const members = s.members || [];
+    const roster = members.slice(0, 6).map((m) => chatAvatar(m, "roster-avatar")).join("");
+    const extra = members.length > 6 ? `<span class="roster-more">+${members.length - 6}</span>` : "";
+    return `<div class="chat-head">
+      <div class="chat-head-main">
+        <div class="chat-title">${esc(s.name || "Squad")}</div>
+        <div class="chat-roster">${roster}${extra}<span class="chat-roster-count">${members.length} member${members.length === 1 ? "" : "s"}</span></div>
+      </div>
+      <div class="chat-head-actions">
+        <button class="btn-soft" id="sq-invite">${ico("i-link")} Invite</button>
+        <button class="btn-ghost" id="sq-leave">${s.isOwner ? "Delete" : "Leave"}</button>
+      </div>
+    </div>`;
+  }
+  const p = chatActive.partner || {};
+  return `<div class="chat-head">
+    <div class="chat-head-main dm">${chatAvatar(p, "chat-head-avatar")}
+      <div><div class="chat-title">${esc(chatName(p, false))}</div><div class="chat-sub2">Direct message</div></div>
+    </div>
+  </div>`;
+}
+
+function chatLogHTML() {
+  if (!chatMsgs.length) return `<div class="chat-empty-log">No messages yet. Say hello.</div>`;
+  const meId = chatMe && chatMe.id;
+  let html = ""; let prev = null;
+  for (const m of chatMsgs) {
+    const isMe = m.sender === meId;
+    const grouped = prev && prev.sender === m.sender && (new Date(m.createdAt) - new Date(prev.createdAt) < 5 * 60 * 1000);
+    html += `
+      <div class="chat-msg${isMe ? " me" : ""}${grouped ? " grouped" : ""}">
+        <div class="chat-msg-gutter">${grouped ? "" : chatAvatar(m.senderProfile, "chat-avatar")}</div>
+        <div class="chat-msg-body">
+          ${grouped ? "" : `<div class="chat-msg-head"><span class="chat-msg-name">${esc(chatName(m.senderProfile, isMe))}</span><span class="chat-msg-time">${esc(chatTime(m.createdAt))}</span></div>`}
+          <div class="chat-msg-text">${esc(m.body)}</div>
+        </div>
+      </div>`;
+    prev = m;
+  }
+  return html;
+}
+function renderLog() {
+  const log = document.getElementById("chat-log");
+  if (!log) return;
+  log.innerHTML = chatLogHTML();
+  log.scrollTop = log.scrollHeight;
+}
+function appendChatMessage(m) {
+  if (chatMsgs.some((x) => String(x.id) === String(m.id))) return;   // dedupe echo vs realtime
+  chatMsgs.push(m);
+  renderLog();
+}
+
+// Freshen a channel's side-list preview + reorder DMs newest-first.
+function bumpChannelPreview(m) {
+  if (m.channelType === "dm") {
+    const d = dmsCache.find((x) => x.channelId === m.channelId);
+    if (d) { d.lastBody = m.body; d.lastAt = m.createdAt; dmsCache.sort((a, b) => new Date(b.lastAt) - new Date(a.lastAt)); }
+    const dl = document.getElementById("dm-list"); if (dl) { dl.innerHTML = dmListHTML(); }
+  }
+  bindSideLists(); highlightActive();
+}
+
+function onChatIncoming(m) {
+  if (!document.getElementById("squads-root")) return;   // not on the Squads tab; reloads on return
+  if (chatActive && m.channelType === chatActive.type && m.channelId === chatActive.id) {
+    appendChatMessage(m);
+    bumpChannelPreview(m);
+    return;
+  }
+  const key = `${m.channelType}:${m.channelId}`;
+  const item = document.querySelector(`.chat-chan[data-chan="${key}"]`);
+  if (item) { chatUnread.add(key); item.classList.add("has-unread"); bumpChannelPreview(m); }
+  else { refreshLists(); }   // a channel we didn't know about (new DM) — pull it in
+}
+
+async function refreshLists() {
+  const [squads, dms] = await Promise.all([
+    API.cloud.chat.listSquads().catch(() => squadsCache),
+    API.cloud.chat.listDMs().catch(() => dmsCache),
+  ]);
+  squadsCache = squads; dmsCache = dms;
+  const sl = document.getElementById("squad-list"); if (sl) sl.innerHTML = squadListHTML();
+  const dl = document.getElementById("dm-list"); if (dl) dl.innerHTML = dmListHTML();
+  bindSideLists(); highlightActive();
+  if (chatActive && chatActive.type === "squad") {
+    const s = squadsCache.find((x) => x.id === chatActive.id);
+    if (s) chatActive.squad = s;
+  }
+}
+
+// ---- Squad + DM modals ----
+function openNewSquadModal() {
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-chat")} New squad</div>
+      <p class="share-sub">Create a group channel. You'll get an invite code to bring friends in.</p>
+      <input id="nsq-name" class="chat-modal-input" placeholder="Squad name" maxlength="80" />
+      <div class="cloud-err" id="nsq-err" hidden></div>
+      <div class="np-actions">
+        <button class="btn-ghost" id="nsq-cancel">Cancel</button>
+        <button class="btn-accent share-btn" id="nsq-create">${ico("i-plus")} Create squad</button>
+      </div>
+    </div>`);
+  const nameEl = document.getElementById("nsq-name"); nameEl.focus();
+  document.getElementById("nsq-cancel").onclick = hideModal;
+  const create = async () => {
+    const name = nameEl.value.trim();
+    const err = document.getElementById("nsq-err"); err.hidden = true;
+    if (!name) { err.textContent = "Give your squad a name."; err.hidden = false; return; }
+    const btn = document.getElementById("nsq-create"); btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Creating…`;
+    try {
+      const squad = await API.cloud.chat.createSquad({ name });
+      hideModal(); toast(`Created ${squad.name}.`);
+      await refreshLists();
+      const s = squadsCache.find((x) => x.id === squad.id) || squad;
+      openSquadChannel(s);
+    } catch (e) {
+      err.textContent = e.message; err.hidden = false;
+      btn.disabled = false; btn.innerHTML = `${ico("i-plus")} Create squad`;
+    }
+  };
+  document.getElementById("nsq-create").onclick = create;
+  nameEl.addEventListener("keydown", (e) => { if (e.key === "Enter") create(); });
+}
+
+function openJoinSquadModal() {
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-arrow-right")} Join a squad</div>
+      <p class="share-sub">Paste the invite code a friend shared with you.</p>
+      <input id="jsq-code" class="chat-modal-input mono" placeholder="Invite code" spellcheck="false" />
+      <div class="cloud-err" id="jsq-err" hidden></div>
+      <div class="np-actions">
+        <button class="btn-ghost" id="jsq-cancel">Cancel</button>
+        <button class="btn-accent share-btn" id="jsq-join">${ico("i-arrow-right")} Join squad</button>
+      </div>
+    </div>`);
+  const codeEl = document.getElementById("jsq-code"); codeEl.focus();
+  document.getElementById("jsq-cancel").onclick = hideModal;
+  const join = async () => {
+    const inviteCode = codeEl.value.trim();
+    const err = document.getElementById("jsq-err"); err.hidden = true;
+    if (!inviteCode) { err.textContent = "Paste an invite code."; err.hidden = false; return; }
+    const btn = document.getElementById("jsq-join"); btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Joining…`;
+    try {
+      const squad = await API.cloud.chat.joinSquad({ inviteCode });
+      hideModal(); toast(`Joined ${squad.name}.`);
+      await refreshLists();
+      const s = squadsCache.find((x) => x.id === squad.id) || squad;
+      openSquadChannel(s);
+    } catch (e) {
+      err.textContent = e.message; err.hidden = false;
+      btn.disabled = false; btn.innerHTML = `${ico("i-arrow-right")} Join squad`;
+    }
+  };
+  document.getElementById("jsq-join").onclick = join;
+  codeEl.addEventListener("keydown", (e) => { if (e.key === "Enter") join(); });
+}
+
+function openSquadInviteModal(s) {
+  const code = s.invite_code || "";
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-link")} Invite to ${esc(s.name)}</div>
+      <p class="share-sub">Share this code. Anyone who enters it under <b>Join</b> becomes a member.</p>
+      <div class="share-label">INVITE CODE</div>
+      <textarea id="inv-code" class="share-box mono" readonly rows="1">${esc(code)}</textarea>
+      <div class="np-actions">
+        <button class="btn-ghost" id="inv-close">Close</button>
+        <button class="btn-accent share-btn" id="inv-copy">${ico("i-download")} Copy code</button>
+      </div>
+    </div>`);
+  document.getElementById("inv-close").onclick = hideModal;
+  document.getElementById("inv-copy").onclick = async () => {
+    const ok = await copyText(code, document.getElementById("inv-code"));
+    toast(ok ? "Invite code copied." : "Couldn't copy — select the code and copy it by hand.");
+  };
+}
+
+async function leaveSquadFlow(s) {
+  const owner = !!s.isOwner;
+  if (!confirm(owner ? `Delete "${s.name}" for everyone? This removes the squad and its chat.` : `Leave "${s.name}"?`)) return;
+  try {
+    await API.cloud.chat.leaveSquad(s.id);
+    toast(owner ? "Squad deleted." : `Left ${s.name}.`);
+    if (chatActive && chatActive.key === `squad:${s.id}`) chatActive = null;
+    await refreshLists();
+    renderChatPane();
+  } catch (e) { toast("Couldn't leave: " + e.message); }
+}
+
+function openNewDmModal() {
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-user")} New message</div>
+      <p class="share-sub">Find someone by username, display name, or Minecraft name.</p>
+      <div class="searchbar glass">${ico("i-search")}<input id="dm-search" placeholder="Search people…" autocomplete="off" spellcheck="false" /></div>
+      <div id="dm-results" class="dm-results"><div class="empty-line">Type at least two characters.</div></div>
+      <div class="np-actions"><button class="btn-ghost" id="dm-close">Close</button></div>
+    </div>`);
+  document.getElementById("dm-close").onclick = hideModal;
+  const search = document.getElementById("dm-search"); search.focus();
+  let timer = null;
+  const run = async () => {
+    const box = document.getElementById("dm-results");
+    const q = search.value.trim();
+    if (q.length < 2) { box.innerHTML = `<div class="empty-line">Type at least two characters.</div>`; return; }
+    box.innerHTML = `<div class="empty-line">Searching…</div>`;
+    let hits = [];
+    try { hits = await API.cloud.searchProfiles(q); }
+    catch (e) { box.innerHTML = `<div class="empty-line">Search failed: ${esc(e.message)}</div>`; return; }
+    if (!hits.length) { box.innerHTML = `<div class="empty-line">No one found.</div>`; return; }
+    box.innerHTML = hits.map((p) => `
+      <button class="dm-result" data-id="${esc(p.id)}">
+        ${chatAvatar(p, "chan-avatar")}
+        <div class="chan-meta"><div class="chan-name">${esc(chatName(p, false))}</div><div class="chan-sub">@${esc(p.username || "player")}${p.minecraft_name ? " · " + esc(p.minecraft_name) : ""}</div></div>
+      </button>`).join("");
+    box.querySelectorAll(".dm-result").forEach((b) => b.onclick = async () => {
+      const person = hits.find((x) => x.id === b.dataset.id);
+      try {
+        const { channelId, partner } = await API.cloud.chat.startDm(b.dataset.id);
+        hideModal();
+        let d = dmsCache.find((x) => x.channelId === channelId);
+        if (!d) { d = { channelId, partner: partner || person, lastBody: "", lastAt: new Date().toISOString() }; dmsCache.unshift(d); }
+        const dl = document.getElementById("dm-list"); if (dl) dl.innerHTML = dmListHTML();
+        bindSideLists();
+        openDmChannel(d);
+      } catch (e) { toast("Couldn't start chat: " + e.message); }
+    });
+  };
+  search.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(run, 260); });
 }
 
 // ---------- Launch overlay ----------

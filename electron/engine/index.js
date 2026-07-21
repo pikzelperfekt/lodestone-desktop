@@ -13,6 +13,7 @@ const curseforge = require("./curseforge");
 const worlds = require("./worlds");
 const auth = require("./auth");
 const cloud = require("./cloud");
+const chat = require("./chat");   // Vertical C — Chat + Squads
 const settings = require("./settings");
 const serverEngine = require("./server");
 const maintenance = require("./maintenance");
@@ -33,7 +34,7 @@ function init(userDataPath) {
 // ---- App settings (memory / Java override / launcher behavior) ----
 function getSettings() { return settings.getSettings(); }
 function setSettings(patch) { return settings.setSettings(patch); }
-function setEmitter(fn) { emit = fn || (() => {}); cloud.setEmitter(emit); }
+function setEmitter(fn) { emit = fn || (() => {}); cloud.setEmitter(emit); chat.setEmitter(emit); }
 
 // ---- Cloud account (Lodestone social/sync identity — distinct from Minecraft) ----
 function cloudStatus() { return cloud.status(); }
@@ -45,6 +46,17 @@ function cloudUpdateProfile(a) { return cloud.updateProfile(a); }
 function cloudLinkMinecraft() { return cloud.linkMinecraft(auth.account()); }
 function cloudSearchProfiles(a) { return cloud.searchProfiles(a && a.query); }
 function dataDir() { return DATA_DIR; }
+
+// ---- Chat + Squads (Vertical C — squad channels + direct messages) ----
+function chatCreateSquad(a) { return chat.createSquad(a); }
+function chatJoinSquad(a) { return chat.joinSquad(a); }
+function chatLeaveSquad(a) { return chat.leaveSquad(a); }
+function chatListSquads() { return chat.listSquads(); }
+function chatSquadInvite(a) { return chat.squadInvite(a); }
+function chatStartDm(a) { return chat.startDm(a); }
+function chatListDMs() { return chat.listDMs(); }
+function chatHistory(a) { return chat.history(a); }
+function chatSend(a) { return chat.send(a); }
 
 function info() {
   return {
@@ -401,6 +413,8 @@ module.exports = {
   account, signOut, signInStart, signInComplete,
   cloudStatus, cloudSignUp, cloudSignIn, cloudSignOut,
   cloudProfile, cloudUpdateProfile, cloudLinkMinecraft, cloudSearchProfiles,
+  chatCreateSquad, chatJoinSquad, chatLeaveSquad, chatListSquads, chatSquadInvite,
+  chatStartDm, chatListDMs, chatHistory, chatSend,
   launch, stop, isRunning,
   repairInstance, updateAllContent,
   listServers, createServer, startServer, stopServer, serverCommand,

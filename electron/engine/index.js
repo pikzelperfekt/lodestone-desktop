@@ -7,6 +7,7 @@ const platform = require("./platform");
 const install = require("./install");
 const loaders = require("./loaders");
 const content = require("./content");
+const importer = require("./import");
 const auth = require("./auth");
 const { launch: doLaunch, offlineSession } = require("./launch");
 
@@ -119,6 +120,23 @@ function removeContent({ instanceId, projectId }) {
   return true;
 }
 
+// ---- Modpack import (.mrpack) ----
+// Parse a Modrinth modpack, spin up a new instance, download its files + overrides,
+// and persist the populated instance. Reuses createInstance for the instance shape.
+async function importModpack(filePath) {
+  return importer.importModpack({
+    dataDir: DATA_DIR,
+    filePath,
+    createInstance,
+    persist: (inst) => {
+      const list = readInstances();
+      const idx = list.findIndex((i) => i.id === inst.id);
+      if (idx >= 0) { list[idx] = inst; writeInstances(list); }
+    },
+    onLog: (line) => emit("content:log", { line }),
+  });
+}
+
 // ---- Account / sign-in ----
 function account() { return auth.account(); }
 function signOut() { return auth.signOut(); }
@@ -185,6 +203,7 @@ module.exports = {
   listInstances, createInstance, deleteInstance,
   listVersions, modrinthSearch,
   installContent, listContent, removeContent,
+  importModpack,
   account, signOut, signInStart, signInComplete,
   launch, stop, isRunning,
 };

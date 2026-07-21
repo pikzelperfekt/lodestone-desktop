@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld("lodestone", {
     list: (instanceId) => call("content:list", { instanceId }),
     remove: (opts) => call("content:remove", opts),
   },
+  importModpack: (path) => call("import:mrpack", { path }),
   launch: (id) => call("launch", { id }),
   stop: (id) => call("launch:stop", { id }),
   account: {

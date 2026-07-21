@@ -56,12 +56,28 @@ async function renderInstances() {
   el().innerHTML = `
     <div class="page-head">
       <h1 class="page-title">Instances</h1>
-      <button class="btn-soft" id="new-inst">${ico("i-plus")} New Instance</button>
+      <div class="head-actions">
+        <button class="btn-soft" id="import-pack">${ico("i-download")} Import</button>
+        <button class="btn-soft" id="new-inst">${ico("i-plus")} New Instance</button>
+      </div>
     </div>
     <div id="new-panel"></div>
     <div class="grid">
       ${instances.map(instGridCard).join("") || `<div class="empty-line">No instances yet — create one.</div>`}
     </div>`;
+  document.getElementById("import-pack").onclick = async () => {
+    const btn = document.getElementById("import-pack");
+    const original = btn.innerHTML;
+    btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Importing…`;
+    try {
+      const inst = await API.importModpack();
+      if (inst) { toast(`Imported ${inst.name}.`); renderInstances(); }
+      else { btn.disabled = false; btn.innerHTML = original; }   // dialog canceled
+    } catch (e) {
+      toast("Couldn't import: " + e.message);
+      btn.disabled = false; btn.innerHTML = original;
+    }
+  };
   document.getElementById("new-inst").onclick = () => { creating = !creating; toggleNewPanel(); };
   if (creating) toggleNewPanel();
   bindCommon();

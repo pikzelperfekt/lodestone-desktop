@@ -15,12 +15,12 @@ Legend: [x] done · [~] partial · [ ] not started
 - [x] Browse Modrinth (search)
 - [x] **Mod install + management** — add mods/resource packs/shaders from Discover into an
       instance (with automatic required-dependency resolution), instance detail page, remove
-- [ ] Instance editing: RAM / Java args / MC version / rename / icon
-- [ ] World manager: backup / restore / rename / duplicate / delete
-- [ ] `.mrpack` / CurseForge / `.lodepack` import
+- [~] Instance editing: rename / RAM / Java args / MC version (done); icon (todo)
+- [x] World manager: backup / restore / rename / delete
+- [~] `.mrpack` import (done); CurseForge / `.lodepack` import (todo)
 
 ## Power tools
-- [ ] Settings screen (real, not a placeholder)
+- [x] Settings screen (default RAM, Java path override, data folder, update check, about)
 - [ ] CurseForge browse + install
 - [ ] Resource pack / shader / datapack managers (dedicated views)
 - [ ] Keybinds manager

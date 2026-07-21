@@ -1,6 +1,6 @@
 {
   "name": "lodestone-desktop",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Lodestone — cross-platform Minecraft launcher (Windows/Electron build)",
   "main": "electron/main.js",
   "author": "KingEstel",

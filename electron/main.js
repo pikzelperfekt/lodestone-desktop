@@ -114,6 +114,14 @@ handle("cloud:profile", () => engine.cloudProfile());
 handle("cloud:updateProfile", (a) => engine.cloudUpdateProfile(a));
 handle("cloud:linkMinecraft", () => engine.cloudLinkMinecraft());
 handle("cloud:searchProfiles", (a) => engine.cloudSearchProfiles(a));
+// Friends + Presence (Vertical B — social.js).
+handle("cloud:friends:list", () => engine.friendsList());
+handle("cloud:friends:search", (a) => engine.friendsSearch(a));
+handle("cloud:friends:request", (a) => engine.friendsRequest(a));
+handle("cloud:friends:respond", (a) => engine.friendsRespond(a));
+handle("cloud:friends:remove", (a) => engine.friendsRemove(a));
+handle("cloud:friends:block", (a) => engine.friendsBlock(a));
+handle("cloud:friends:setActivity", (a) => engine.friendsSetActivity(a));
 ipcMain.handle("open:dataDir", () => shell.openPath(engine.dataDir()));
 ipcMain.handle("open:external", (_e, a) => shell.openExternal(a.url));
 

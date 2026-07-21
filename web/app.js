@@ -1039,7 +1039,7 @@ function bindCommon() {
 function navigate(section) {
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("is-active", b.dataset.section === section));
   if (section === "discover") discoverTarget = null;   // sidebar Discover = browse for any instance
-  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, cloud: renderCloud, settings: renderSettings }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
+  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, cloud: renderCloud, friends: renderFriends, settings: renderSettings }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
 }
 
 // ---------- Command palette (Ctrl/Cmd-K) ----------
@@ -1385,6 +1385,211 @@ function setupCloud() {
   });
 }
 
+// ========================================================================
+// Friends + Presence (Vertical B) — search people, requests, live status.
+// ========================================================================
+let friendsData = { friends: [], incoming: [], outgoing: [], blocked: [] };
+let friendsPresence = {};   // userId -> { status, activity, minecraft_name, online_at }
+let friendsSearchSeq = 0;   // guards out-of-order async search results
+
+const onFriendsView = () => !!document.querySelector('.nav-item[data-section="friends"].is-active');
+
+function friendAvatar(u, size) {
+  const s = size || 40;
+  return u && u.minecraft_uuid
+    ? `<img class="friend-avatar" src="https://mc-heads.net/avatar/${esc(u.minecraft_uuid.replace(/-/g, ""))}/${s}" />`
+    : `<div class="friend-avatar friend-avatar-empty">${ico("i-user")}</div>`;
+}
+function friendIdentity(u) {
+  const name = esc((u && (u.display_name || u.username || u.minecraft_name)) || "Player");
+  const handle = u && u.username ? `@${esc(u.username)}` : (u && u.minecraft_name ? esc(u.minecraft_name) : "");
+  return `<div class="friend-name">${name}</div>${handle ? `<div class="friend-handle">${handle}</div>` : ""}`;
+}
+function agoText(iso) {
+  if (!iso) return "";
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 90) return "just now";
+  const m = Math.round(s / 60); if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60); if (h < 24) return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
+}
+function friendPresenceHtml(u) {
+  const pres = u && friendsPresence[u.id];
+  if (pres && pres.status === "online") {
+    return `<div class="friend-status online"><span class="pdot on"></span>${esc(pres.activity || "In launcher")}</div>`;
+  }
+  const seen = agoText(u && u.last_seen_at);
+  return `<div class="friend-status"><span class="pdot"></span>${seen ? "Last seen " + seen : "Offline"}</div>`;
+}
+
+async function renderFriends() {
+  let status;
+  try { status = await API.cloud.status(); }
+  catch (e) { el().innerHTML = `<div class="placeholder">${ico("i-users")}<h2>Friends</h2><p>${esc(e.message)}</p></div>`; return; }
+
+  if (!status.configured || !status.signedIn) {
+    el().innerHTML = `
+      <div class="cloud-wrap">
+        <div class="cloud-head"><h1>Friends</h1><p class="cloud-sub">See who's online and what they're playing.</p></div>
+        <div class="cloud-card glass cloud-setup">
+          ${ico("i-users")}
+          <h2>${status.configured ? "Sign in to see your friends" : "Cloud backend not set up yet"}</h2>
+          <p>${status.configured
+            ? "Friends and presence run on your Lodestone account. Head to Account to sign in."
+            : "Connect a Supabase project once to turn on accounts and the social features — the launcher works fully offline without it."}</p>
+          <button class="btn-soft" id="fr-goto-account">Go to Account</button>
+        </div>
+      </div>`;
+    const b = document.getElementById("fr-goto-account");
+    if (b) b.onclick = () => navigate("cloud");
+    return;
+  }
+
+  el().innerHTML = `
+    <div class="cloud-wrap friends-wrap">
+      <div class="cloud-head"><h1>Friends</h1><p class="cloud-sub">See who's online and what they're playing.</p></div>
+
+      <div class="cloud-card glass friends-find">
+        <div class="searchbar friends-searchbar">${ico("i-search")}<input id="fr-search" placeholder="Find people by name or Minecraft name" spellcheck="false" autocomplete="off" /></div>
+        <div class="friends-results" id="fr-results" hidden></div>
+      </div>
+
+      <div id="fr-requests"></div>
+
+      <div class="cloud-card glass">
+        <h2 class="cloud-h2">Your friends <span class="friends-count" id="fr-count"></span></h2>
+        <div id="fr-list"><div class="friends-empty">Loading…</div></div>
+      </div>
+    </div>`;
+
+  const input = document.getElementById("fr-search");
+  const results = document.getElementById("fr-results");
+  input.addEventListener("input", () => runFriendSearch(input.value, results));
+  await refreshFriends();
+}
+
+async function refreshFriends() {
+  try { friendsData = await API.cloud.friends.list(); }
+  catch { friendsData = { friends: [], incoming: [], outgoing: [], blocked: [] }; }
+  renderFriendLists();
+}
+
+// Rebuild the requests + friends lists from the cached data + presence roster.
+// A no-op (and safe) when the Friends view isn't mounted.
+function renderFriendLists() {
+  const reqEl = document.getElementById("fr-requests");
+  const listEl = document.getElementById("fr-list");
+  const countEl = document.getElementById("fr-count");
+  if (!reqEl || !listEl) return;
+
+  const { friends, incoming, outgoing } = friendsData;
+
+  let reqHtml = "";
+  if (incoming.length) {
+    reqHtml += `<div class="cloud-card glass"><h2 class="cloud-h2">Requests <span class="friends-count">${incoming.length}</span></h2>`;
+    reqHtml += incoming.map((r) => `
+      <div class="friend-row">
+        ${friendAvatar(r.user)}
+        <div class="friend-ident">${friendIdentity(r.user)}<div class="friend-status"><span class="pdot"></span>wants to be friends</div></div>
+        <div class="friend-actions">
+          <button class="btn-accent friends-btn" data-fr-accept="${esc(r.id)}">Accept</button>
+          <button class="btn-soft friends-btn" data-fr-decline="${esc(r.id)}">Decline</button>
+        </div>
+      </div>`).join("");
+    reqHtml += `</div>`;
+  }
+  if (outgoing.length) {
+    reqHtml += `<div class="cloud-card glass"><h2 class="cloud-h2">Sent <span class="friends-count">${outgoing.length}</span></h2>`;
+    reqHtml += outgoing.map((r) => `
+      <div class="friend-row">
+        ${friendAvatar(r.user)}
+        <div class="friend-ident">${friendIdentity(r.user)}<div class="friend-status"><span class="pdot"></span>Pending…</div></div>
+        <div class="friend-actions"><button class="btn-soft friends-btn" data-fr-cancel="${esc(r.id)}">Cancel</button></div>
+      </div>`).join("");
+    reqHtml += `</div>`;
+  }
+  reqEl.innerHTML = reqHtml;
+
+  if (countEl) countEl.textContent = friends.length ? String(friends.length) : "";
+  if (!friends.length) {
+    listEl.innerHTML = `<div class="friends-empty">No friends yet — search above to add someone.</div>`;
+  } else {
+    const online = (u) => (friendsPresence[u.id] && friendsPresence[u.id].status === "online" ? 0 : 1);
+    const sorted = friends.slice().sort((a, b) => online(a.user) - online(b.user));
+    listEl.innerHTML = sorted.map((f) => `
+      <div class="friend-row">
+        ${friendAvatar(f.user)}
+        <div class="friend-ident">${friendIdentity(f.user)}${friendPresenceHtml(f.user)}</div>
+        <div class="friend-actions">
+          <button class="btn-soft friends-btn" data-fr-block="${esc(f.user.id)}" title="Block">Block</button>
+          <button class="btn-soft friends-btn friends-icon-btn" data-fr-remove="${esc(f.id)}" title="Remove friend">${ico("i-trash")}</button>
+        </div>
+      </div>`).join("");
+  }
+
+  bindFriendActions();
+}
+
+async function friendAction(btn, fn, okMsg) {
+  btn.disabled = true;
+  try { await fn(); toast(okMsg); await refreshFriends(); rerunFriendSearch(); }
+  catch (e) { toast(e.message); btn.disabled = false; }
+}
+function bindFriendActions() {
+  document.querySelectorAll("[data-fr-accept]").forEach((b) => (b.onclick = () => friendAction(b, () => API.cloud.friends.respond(b.dataset.frAccept, true), "Accepted.")));
+  document.querySelectorAll("[data-fr-decline]").forEach((b) => (b.onclick = () => friendAction(b, () => API.cloud.friends.respond(b.dataset.frDecline, false), "Declined.")));
+  document.querySelectorAll("[data-fr-cancel]").forEach((b) => (b.onclick = () => friendAction(b, () => API.cloud.friends.remove(b.dataset.frCancel), "Request cancelled.")));
+  document.querySelectorAll("[data-fr-remove]").forEach((b) => (b.onclick = () => friendAction(b, () => API.cloud.friends.remove(b.dataset.frRemove), "Removed.")));
+  document.querySelectorAll("[data-fr-block]").forEach((b) => (b.onclick = () => friendAction(b, () => API.cloud.friends.block(b.dataset.frBlock), "Blocked.")));
+}
+
+// People search — debounced-by-sequence: only the latest query's results render.
+async function runFriendSearch(query, resultsEl) {
+  const q = (query || "").trim();
+  const seq = ++friendsSearchSeq;
+  if (q.length < 2) { resultsEl.hidden = true; resultsEl.innerHTML = ""; return; }
+  resultsEl.hidden = false;
+  resultsEl.innerHTML = `<div class="friends-empty">Searching…</div>`;
+  let hits = [];
+  try { hits = await API.cloud.friends.search(q); }
+  catch (e) { if (seq === friendsSearchSeq) resultsEl.innerHTML = `<div class="friends-empty">${esc(e.message)}</div>`; return; }
+  if (seq !== friendsSearchSeq) return;
+  if (!hits.length) { resultsEl.innerHTML = `<div class="friends-empty">No one found.</div>`; return; }
+  resultsEl.innerHTML = hits.map((h) => `
+    <div class="friend-row friend-hit">
+      ${friendAvatar(h)}
+      <div class="friend-ident">${friendIdentity(h)}</div>
+      <div class="friend-actions">${friendHitAction(h)}</div>
+    </div>`).join("");
+  resultsEl.querySelectorAll("[data-fr-add]").forEach((b) => (b.onclick = () => friendAction(b, () => API.cloud.friends.request(b.dataset.frAdd), "Request sent.")));
+  resultsEl.querySelectorAll("[data-fr-accept-hit]").forEach((b) => (b.onclick = () => friendAction(b, () => API.cloud.friends.respond(b.dataset.frAcceptHit, true), "Accepted.")));
+}
+function friendHitAction(h) {
+  const rel = h.relation;
+  if (!rel) return `<button class="btn-accent friends-btn" data-fr-add="${esc(h.id)}">Add</button>`;
+  if (rel.status === "accepted") return `<span class="friends-tag">Friends</span>`;
+  if (rel.status === "blocked") return `<span class="friends-tag muted">Blocked</span>`;
+  if (rel.incoming) return `<button class="btn-accent friends-btn" data-fr-accept-hit="${esc(rel.id)}">Accept</button>`;
+  return `<span class="friends-tag muted">Requested</span>`;
+}
+function rerunFriendSearch() {
+  const input = document.getElementById("fr-search");
+  const results = document.getElementById("fr-results");
+  if (input && results && input.value.trim().length >= 2) runFriendSearch(input.value, results);
+}
+
+// Live updates: friend requests/accepts and presence pushes re-render in place.
+function setupFriends() {
+  API.on("cloud:friends", (data) => {
+    if (data) friendsData = data;
+    if (onFriendsView()) { renderFriendLists(); rerunFriendSearch(); }
+  });
+  API.on("cloud:presence", (payload) => {
+    friendsPresence = (payload && payload.online) || {};
+    if (onFriendsView()) renderFriendLists();
+  });
+}
+
 // ---------- Launch overlay ----------
 function setupLaunchOverlay() {
   const ov = document.getElementById("overlay");
@@ -1448,5 +1653,6 @@ renderAccount();
 setupLaunchOverlay();
 setupUpdates();
 setupCloud();
+setupFriends();
 setupCommandPalette();
 navigate("home");

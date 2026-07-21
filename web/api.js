@@ -98,6 +98,27 @@
       async updateProfile(patch) { return bridge ? unwrap(await bridge.cloud.updateProfile(patch)) : null; },
       async linkMinecraft() { return bridge ? unwrap(await bridge.cloud.linkMinecraft()) : null; },
       async searchProfiles(query) { return bridge ? unwrap(await bridge.cloud.searchProfiles(query)) : []; },
+
+      // Friends + Presence (Vertical B). Browser preview has no engine, so reads
+      // return empty shapes and mutations explain they need the desktop app.
+      friends: {
+        async list() { return bridge ? unwrap(await bridge.cloud.friends.list()) : { friends: [], incoming: [], outgoing: [], blocked: [] }; },
+        async search(query) { return bridge ? unwrap(await bridge.cloud.friends.search(query)) : []; },
+        async request(userId) {
+          if (bridge) return unwrap(await bridge.cloud.friends.request(userId));
+          throw new Error("Friends run in the desktop app.");
+        },
+        async respond(id, accept) {
+          if (bridge) return unwrap(await bridge.cloud.friends.respond(id, accept));
+          throw new Error("Friends run in the desktop app.");
+        },
+        async remove(id) { return bridge ? unwrap(await bridge.cloud.friends.remove(id)) : true; },
+        async block(userId) {
+          if (bridge) return unwrap(await bridge.cloud.friends.block(userId));
+          throw new Error("Friends run in the desktop app.");
+        },
+        async setActivity(text) { return bridge ? unwrap(await bridge.cloud.friends.setActivity(text)) : true; },
+      },
     },
 
     on(channel, fn) { return bridge ? bridge.on(channel, fn) : () => {}; },

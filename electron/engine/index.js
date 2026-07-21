@@ -196,8 +196,9 @@ async function launch(id) {
       (phase, done, total) => emit("launch:progress", { id, phase, done, total }),
       (m) => emit("launch:log", { line: m }));
 
-    // Modded loaders (Fabric/Quilt): download the loader's libraries and build the
-    // overlay that swaps the main class + prepends its classpath onto the vanilla install.
+    // Modded loaders (Fabric/Quilt/NeoForge/Forge): resolve the loader (Fabric/Quilt pull a
+    // hosted profile; NeoForge/Forge run their official installer once) and build the overlay
+    // that swaps the main class + prepends its classpath onto the vanilla install.
     let overlay = null;
     if (loader !== "vanilla") {
       overlay = await loaders.resolveLoader(DATA_DIR, loader, inst.mcVersion,

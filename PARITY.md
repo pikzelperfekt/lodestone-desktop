@@ -24,16 +24,16 @@ Legend: [x] done · [~] partial · [ ] not started
 - [x] CurseForge browse + install + `.zip` import (needs a user CurseForge API key)
 - [ ] Resource pack / shader / datapack managers (dedicated views)
 - [ ] Keybinds manager
-- [ ] Repair (clear cached game files)
-- [ ] In-app "update all content"
-- [ ] Command palette (⌘/Ctrl-K)
+- [x] Repair (clear cached game files, re-download on next launch)
+- [x] Update all mods (re-resolve installed Modrinth content to newest)
+- [x] Command palette (Ctrl/Cmd-K)
 - [ ] Crash doctor
 
 ## Servers & multiplayer
 - [x] Servers tab + console (create vanilla/Paper/Fabric, start/stop, console, server.properties editor)
-- [ ] Hosting: LAN / Tailscale / playit / exaroton (make a server public)
+- [~] Hosting: LAN + Tailscale join addresses done; playit / exaroton / UPnP todo
 - [ ] LAN worlds
-- [ ] Share a pack to a friend + keep a shared pack in sync (instant sharing / auto-sync)
+- [~] Share a pack (share code + .mrpack) + one-click Sync now done; live cross-machine auto-sync needs accounts
 - [ ] Squads
 
 ## Social & extras

@@ -37,6 +37,7 @@
         { id: "YL57xq9U", title: "Iris Shaders", author: "coderbot", description: "Shader support on Fabric.", downloads: 8000000, icon: null, type: "mod" },
       ];
     },
+    async importModpack() { return bridge ? unwrap(await bridge.importModpack()) : null; },
     async launch(id) { return bridge ? unwrap(await bridge.launch(id)) : { started: false, message: "Browser preview — launch runs in the desktop build." }; },
     async stop(id) { return bridge ? unwrap(await bridge.stop(id)) : true; },
 

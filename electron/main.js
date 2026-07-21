@@ -2,7 +2,7 @@
 // cross-platform stand-in for the Swift sidecar. It exposes a small JSON API over
 // IPC that the web UI (web/) calls, and drives auto-updates via electron-updater
 // (GitHub Releases feed configured in package.json's build.publish).
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
 const path = require("path");
 const { autoUpdater } = require("electron-updater");
 const engine = require("./engine");
@@ -47,6 +47,18 @@ handle("modrinth:search", (a) => engine.modrinthSearch(a));
 handle("content:install", (a) => engine.installContent(a));
 handle("content:list", (a) => engine.listContent(a.instanceId));
 handle("content:remove", (a) => engine.removeContent(a));
+handle("import:mrpack", async (a) => {
+  let filePath = a && a.path;
+  if (!filePath) {
+    const res = await dialog.showOpenDialog(win, {
+      properties: ["openFile"],
+      filters: [{ name: "Modrinth modpack", extensions: ["mrpack"] }],
+    });
+    if (res.canceled || !res.filePaths.length) return null;
+    filePath = res.filePaths[0];
+  }
+  return engine.importModpack(filePath);
+});
 handle("launch", (a) => engine.launch(a.id));
 handle("launch:stop", (a) => engine.stop(a.id));
 handle("account:get", () => engine.account());

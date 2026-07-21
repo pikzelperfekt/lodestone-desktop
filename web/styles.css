@@ -160,6 +160,9 @@ svg.ico { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-widt
 .page-head { display:flex; align-items:center; gap:14px; }
 .page-title { font-family: var(--font-display); font-weight: 700; font-size: 26px; color: var(--text-primary); }
 .page-head .btn-soft { margin-left:auto; display:inline-flex; align-items:center; gap:6px; }
+.page-head .head-actions { margin-left:auto; display:flex; align-items:center; gap:10px; }
+.page-head .head-actions .btn-soft { margin-left:0; }
+.page-head .head-actions .btn-soft:disabled { opacity:.7; cursor:default; }
 
 /* Engine status chip (handy for the VM test — shows real platform + data dir) */
 .engine-chip { display:inline-flex; align-items:center; gap:8px; margin-top:16px;

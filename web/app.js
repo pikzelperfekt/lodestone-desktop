@@ -836,6 +836,146 @@ function navigate(section) {
   ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, settings: renderSettings }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
 }
 
+// ---------- Command palette (Ctrl/Cmd-K) ----------
+// A centered quick-action overlay. It builds its action list fresh on every open (so
+// instance names stay current), filters by case-insensitive substring, and is fully
+// keyboard-navigable (Up/Down to move, Enter to run, Escape to close). Its own element
+// lives on <body> — separate from #modal and #overlay so it never clashes with them.
+function setupCommandPalette() {
+  const root = document.createElement("div");
+  root.className = "cmdk-root";
+  root.hidden = true;
+  root.innerHTML = `
+    <div class="cmdk-panel glass">
+      <div class="cmdk-search">${ico("i-search")}<input id="cmdk-input" placeholder="Type a command or search…" autocomplete="off" spellcheck="false" /></div>
+      <div class="cmdk-list" id="cmdk-list"></div>
+    </div>`;
+  document.body.appendChild(root);
+
+  const input = root.querySelector("#cmdk-input");
+  const listEl = root.querySelector("#cmdk-list");
+  let actions = [];    // every action available for the current open
+  let filtered = [];   // actions matching the query
+  let sel = 0;         // highlighted index within `filtered`
+  let open = false;
+
+  // Fetch instances so per-instance actions (Play / Repair / Update) reflect reality.
+  async function buildActions() {
+    const nav = [
+      { label: "Go to Home", hint: "Navigate", run: () => navigate("home") },
+      { label: "Go to Instances", hint: "Navigate", run: () => navigate("instances") },
+      { label: "Go to Discover", hint: "Navigate", run: () => navigate("discover") },
+      { label: "Go to Servers", hint: "Navigate", run: () => navigate("servers") },
+      { label: "Go to Settings", hint: "Navigate", run: () => navigate("settings") },
+      { label: "New instance", hint: "Create", run: () => { creating = true; navigate("instances"); } },
+      { label: "Check for updates", hint: "Launcher", run: () => { API.update.check(); toast("Checking for updates…"); } },
+    ];
+    let instances = [];
+    try { instances = await API.instances(); } catch { instances = []; }
+    for (const i of instances) {
+      nav.push({ label: `Play ${i.name}`, hint: subtitle(i), run: async () => {
+        try { const r = await API.launch(i.id); if (!r.started) toast(r.message || ""); }
+        catch (e) { toast("Launch failed: " + e.message); }
+      } });
+      nav.push({ label: `Repair ${i.name}`, hint: "Clear cached game files", run: async () => {
+        toast(`Repairing ${i.name}…`);
+        try {
+          const res = await API.instance.repair(i.id);
+          const n = (res.cleared || []).length;
+          toast(n
+            ? `Repaired ${i.name}. Cleared ${n} cached folder${n === 1 ? "" : "s"}; the next launch reinstalls them.`
+            : `${i.name} had no cached game files to clear.`);
+        } catch (e) { toast("Repair failed: " + e.message); }
+      } });
+      nav.push({ label: `Update mods in ${i.name}`, hint: "Update all content", run: async () => {
+        toast(`Checking ${i.name} for content updates…`);
+        try {
+          const res = await API.instance.updateAll(i.id);
+          const u = (res.updated || []).length;
+          toast(u
+            ? `Updated ${u} item${u === 1 ? "" : "s"} in ${i.name}.`
+            : `Everything in ${i.name} is already up to date.`);
+        } catch (e) { toast("Update failed: " + e.message); }
+      } });
+    }
+    return nav;
+  }
+
+  function render() {
+    if (!filtered.length) { listEl.innerHTML = `<div class="cmdk-empty">No matching commands.</div>`; return; }
+    if (sel >= filtered.length) sel = filtered.length - 1;
+    if (sel < 0) sel = 0;
+    listEl.innerHTML = filtered.map((a, idx) => `
+      <button class="cmdk-item${idx === sel ? " on" : ""}" data-idx="${idx}">
+        <span class="cmdk-label">${esc(a.label)}</span>
+        ${a.hint ? `<span class="cmdk-hint">${esc(a.hint)}</span>` : ""}
+      </button>`).join("");
+    listEl.querySelectorAll(".cmdk-item").forEach((b) => {
+      b.addEventListener("mousemove", () => { const i = Number(b.dataset.idx); if (i !== sel) { sel = i; highlight(); } });
+      b.addEventListener("click", () => choose(Number(b.dataset.idx)));
+    });
+    scrollToSel();
+  }
+
+  function highlight() {
+    listEl.querySelectorAll(".cmdk-item").forEach((b) => b.classList.toggle("on", Number(b.dataset.idx) === sel));
+    scrollToSel();
+  }
+  function scrollToSel() {
+    const active = listEl.querySelector(".cmdk-item.on");
+    if (active) active.scrollIntoView({ block: "nearest" });
+  }
+
+  function applyFilter() {
+    const q = input.value.trim().toLowerCase();
+    filtered = q ? actions.filter((a) => a.label.toLowerCase().includes(q)) : actions.slice();
+    sel = 0;
+    render();
+  }
+
+  function choose(idx) {
+    const a = filtered[idx];
+    if (!a) return;
+    close();
+    Promise.resolve().then(() => a.run());   // run after the palette has closed
+  }
+
+  async function openPalette() {
+    if (open) return;
+    open = true;
+    input.value = "";
+    actions = []; filtered = []; sel = 0;
+    listEl.innerHTML = `<div class="cmdk-empty">Loading…</div>`;
+    root.hidden = false;
+    input.focus();
+    const built = await buildActions();
+    if (!open) return;   // user closed it while we were loading
+    actions = built;
+    applyFilter();
+  }
+  function close() {
+    if (!open) return;
+    open = false;
+    root.hidden = true;
+    input.blur();
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+      e.preventDefault();
+      open ? close() : openPalette();
+      return;
+    }
+    if (!open) return;
+    if (e.key === "Escape") { e.preventDefault(); close(); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); if (filtered.length) { sel = (sel + 1) % filtered.length; highlight(); } }
+    else if (e.key === "ArrowUp") { e.preventDefault(); if (filtered.length) { sel = (sel - 1 + filtered.length) % filtered.length; highlight(); } }
+    else if (e.key === "Enter") { e.preventDefault(); choose(sel); }
+  });
+  input.addEventListener("input", applyFilter);
+  root.addEventListener("mousedown", (e) => { if (e.target === root) close(); });   // click the backdrop to dismiss
+}
+
 // ---------- Account / sign-in ----------
 async function renderAccount() {
   const acc = await API.account.get();
@@ -945,4 +1085,5 @@ document.querySelectorAll(".nav-item").forEach((btn) => btn.addEventListener("cl
 renderAccount();
 setupLaunchOverlay();
 setupUpdates();
+setupCommandPalette();
 navigate("home");

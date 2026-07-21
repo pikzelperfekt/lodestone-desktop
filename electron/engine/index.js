@@ -13,6 +13,7 @@ const worlds = require("./worlds");
 const auth = require("./auth");
 const settings = require("./settings");
 const serverEngine = require("./server");
+const maintenance = require("./maintenance");
 const { launch: doLaunch, offlineSession } = require("./launch");
 
 let DATA_DIR = null;
@@ -289,6 +290,27 @@ async function launch(id) {
 function stop(id) { if (running[id]) { running[id].kill(); return true; } return false; }
 function isRunning(id) { return !!running[id]; }
 
+// ---- Power tools (repair + bulk content update) ----
+// Repair drops the shared cached game files for the instance's MC version; the next
+// launch re-installs them. Update walks the instance's Modrinth content and bumps
+// anything with a newer build. Both persist through the standard instance store.
+function repairInstance(id) {
+  const inst = readInstances().find((i) => i.id === id);
+  if (!inst) throw new Error("Instance not found.");
+  return maintenance.repairInstance({ dataDir: DATA_DIR, instance: inst });
+}
+async function updateAllContent(id) {
+  const list = readInstances();
+  const inst = list.find((i) => i.id === id);
+  if (!inst) throw new Error("Instance not found.");
+  const result = await maintenance.updateAllContent({
+    dataDir: DATA_DIR, instance: inst, emit: (channel, payload) => emit(channel, payload),
+  });
+  inst.mods = (inst.content || []).filter((c) => c.kind === "mod").length;
+  writeInstances(list);
+  return result;
+}
+
 // ---- Dedicated servers (create / run / console / properties) ----
 // The server engine streams its console + lifecycle through this module's `emit`,
 // on the "server:log" and "server:state" channels the renderer subscribes to.
@@ -321,6 +343,7 @@ module.exports = {
   worldList, worldBackups, worldBackup, worldRestore, worldRename, worldRemove,
   account, signOut, signInStart, signInComplete,
   launch, stop, isRunning,
+  repairInstance, updateAllContent,
   listServers, createServer, startServer, stopServer, serverCommand,
   serverProperties, setServerProperties, removeServer,
 };

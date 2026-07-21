@@ -58,6 +58,13 @@
       ];
     },
     async importModpack() { return bridge ? unwrap(await bridge.importModpack()) : null; },
+
+    // Power tools: repair (clear cached game files) + update all Modrinth content.
+    instance: {
+      async repair(id) { return bridge ? unwrap(await bridge.instances.repair(id)) : { cleared: [] }; },
+      async updateAll(id) { return bridge ? unwrap(await bridge.instances.updateAll(id)) : { updated: [], upToDate: 0 }; },
+    },
+
     async launch(id) { return bridge ? unwrap(await bridge.launch(id)) : { started: false, message: "Browser preview — launch runs in the desktop build." }; },
     async stop(id) { return bridge ? unwrap(await bridge.stop(id)) : true; },
 

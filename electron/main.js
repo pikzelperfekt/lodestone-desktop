@@ -41,6 +41,7 @@ function handle(channel, fn) {
 handle("engine:info", () => engine.info());
 handle("instances:list", () => engine.listInstances());
 handle("instances:create", (a) => engine.createInstance(a));
+handle("instance:update", (a) => engine.updateInstance(a));
 handle("instances:delete", (a) => engine.deleteInstance(a.id));
 handle("versions:list", () => engine.listVersions());
 handle("modrinth:search", (a) => engine.modrinthSearch(a));
@@ -59,6 +60,12 @@ handle("import:mrpack", async (a) => {
   }
   return engine.importModpack(filePath);
 });
+handle("worlds:list", (a) => engine.worldList(a.instanceId));
+handle("worlds:backups", (a) => engine.worldBackups(a.instanceId));
+handle("worlds:backup", (a) => engine.worldBackup(a));
+handle("worlds:restore", (a) => engine.worldRestore(a));
+handle("worlds:rename", (a) => engine.worldRename(a));
+handle("worlds:remove", (a) => engine.worldRemove(a));
 handle("launch", (a) => engine.launch(a.id));
 handle("launch:stop", (a) => engine.stop(a.id));
 handle("settings:get", () => engine.getSettings());

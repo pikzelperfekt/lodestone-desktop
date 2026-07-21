@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("lodestone", {
   instances: {
     list: () => call("instances:list"),
     create: (opts) => call("instances:create", opts),
+    update: (opts) => call("instance:update", opts),
     delete: (id) => call("instances:delete", { id }),
   },
   versions: () => call("versions:list"),
@@ -21,6 +22,14 @@ contextBridge.exposeInMainWorld("lodestone", {
     remove: (opts) => call("content:remove", opts),
   },
   importModpack: (path) => call("import:mrpack", { path }),
+  worlds: {
+    list: (instanceId) => call("worlds:list", { instanceId }),
+    backups: (instanceId) => call("worlds:backups", { instanceId }),
+    backup: (opts) => call("worlds:backup", opts),
+    restore: (opts) => call("worlds:restore", opts),
+    rename: (opts) => call("worlds:rename", opts),
+    remove: (opts) => call("worlds:remove", opts),
+  },
   launch: (id) => call("launch", { id }),
   stop: (id) => call("launch:stop", { id }),
   account: {

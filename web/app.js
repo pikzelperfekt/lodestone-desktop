@@ -564,6 +564,256 @@ async function renderSettings() {
   document.getElementById("set-check-update").onclick = () => { API.update.check(); toast("Checking for updates…"); };
 }
 
+// ---------- SERVERS ----------
+const platLabel = (p) => (p === "paper" ? "Paper" : p === "fabric" ? "Fabric" : "Vanilla");
+const SERVER_PLATFORMS = ["vanilla", "paper", "fabric"];
+const SERVER_LOG_MAX = 600;
+
+let serverCreating = false;
+let serverDetailId = null;          // the id of the server whose console is open
+let serverLogBuffer = [];           // rolling console lines for the open server
+let serverSubs = [];                // active engine subscriptions (server:log / server:state)
+function clearServerSubs() { serverSubs.forEach((u) => { try { u(); } catch {} }); serverSubs = []; }
+
+// Common server.properties keys the editor exposes.
+const SERVER_PROP_FIELDS = [
+  { key: "motd", label: "MOTD", type: "text" },
+  { key: "gamemode", label: "Gamemode", type: "select", options: ["survival", "creative", "adventure", "spectator"] },
+  { key: "difficulty", label: "Difficulty", type: "select", options: ["peaceful", "easy", "normal", "hard"] },
+  { key: "max-players", label: "Max players", type: "number" },
+  { key: "online-mode", label: "Online mode", type: "bool" },
+  { key: "pvp", label: "PvP", type: "bool" },
+];
+
+async function renderServers() {
+  clearServerSubs(); serverDetailId = null;
+  el().innerHTML = `<div class="placeholder">${ico("i-server")}<h2>Loading…</h2></div>`;
+  const servers = await API.servers.list();
+  el().innerHTML = `
+    <div class="page-head">
+      <h1 class="page-title">Servers</h1>
+      <div class="head-actions">
+        <button class="btn-soft" id="new-server">${ico("i-plus")} New Server</button>
+      </div>
+    </div>
+    <div id="new-server-panel"></div>
+    <div class="servers-list">
+      ${servers.map(serverRow).join("") || `<div class="empty-line">No servers yet. Create one to host a world for your friends.</div>`}
+    </div>`;
+  document.getElementById("new-server").onclick = () => { serverCreating = !serverCreating; toggleServerPanel(); };
+  if (serverCreating) toggleServerPanel();
+
+  el().querySelectorAll("[data-srvstart]").forEach((b) => b.onclick = async (e) => {
+    e.stopPropagation();
+    try { await API.servers.start(b.dataset.srvstart); renderServerDetail(b.dataset.srvstart); }
+    catch (err) { toast("Couldn't start: " + err.message); }
+  });
+  el().querySelectorAll("[data-srvstop]").forEach((b) => b.onclick = async (e) => {
+    e.stopPropagation(); b.disabled = true;
+    try { await API.servers.stop(b.dataset.srvstop); toast("Stopping server…"); if (!API.hasEngine) renderServers(); }
+    catch (err) { b.disabled = false; toast("Couldn't stop: " + err.message); }
+  });
+  el().querySelectorAll("[data-srvdel]").forEach((b) => b.onclick = async (e) => {
+    e.stopPropagation();
+    if (!confirm("Delete this server and all of its files? This cannot be undone.")) return;
+    try { await API.servers.remove(b.dataset.srvdel); toast("Server deleted."); renderServers(); }
+    catch (err) { toast("Couldn't delete: " + err.message); }
+  });
+  el().querySelectorAll("[data-srvopen]").forEach((n) => n.addEventListener("click", (e) => {
+    if (e.target.closest("[data-srvstart],[data-srvstop],[data-srvdel]")) return;
+    renderServerDetail(n.dataset.srvopen);
+  }));
+}
+
+const serverRow = (s) => `
+  <div class="glass srv-row" data-srvopen="${s.id}">
+    <div class="srv-icon">${ico("i-server")}</div>
+    <div class="hit-meta">
+      <div class="srv-name">${esc(s.name)}</div>
+      <div class="srv-sub">${esc(platLabel(s.platform))} · ${esc(s.mcVersion)}</div>
+    </div>
+    <span class="pill ${s.running ? "live" : "idle"}">${s.running ? "RUNNING" : "STOPPED"}</span>
+    <div class="srv-actions">
+      ${s.running
+        ? `<button class="btn-soft" data-srvstop="${s.id}">Stop</button>`
+        : `<button class="btn-accent srv-play" data-srvstart="${s.id}">${ico("i-play")} Start</button>`}
+      <button class="btn-ghost world-x" data-srvdel="${s.id}" title="Delete server">${ico("i-trash")}</button>
+    </div>
+  </div>`;
+
+async function toggleServerPanel() {
+  const panel = document.getElementById("new-server-panel");
+  if (!serverCreating) { panel.innerHTML = ""; return; }
+  panel.innerHTML = `<div class="glass new-panel"><div class="np-row"><span>Loading versions…</span></div></div>`;
+  const v = await API.versions();
+  panel.innerHTML = `
+    <div class="glass new-panel">
+      <div class="np-grid">
+        <label>NAME<input id="ns-name" placeholder="My Server" /></label>
+        <label>TYPE
+          <div class="seg" id="ns-plat">${SERVER_PLATFORMS.map((p, i) => `<button data-p="${p}" class="${i === 0 ? "on" : ""}">${platLabel(p)}</button>`).join("")}</div>
+        </label>
+        <label>MINECRAFT VERSION
+          <select id="ns-version">${v.releases.slice(0, 60).map((r) => `<option>${r}</option>`).join("")}</select>
+        </label>
+      </div>
+      <div class="np-note">Lodestone downloads the server jar and accepts the Minecraft EULA on your behalf. This can take a moment.</div>
+      <div class="np-actions">
+        <button class="btn-ghost" id="ns-cancel">Cancel</button>
+        <button class="btn-accent ns-create">${ico("i-plus")} Create</button>
+      </div>
+    </div>`;
+  let plat = "vanilla";
+  panel.querySelectorAll("#ns-plat button").forEach((b) => b.onclick = () => {
+    panel.querySelectorAll("#ns-plat button").forEach((x) => x.classList.remove("on"));
+    b.classList.add("on"); plat = b.dataset.p;
+  });
+  panel.querySelector("#ns-cancel").onclick = () => { serverCreating = false; toggleServerPanel(); };
+  panel.querySelector(".ns-create").onclick = async (e) => {
+    const btn = e.currentTarget;
+    const name = panel.querySelector("#ns-name").value;
+    const mcVersion = panel.querySelector("#ns-version").value;
+    btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Creating…`;
+    try {
+      const s = await API.servers.create({ name, platform: plat, mcVersion });
+      serverCreating = false; toast(`Created ${s.name}.`); renderServers();
+    } catch (err) {
+      btn.disabled = false; btn.innerHTML = `${ico("i-plus")} Create`;
+      toast("Couldn't create: " + err.message);
+    }
+  };
+}
+
+// ---------- SERVER DETAIL (console + properties) ----------
+async function renderServerDetail(id) {
+  clearServerSubs();
+  serverDetailId = id; serverLogBuffer = [];
+  el().innerHTML = `<div class="placeholder">${ico("i-server")}<h2>Loading…</h2></div>`;
+  const [servers, props] = await Promise.all([API.servers.list(), API.servers.properties(id).catch(() => ({}))]);
+  const s = servers.find((x) => x.id === id);
+  if (!s) { navigate("servers"); return; }
+
+  el().innerHTML = `
+    <div class="page-head"><button class="btn-ghost" data-goto="servers">${ico("i-arrow-right")} Servers</button></div>
+    <div class="detail-hero glass">
+      <div class="inst-art lg" style="background:${accentFor(s.accent)}33">${ico("i-server")}</div>
+      <div class="detail-meta">
+        <div class="detail-name">${esc(s.name)}</div>
+        <div class="detail-sub">${esc(platLabel(s.platform))} · ${esc(s.mcVersion)} ·
+          <span id="srv-state" class="srv-state ${s.running ? "on" : ""}"><span class="dot ${s.running ? "live" : ""}"></span>${s.running ? "Running" : "Stopped"}</span></div>
+        <div class="detail-actions" id="srv-detail-actions">${serverActionBtns(s)}</div>
+      </div>
+    </div>
+
+    <div class="section-head" style="margin-top:22px"><span class="section-title">CONSOLE</span></div>
+    <div class="glass console-panel">
+      <pre class="console-log" id="srv-console"></pre>
+      <div class="console-input">
+        <input id="srv-cmd" placeholder="${s.running ? "Type a command and press Enter (e.g. say hello)" : "Start the server to send commands"}" ${s.running ? "" : "disabled"} />
+        <button class="btn-soft" id="srv-send" ${s.running ? "" : "disabled"}>Send</button>
+      </div>
+    </div>
+
+    <div class="section-head" style="margin-top:26px"><span class="section-title">SERVER PROPERTIES</span></div>
+    <div class="glass edit-panel">
+      <div class="props-grid">${SERVER_PROP_FIELDS.map((f) => propField(f, props)).join("")}</div>
+      <div class="np-actions">
+        <button class="btn-accent srv-props-save" style="width:auto;padding:9px 18px">Save properties</button>
+      </div>
+    </div>`;
+
+  bindCommon();
+  bindServerActions(id);
+
+  // Boolean properties render as the shared toggle switch.
+  el().querySelectorAll(".props-grid .switch").forEach((sw) => sw.onclick = () => {
+    const on = !sw.classList.contains("on");
+    sw.classList.toggle("on", on); sw.setAttribute("aria-checked", on ? "true" : "false");
+  });
+
+  const send = async () => {
+    const input = document.getElementById("srv-cmd");
+    const cmd = input.value.trim();
+    if (!cmd) return;
+    try { await API.servers.command(id, cmd); appendConsole(`> ${cmd}`); input.value = ""; }
+    catch (err) { toast("Couldn't send: " + err.message); }
+  };
+  document.getElementById("srv-send").onclick = send;
+  document.getElementById("srv-cmd").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+
+  el().querySelector(".srv-props-save").onclick = async (e) => {
+    const btn = e.currentTarget; btn.disabled = true;
+    const patch = {};
+    SERVER_PROP_FIELDS.forEach((f) => {
+      const node = document.getElementById("prop-" + f.key);
+      if (!node) return;
+      patch[f.key] = f.type === "bool" ? (node.classList.contains("on") ? "true" : "false") : String(node.value).trim();
+    });
+    try { await API.servers.setProperties(id, patch); toast("Properties saved."); }
+    catch (err) { toast("Couldn't save: " + err.message); }
+    finally { btn.disabled = false; }
+  };
+
+  // Live console + lifecycle, scoped to this server.
+  serverSubs.push(API.on("server:log", (p) => { if (p.id === serverDetailId) appendConsole(p.line); }));
+  serverSubs.push(API.on("server:state", (p) => { if (p.id === serverDetailId) updateServerState(p.status, p.code); }));
+}
+
+function propField(f, props) {
+  const val = props && props[f.key] != null ? props[f.key] : "";
+  if (f.type === "select") {
+    const opts = f.options.map((o) => `<option${String(val) === o ? " selected" : ""}>${o}</option>`).join("");
+    return `<label>${f.label.toUpperCase()}<select id="prop-${f.key}">${opts}</select></label>`;
+  }
+  if (f.type === "bool") {
+    const on = String(val) === "true";
+    return `<label class="prop-bool">${f.label.toUpperCase()}
+      <button type="button" id="prop-${f.key}" class="switch ${on ? "on" : ""}" role="switch" aria-checked="${on ? "true" : "false"}"><span class="knob"></span></button></label>`;
+  }
+  const type = f.type === "number" ? "number" : "text";
+  return `<label>${f.label.toUpperCase()}<input id="prop-${f.key}" type="${type}" value="${esc(val)}" /></label>`;
+}
+
+function serverActionBtns(s) {
+  return s.running
+    ? `<button class="btn-soft srv-stop" data-srvstop="${s.id}">${ico("i-server")} Stop server</button>`
+    : `<button class="btn-accent srv-play" data-srvstart="${s.id}">${ico("i-play")} Start server</button>`;
+}
+
+function bindServerActions(id) {
+  const start = el().querySelector(`[data-srvstart="${id}"]`);
+  const stop = el().querySelector(`[data-srvstop="${id}"]`);
+  if (start) start.onclick = async () => {
+    start.disabled = true; start.innerHTML = `<span class="spinner"></span> Starting…`;
+    try { await API.servers.start(id); appendConsole("[Lodestone] Starting server…"); if (!API.hasEngine) renderServerDetail(id); }
+    catch (err) { toast("Couldn't start: " + err.message); updateServerState("stopped"); }
+  };
+  if (stop) stop.onclick = async () => {
+    stop.disabled = true; stop.innerHTML = `<span class="spinner"></span> Stopping…`;
+    try { await API.servers.stop(id); appendConsole("[Lodestone] Stopping server…"); if (!API.hasEngine) renderServerDetail(id); }
+    catch (err) { stop.disabled = false; toast("Couldn't stop: " + err.message); }
+  };
+}
+
+function appendConsole(line) {
+  serverLogBuffer.push(line);
+  if (serverLogBuffer.length > SERVER_LOG_MAX) serverLogBuffer.shift();
+  const pre = document.getElementById("srv-console");
+  if (pre) { pre.textContent = serverLogBuffer.join("\n"); pre.scrollTop = pre.scrollHeight; }
+}
+
+function updateServerState(status, code) {
+  const running = status === "running";
+  const st = document.getElementById("srv-state");
+  if (st) { st.className = "srv-state" + (running ? " on" : ""); st.innerHTML = `<span class="dot ${running ? "live" : ""}"></span>${running ? "Running" : "Stopped"}`; }
+  const cmd = document.getElementById("srv-cmd"); const send = document.getElementById("srv-send");
+  if (cmd) { cmd.disabled = !running; cmd.placeholder = running ? "Type a command and press Enter (e.g. say hello)" : "Start the server to send commands"; }
+  if (send) send.disabled = !running;
+  const actions = document.getElementById("srv-detail-actions");
+  if (actions) { actions.innerHTML = serverActionBtns({ id: serverDetailId, running }); bindServerActions(serverDetailId); }
+  if (!running) appendConsole(code != null && code !== 0 ? `[Lodestone] Server stopped (exit code ${code}).` : "[Lodestone] Server stopped.");
+}
+
 // ---------- nav ----------
 function placeholder(title) {
   return `<div class="placeholder">${ico("i-grid")}<h2>${title}</h2><p>Ports next — Home, Instances &amp; Discover are live.</p></div>`;
@@ -583,7 +833,7 @@ function bindCommon() {
 function navigate(section) {
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("is-active", b.dataset.section === section));
   if (section === "discover") discoverTarget = null;   // sidebar Discover = browse for any instance
-  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, settings: renderSettings }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
+  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, settings: renderSettings }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
 }
 
 // ---------- Account / sign-in ----------

@@ -12,6 +12,7 @@ const curseforge = require("./curseforge");
 const worlds = require("./worlds");
 const auth = require("./auth");
 const settings = require("./settings");
+const serverEngine = require("./server");
 const { launch: doLaunch, offlineSession } = require("./launch");
 
 let DATA_DIR = null;
@@ -288,6 +289,28 @@ async function launch(id) {
 function stop(id) { if (running[id]) { running[id].kill(); return true; } return false; }
 function isRunning(id) { return !!running[id]; }
 
+// ---- Dedicated servers (create / run / console / properties) ----
+// The server engine streams its console + lifecycle through this module's `emit`,
+// on the "server:log" and "server:state" channels the renderer subscribes to.
+function listServers() { return serverEngine.list(DATA_DIR); }
+async function createServer(opts) {
+  return serverEngine.create(DATA_DIR, opts, { onLog: (line) => emit("server:log", { line }) });
+}
+async function startServer(id) {
+  const prefs = settings.getSettings();
+  const javaPath = prefs.javaPath && fs.existsSync(prefs.javaPath) ? prefs.javaPath : null;
+  return serverEngine.start(DATA_DIR, id, {
+    onLog: (line) => emit("server:log", { id, line }),
+    onState: (s) => emit("server:state", s),
+    javaPath,
+  });
+}
+function stopServer(id) { return serverEngine.stop(id); }
+function serverCommand({ id, command }) { return serverEngine.command(id, command); }
+function serverProperties(id) { return serverEngine.properties(DATA_DIR, id); }
+function setServerProperties({ id, patch }) { return serverEngine.setProperties(DATA_DIR, id, patch); }
+function removeServer(id) { return serverEngine.remove(DATA_DIR, id); }
+
 module.exports = {
   init, setEmitter, dataDir, info,
   getSettings, setSettings,
@@ -298,4 +321,6 @@ module.exports = {
   worldList, worldBackups, worldBackup, worldRestore, worldRename, worldRemove,
   account, signOut, signInStart, signInComplete,
   launch, stop, isRunning,
+  listServers, createServer, startServer, stopServer, serverCommand,
+  serverProperties, setServerProperties, removeServer,
 };

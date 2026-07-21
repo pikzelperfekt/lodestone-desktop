@@ -42,6 +42,8 @@ contextBridge.exposeInMainWorld("lodestone", {
     command: (id, command) => call("servers:command", { id, command }),
     properties: (id) => call("servers:properties", { id }),
     setProperties: (id, patch) => call("servers:setProperties", { id, patch }),
+    hosting: (id) => call("servers:hosting", { id }),
+    onlineMode: (id, on) => call("servers:onlineMode", { id, on }),
     remove: (id) => call("servers:remove", { id }),
   },
   account: {

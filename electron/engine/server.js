@@ -4,8 +4,9 @@
 // launcher), boots it with the exact Mojang Java runtime for that MC version, and
 // streams its console. Pure Node — identical on Windows/macOS/Linux.
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
-const { spawn } = require("child_process");
+const { spawn, execFileSync } = require("child_process");
 const install = require("./install");
 const { getJSON, download } = require("./net");
 
@@ -301,6 +302,89 @@ function setProperties(dataDir, id, patch) {
   return parseProps(next);
 }
 
+// ---- Hosting / share info ----
+// Everything a friend needs to join: the LAN join address(es), an optional Tailscale
+// tailnet address, the server port, and the current online-mode flag. Pure inspection:
+// nothing here mutates the server or requires it to be running.
+
+// This machine's non-internal IPv4 addresses (skips loopback + down interfaces).
+function lanAddresses() {
+  const out = [];
+  const ifaces = os.networkInterfaces();
+  for (const name of Object.keys(ifaces)) {
+    for (const addr of ifaces[name] || []) {
+      // Node reports family as "IPv4" (newer) or 4 (older) depending on version.
+      const isV4 = addr.family === "IPv4" || addr.family === 4;
+      if (isV4 && !addr.internal && addr.address) out.push(addr.address);
+    }
+  }
+  return out;
+}
+
+// A Tailscale tailnet address lives in the CGNAT range 100.64.0.0/10.
+function isTailscaleIP(ip) {
+  const m = /^100\.(\d+)\.\d+\.\d+$/.exec(String(ip || ""));
+  if (!m) return false;
+  const second = Number(m[1]);
+  return second >= 64 && second <= 127;
+}
+
+// Resolve this machine's Tailscale IPv4, or null if it isn't on a tailnet. Tries the
+// `tailscale ip -4` CLI first (PATH, then the standard install paths per OS), and falls
+// back to scanning network interfaces for a 100.64.0.0/10 address. Never throws.
+function tailscaleAddress() {
+  const candidates = ["tailscale"];
+  if (process.platform === "win32") {
+    candidates.push(
+      "C:\\Program Files\\Tailscale\\tailscale.exe",
+      "C:\\Program Files (x86)\\Tailscale IPN\\tailscale.exe",
+    );
+  } else {
+    candidates.push(
+      "/usr/bin/tailscale", "/usr/local/bin/tailscale", "/opt/homebrew/bin/tailscale",
+      "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+    );
+  }
+  for (const bin of candidates) {
+    try {
+      const out = execFileSync(bin, ["ip", "-4"], { timeout: 4000, stdio: ["ignore", "pipe", "ignore"] });
+      const ip = String(out).split(/\r?\n/).map((l) => l.trim()).find((l) => /^\d+\.\d+\.\d+\.\d+$/.test(l));
+      if (ip) return ip;
+    } catch { /* binary missing, not logged in, or timed out: try the next candidate */ }
+  }
+  // Fallback: an interface already carrying a tailnet IP (works even if the CLI is absent).
+  return lanAddresses().find(isTailscaleIP) || null;
+}
+
+function hostingInfo(dataDir, id) {
+  read(dataDir).find((s) => s.id === id) || (() => { throw new Error("Server not found."); })();
+  const props = properties(dataDir, id);
+
+  const portNum = Number(props["server-port"]);
+  const port = Number.isFinite(portNum) && portNum > 0 ? Math.round(portNum) : 25565;
+  const onlineMode = props["online-mode"] != null ? String(props["online-mode"]) : "true";
+
+  // LAN join addresses. The tailnet address is surfaced on its own, so keep it out of the
+  // LAN list, unless it's the only address we have, in which case never hide it.
+  const all = lanAddresses();
+  let lanIPs = all.filter((ip) => !isTailscaleIP(ip));
+  if (!lanIPs.length) lanIPs = all;
+  const lan = lanIPs.map((ip) => `${ip}:${port}`);
+
+  const tsIP = tailscaleAddress();
+  const tailscale = tsIP ? `${tsIP}:${port}` : null;
+
+  return { port, lan, tailscale, onlineMode };
+}
+
+// setOnlineMode(id, on): flip online-mode in server.properties. Returns the new value as
+// the "true"/"false" string Minecraft stores, so the UI can confirm the persisted state.
+function setOnlineMode(dataDir, id, on) {
+  const value = (on === true || on === "true" || on === 1 || on === "1" || on === "on") ? "true" : "false";
+  const props = setProperties(dataDir, id, { "online-mode": value });
+  return props["online-mode"];
+}
+
 // remove(id): stop the server first, then delete its record + directory.
 function remove(dataDir, id) {
   if (running[id]) {
@@ -314,6 +398,8 @@ function remove(dataDir, id) {
 
 module.exports = {
   create, list, get, start, stop, command, properties, setProperties, remove, isRunning,
+  hostingInfo, setOnlineMode,
   // exported for tests / reuse
-  parseProps, mergeProps, defaultProperties, ACCENTS, PLATFORMS,
+  parseProps, mergeProps, defaultProperties, lanAddresses, isTailscaleIP, tailscaleAddress,
+  ACCENTS, PLATFORMS,
 };

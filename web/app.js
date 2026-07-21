@@ -689,7 +689,11 @@ async function renderServerDetail(id) {
   clearServerSubs();
   serverDetailId = id; serverLogBuffer = [];
   el().innerHTML = `<div class="placeholder">${ico("i-server")}<h2>Loading…</h2></div>`;
-  const [servers, props] = await Promise.all([API.servers.list(), API.servers.properties(id).catch(() => ({}))]);
+  const [servers, props, hosting] = await Promise.all([
+    API.servers.list(),
+    API.servers.properties(id).catch(() => ({})),
+    API.servers.hosting(id).catch(() => null),
+  ]);
   const s = servers.find((x) => x.id === id);
   if (!s) { navigate("servers"); return; }
 
@@ -705,7 +709,9 @@ async function renderServerDetail(id) {
       </div>
     </div>
 
-    <div class="section-head" style="margin-top:22px"><span class="section-title">CONSOLE</span></div>
+    ${hostPanel(hosting)}
+
+    <div class="section-head" style="margin-top:26px"><span class="section-title">CONSOLE</span></div>
     <div class="glass console-panel">
       <pre class="console-log" id="srv-console"></pre>
       <div class="console-input">
@@ -724,6 +730,7 @@ async function renderServerDetail(id) {
 
   bindCommon();
   bindServerActions(id);
+  bindHostActions(id);
 
   // Boolean properties render as the shared toggle switch.
   el().querySelectorAll(".props-grid .switch").forEach((sw) => sw.onclick = () => {
@@ -749,7 +756,12 @@ async function renderServerDetail(id) {
       if (!node) return;
       patch[f.key] = f.type === "bool" ? (node.classList.contains("on") ? "true" : "false") : String(node.value).trim();
     });
-    try { await API.servers.setProperties(id, patch); toast("Properties saved."); }
+    try {
+      await API.servers.setProperties(id, patch);
+      // The Share / Host panel has its own online-mode toggle; keep it in step with a save here.
+      if (patch["online-mode"] != null) setSwitch(document.getElementById("host-online"), patch["online-mode"] === "true");
+      toast("Properties saved.");
+    }
     catch (err) { toast("Couldn't save: " + err.message); }
     finally { btn.disabled = false; }
   };
@@ -757,6 +769,79 @@ async function renderServerDetail(id) {
   // Live console + lifecycle, scoped to this server.
   serverSubs.push(API.on("server:log", (p) => { if (p.id === serverDetailId) appendConsole(p.line); }));
   serverSubs.push(API.on("server:state", (p) => { if (p.id === serverDetailId) updateServerState(p.status, p.code); }));
+}
+
+// ---------- SHARE / HOST ----------
+// hostPanel(h): how friends actually join. LAN address(es) with Copy, an optional
+// Tailscale address, the port, and an online-mode toggle. `h` is null in the browser
+// preview or if hosting info couldn't load, in which case the panel is omitted.
+function hostPanel(h) {
+  if (!h) return "";
+  const online = String(h.onlineMode) === "true";
+  const lanRows = (h.lan && h.lan.length)
+    ? h.lan.map(hostAddrRow).join("")
+    : `<div class="host-empty">No local network address found. Connect to Wi-Fi or Ethernet to share on your LAN.</div>`;
+  const tsRow = h.tailscale
+    ? hostAddrRow(h.tailscale)
+    : `<div class="host-hint">Not on a tailnet. Install Tailscale to share beyond your network.</div>`;
+  return `
+    <div class="section-head" style="margin-top:22px"><span class="section-title">SHARE / HOST</span></div>
+    <div class="glass host-panel">
+      <div class="host-block">
+        <div class="host-label">${ico("i-globe")} LAN (same network)</div>
+        <div class="host-rows">${lanRows}</div>
+        <div class="host-note">Friends on your Wi-Fi can join at this address.</div>
+      </div>
+      <div class="host-block">
+        <div class="host-label">${ico("i-globe")} Tailscale</div>
+        <div class="host-rows">${tsRow}</div>
+        <div class="host-note">A Tailscale address lets trusted friends join from anywhere, as if they were on your network.</div>
+      </div>
+      <div class="host-block host-meta">
+        <div class="host-port">Server port <b>${esc(String(h.port))}</b></div>
+        <label class="host-online">ONLINE MODE
+          <button type="button" id="host-online" class="switch ${online ? "on" : ""}" role="switch" aria-checked="${online ? "true" : "false"}"><span class="knob"></span></button>
+        </label>
+      </div>
+      <div class="host-note host-warn">Online mode on (recommended) means everyone must own Minecraft and sign in. Turning it off lets cracked or any accounts join, so only do this with people you trust.</div>
+    </div>`;
+}
+
+function hostAddrRow(addr) {
+  return `<div class="host-addr"><code>${esc(addr)}</code><button class="btn-soft host-copy" data-copy="${esc(addr)}">Copy</button></div>`;
+}
+
+function setSwitch(node, on) {
+  if (!node) return;
+  node.classList.toggle("on", on);
+  node.setAttribute("aria-checked", on ? "true" : "false");
+}
+
+function bindHostActions(id) {
+  el().querySelectorAll(".host-copy").forEach((b) => b.onclick = async () => {
+    const text = b.dataset.copy || "";
+    try {
+      await navigator.clipboard.writeText(text);
+      const prev = b.textContent; b.textContent = "Copied";
+      setTimeout(() => { if (b.textContent === "Copied") b.textContent = prev; }, 1400);
+    } catch { toast("Couldn't copy automatically. Address: " + text); }
+  });
+
+  const sw = document.getElementById("host-online");
+  if (sw) sw.onclick = async () => {
+    const on = !sw.classList.contains("on");
+    setSwitch(sw, on);
+    try {
+      await API.servers.setOnlineMode(id, on);
+      // Mirror onto the properties editor's online-mode field so a later Save agrees.
+      setSwitch(document.getElementById("prop-online-mode"), on);
+      toast(on ? "Online mode on. Players must own Minecraft and sign in."
+               : "Online mode off. Any account can join. Use only with people you trust.");
+    } catch (err) {
+      setSwitch(sw, !on);   // revert on failure
+      toast("Couldn't change online mode: " + err.message);
+    }
+  };
 }
 
 function propField(f, props) {

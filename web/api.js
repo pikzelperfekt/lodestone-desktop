@@ -140,6 +140,20 @@
         if (bridge) return unwrap(await bridge.servers.setProperties(id, patch));
         sample.serverProps[id] = { ...(sample.serverProps[id] || {}), ...patch }; return { ...sample.serverProps[id] };
       },
+      async hosting(id) {
+        if (bridge) return unwrap(await bridge.servers.hosting(id));
+        const props = sample.serverProps[id] || {};
+        const portNum = Number(props["server-port"]);
+        const port = Number.isFinite(portNum) && portNum > 0 ? Math.round(portNum) : 25565;
+        return { port, lan: [`192.168.1.42:${port}`], tailscale: null,
+          onlineMode: props["online-mode"] != null ? String(props["online-mode"]) : "true" };
+      },
+      async setOnlineMode(id, on) {
+        if (bridge) return unwrap(await bridge.servers.onlineMode(id, on));
+        const value = on ? "true" : "false";
+        sample.serverProps[id] = { ...(sample.serverProps[id] || {}), "online-mode": value };
+        return value;
+      },
       async remove(id) {
         if (bridge) return unwrap(await bridge.servers.remove(id));
         sample.servers = sample.servers.filter((x) => x.id !== id); delete sample.serverProps[id]; return true;

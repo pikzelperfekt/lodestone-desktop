@@ -351,6 +351,8 @@ function stopServer(id) { return serverEngine.stop(id); }
 function serverCommand({ id, command }) { return serverEngine.command(id, command); }
 function serverProperties(id) { return serverEngine.properties(DATA_DIR, id); }
 function setServerProperties({ id, patch }) { return serverEngine.setProperties(DATA_DIR, id, patch); }
+function serverHostingInfo(id) { return serverEngine.hostingInfo(DATA_DIR, id); }
+function setServerOnlineMode({ id, on }) { return serverEngine.setOnlineMode(DATA_DIR, id, on); }
 function removeServer(id) { return serverEngine.remove(DATA_DIR, id); }
 
 module.exports = {
@@ -365,5 +367,5 @@ module.exports = {
   account, signOut, signInStart, signInComplete,
   launch, stop, isRunning,
   listServers, createServer, startServer, stopServer, serverCommand,
-  serverProperties, setServerProperties, removeServer,
+  serverProperties, setServerProperties, serverHostingInfo, setServerOnlineMode, removeServer,
 };

@@ -136,6 +136,9 @@ async function renderInstanceDetail(id) {
       ${mods.length ? mods.map(modRow).join("") : `<div class="empty-line">No mods yet. Hit "Browse mods" to add some from Modrinth.</div>`}
     </div>
 
+    <!-- [Cloud Sync — Vertical A] filled async by renderInstanceCloudSync; hidden when the backend isn't set up. -->
+    <div id="cloud-sync-panel"></div>
+
     <div class="section-head" style="margin-top:26px"><span class="section-title">WORLDS</span></div>
     <div class="worlds-list">
       ${worlds.length ? worlds.map(worldRow).join("") : `<div class="empty-line">No worlds yet. Play the instance to create one.</div>`}
@@ -162,6 +165,8 @@ async function renderInstanceDetail(id) {
     </div>`;
 
   bindCommon();
+  detailInstForSync = inst;                 // [Cloud Sync] so live cloud:sync events can refresh the panel
+  renderInstanceCloudSync(inst);            // fills #cloud-sync-panel (async; no-op when unconfigured)
   document.getElementById("detail-add").onclick = () => openDiscoverFor(inst.id);
   document.getElementById("detail-share").onclick = () => openShareModal(inst);
   el().querySelectorAll("[data-remove]").forEach((b) => b.onclick = async () => {
@@ -1352,11 +1357,23 @@ function renderCloudSignedIn(status) {
         </div>
       </div>
 
+      <!-- [Cloud Sync — Vertical A] instances synced from any of your machines. -->
+      <div class="cloud-card glass">
+        <div class="cloud-sync-head">
+          <h2 class="cloud-h2">Synced from your other devices</h2>
+          <button class="btn-ghost cloud-sync-refresh" id="cloud-sync-refresh">Refresh</button>
+        </div>
+        <p class="cloud-sub-inline">Instances you've pushed to the cloud from any machine. Pull one to rebuild it here — a matching local instance is reconciled, otherwise it's added as new.</p>
+        <div id="cloud-sync-list"><div class="sync-loading"><span class="spinner"></span> Loading…</div></div>
+      </div>
+
       <div class="cloud-card glass cloud-soon">
-        <p><b>Friends, chat &amp; sync</b> light up here as they ship — this account is what they run on.</p>
+        <p><b>Friends &amp; chat</b> light up here as they ship — this account is what they run on.</p>
       </div>
     </div>`;
 
+  renderCloudSyncList();                                   // [Cloud Sync] fill the synced-instances list
+  document.getElementById("cloud-sync-refresh").onclick = () => renderCloudSyncList();
   document.getElementById("cloud-out").onclick = async () => {
     await API.cloud.signOut(); toast("Signed out."); renderCloud();
   };
@@ -1376,12 +1393,143 @@ function renderCloudSignedIn(status) {
   };
 }
 
+// ---------- Cloud Sync (Vertical A) ----------
+// The per-instance "Cloud sync" control (instance detail) + the "Synced from your
+// other devices" list (Account tab). Both live-refresh over the cloud:sync channel.
+// The manifest pushed here IS the share-code payload, so a pull replays through the
+// same install / update / remove reconcile that pasting a code would.
+let detailInstForSync = null;   // instance whose detail is showing, for live panel refresh
+
+function fmtWhen(v) {
+  const t = typeof v === "number" ? v : Date.parse(v);
+  if (!t || Number.isNaN(t)) return "recently";
+  return new Date(t).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+// Instance-detail card. Hidden entirely when the backend isn't configured (the
+// launcher is fully usable offline); otherwise shows signed-out / not-synced / synced.
+async function renderInstanceCloudSync(inst) {
+  const box = document.getElementById("cloud-sync-panel");
+  if (!box) return;
+  let st;
+  try { st = await API.cloud.sync.status(inst.id); }
+  catch { box.innerHTML = ""; return; }
+  if (!box.isConnected) return;                 // navigated away while awaiting
+  if (!st.configured) { box.innerHTML = ""; return; }
+
+  const head = `<div class="section-head" style="margin-top:26px"><span class="section-title">CLOUD SYNC</span></div>`;
+
+  if (!st.signedIn) {
+    box.innerHTML = `${head}
+      <div class="glass sync-panel">
+        <div class="sync-info">
+          <div class="sync-title">${ico("i-globe")} Cloud sync</div>
+          <div class="sync-meta">Sign in to your Lodestone account to sync this instance across your machines.</div>
+        </div>
+        <div class="sync-actions"><button class="btn-soft" data-goto="cloud">Go to Account</button></div>
+      </div>`;
+    box.querySelectorAll("[data-goto]").forEach((n) => n.addEventListener("click", () => navigate(n.dataset.goto)));
+    return;
+  }
+
+  const row = st.row;
+  box.innerHTML = `${head}
+    <div class="glass sync-panel">
+      <div class="sync-info">
+        <div class="sync-title">${ico("i-globe")} ${row ? "Synced to your account" : "Cloud sync"}</div>
+        <div class="sync-meta">${row
+          ? `Last pushed from <b>${esc(row.device || "a device")}</b> · ${esc(fmtWhen(row.updatedAt))} · ${row.modCount} mod${row.modCount === 1 ? "" : "s"}.`
+          : "Push this instance's mod list to your account so you can rebuild it on any machine."}</div>
+      </div>
+      <div class="sync-actions">
+        ${row ? `<button class="btn-ghost sync-remove">Remove from cloud</button>` : ""}
+        <button class="btn-accent sync-push">${ico(row ? "i-download" : "i-globe")} ${row ? "Update cloud copy" : "Sync this instance to cloud"}</button>
+      </div>
+    </div>`;
+
+  box.querySelector(".sync-push").onclick = async (e) => {
+    const btn = e.currentTarget; const original = btn.innerHTML;
+    btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Syncing…`;
+    try {
+      const r = await API.cloud.sync.push(inst.id);
+      toast(`Synced ${inst.name} to the cloud (${r.modCount} mod${r.modCount === 1 ? "" : "s"}).`);
+      renderInstanceCloudSync(inst);
+    } catch (err) { btn.disabled = false; btn.innerHTML = original; toast("Couldn't sync: " + err.message); }
+  };
+  const rm = box.querySelector(".sync-remove");
+  if (rm) rm.onclick = async () => {
+    if (!confirm(`Remove "${inst.name}" from your cloud? Your local instance stays — only the cloud copy is deleted.`)) return;
+    rm.disabled = true;
+    try { await API.cloud.sync.remove(row.id); toast("Removed from the cloud."); renderInstanceCloudSync(inst); }
+    catch (err) { rm.disabled = false; toast("Couldn't remove: " + err.message); }
+  };
+}
+
+// The "Synced from your other devices" list on the Account tab. Each row rebuilds
+// from the cloud: reconcile the matching local instance, or add it as a new one.
+async function renderCloudSyncList() {
+  const box = document.getElementById("cloud-sync-list");
+  if (!box) return;
+  let rows = [], locals = [];
+  try { rows = await API.cloud.sync.list(); } catch { rows = []; }
+  try { locals = await API.instances(); } catch { locals = []; }
+  if (!box.isConnected) return;
+  const localIds = new Set(locals.map((i) => i.id));
+  if (!rows.length) {
+    box.innerHTML = `<div class="empty-line">Nothing synced yet. Open an instance and hit “Sync this instance to cloud”.</div>`;
+    return;
+  }
+  box.innerHTML = rows.map((r) => {
+    const here = localIds.has(r.clientInstanceId);
+    const ver = r.loader && r.loader !== "vanilla"
+      ? `${r.loader[0].toUpperCase()}${r.loader.slice(1)} ${r.mcVersion || ""}` : (r.mcVersion || "—");
+    return `
+    <div class="glass sync-row">
+      <div class="sync-row-art">${ico("i-stack")}</div>
+      <div class="sync-row-meta">
+        <div class="sync-row-title">${esc(r.name)}${here ? `<span class="sync-tag">on this machine</span>` : ""}</div>
+        <div class="sync-row-sub">${esc(ver)} · ${r.modCount} mod${r.modCount === 1 ? "" : "s"} · ${esc(r.device || "a device")} · ${esc(fmtWhen(r.updatedAt))}</div>
+      </div>
+      <div class="sync-row-actions">
+        <button class="btn-${here ? "accent" : "soft"} sync-pull" data-pull="${esc(r.id)}">${ico(here ? "i-download" : "i-plus")} ${here ? "Sync to this machine" : "Add as new instance"}</button>
+        <button class="btn-ghost sync-x" data-remove="${esc(r.id)}" title="Remove from cloud">${ico("i-trash")}</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  box.querySelectorAll("[data-pull]").forEach((b) => b.onclick = async () => {
+    const original = b.innerHTML; b.disabled = true; b.innerHTML = `<span class="spinner"></span> Working…`;
+    try {
+      const r = await API.cloud.sync.pull(b.dataset.pull);
+      const parts = [];
+      if (r.added) parts.push(`${r.added} added`);
+      if (r.removed) parts.push(`${r.removed} removed`);
+      const detail = parts.length ? ` (${parts.join(", ")})` : "";
+      toast(r.mode === "created"
+        ? `Added ${r.instanceName}${detail}.`
+        : `Synced ${r.instanceName} to this machine${detail || " — already up to date"}.`);
+      renderCloudSyncList();
+    } catch (err) { b.disabled = false; b.innerHTML = original; toast("Couldn't pull: " + err.message); }
+  });
+  box.querySelectorAll("[data-remove]").forEach((b) => b.onclick = async () => {
+    if (!confirm("Remove this instance from your cloud? Local copies are untouched.")) return;
+    b.disabled = true;
+    try { await API.cloud.sync.remove(b.dataset.remove); toast("Removed from the cloud."); renderCloudSyncList(); }
+    catch (err) { b.disabled = false; toast("Couldn't remove: " + err.message); }
+  });
+}
+
 // Keep the Account view + nav badge honest as the session changes / refreshes.
 function setupCloud() {
   API.on("cloud:auth", (s) => {
     cloudAuthState = s;
     const active = document.querySelector('.nav-item[data-section="cloud"].is-active');
     if (active) renderCloud();
+  });
+  // [Cloud Sync] live-refresh whatever's showing when a synced_instances row changes.
+  API.on("cloud:sync", () => {
+    if (document.getElementById("cloud-sync-list")) renderCloudSyncList();
+    if (document.getElementById("cloud-sync-panel") && detailInstForSync) renderInstanceCloudSync(detailInstForSync);
   });
 }
 

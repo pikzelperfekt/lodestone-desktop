@@ -275,6 +275,113 @@ function openDiscoverFor(id) {
   renderDiscover();
 }
 
+// ---------- SETTINGS ----------
+async function renderSettings() {
+  el().innerHTML = `<div class="placeholder">${ico("i-gear")}<h2>Loading…</h2></div>`;
+  const [settings, info] = await Promise.all([API.settings.get(), API.info()]);
+
+  el().innerHTML = `
+    <div class="page-head"><h1 class="page-title">Settings</h1></div>
+
+    <div class="section-head" style="margin-top:22px"><span class="section-title">JAVA &amp; MEMORY</span></div>
+    <div class="glass settings-card">
+      <div class="set-row">
+        <div class="set-label">
+          <div class="set-name">Default memory</div>
+          <div class="set-hint">RAM new instances start with, in megabytes. Leave blank to let Lodestone size it for you.</div>
+        </div>
+        <div class="set-control">
+          <input id="set-ram" class="set-input num" type="number" min="512" step="256" placeholder="Auto"
+            value="${settings.defaultRamMB != null ? esc(settings.defaultRamMB) : ""}" />
+          <span class="set-unit">MB</span>
+        </div>
+      </div>
+      <div class="set-row">
+        <div class="set-label">
+          <div class="set-name">Java path</div>
+          <div class="set-hint">Point to your own Java binary, or leave it empty to use the Java Lodestone installs for you.</div>
+        </div>
+        <div class="set-control wide">
+          <input id="set-java" class="set-input" type="text" spellcheck="false"
+            placeholder="Use the Java Lodestone installs for you"
+            value="${esc(settings.javaPath || "")}" />
+        </div>
+      </div>
+    </div>
+
+    <div class="section-head" style="margin-top:22px"><span class="section-title">LAUNCHER</span></div>
+    <div class="glass settings-card">
+      <div class="set-row">
+        <div class="set-label">
+          <div class="set-name">Keep launcher open</div>
+          <div class="set-hint">Stay open while Minecraft runs. Turn this off to tuck the launcher away until you quit the game.</div>
+        </div>
+        <button id="set-keep" class="switch ${settings.keepLauncherOpen ? "on" : ""}" role="switch"
+          aria-checked="${settings.keepLauncherOpen ? "true" : "false"}" title="Keep launcher open"><span class="knob"></span></button>
+      </div>
+    </div>
+
+    <div class="section-head" style="margin-top:22px"><span class="section-title">DATA &amp; UPDATES</span></div>
+    <div class="glass settings-card">
+      <div class="set-row">
+        <div class="set-label">
+          <div class="set-name">Data folder</div>
+          <div class="set-hint">Instances, mods, and the Java runtimes all live here.</div>
+        </div>
+        <button class="btn-soft" id="set-open-data">${ico("i-arrow-right")} Open data folder</button>
+      </div>
+      <div class="set-row">
+        <div class="set-label">
+          <div class="set-name">Updates</div>
+          <div class="set-hint">Check the release feed for a newer Lodestone. Available in the installed desktop build.</div>
+        </div>
+        <button class="btn-soft" id="set-check-update">${ico("i-download")} Check for updates</button>
+      </div>
+    </div>
+
+    <div class="section-head" style="margin-top:22px"><span class="section-title">ABOUT</span></div>
+    <div class="glass settings-card about-card">
+      <div class="about-row"><span class="about-k">Platform</span><span class="about-v">${esc(info.platform)}${info.arch ? " · " + esc(info.arch) : ""}</span></div>
+      <div class="about-row"><span class="about-k">Engine</span><span class="about-v">${esc(info.engine)}</span></div>
+      <div class="about-row"><span class="about-k">Version</span><span class="about-v">${info.electron ? "Electron " + esc(info.electron) : esc(info.engine)}</span></div>
+      <div class="about-row"><span class="about-k">Data folder</span><span class="about-v mono" title="${esc(info.dataDir)}">${esc(info.dataDir)}</span></div>
+    </div>`;
+
+  const save = async (patch, note) => {
+    try { const next = await API.settings.set(patch); toast(note || "Settings saved."); return next; }
+    catch (e) { toast("Couldn't save: " + e.message); }
+  };
+
+  const ram = document.getElementById("set-ram");
+  ram.onchange = () => {
+    const raw = ram.value.trim();
+    if (raw === "") { save({ defaultRamMB: null }, "Memory set to automatic."); return; }
+    const val = Math.round(Number(raw));
+    if (!Number.isFinite(val)) { toast("Enter a number of megabytes, or leave it blank."); return; }
+    const clamped = Math.max(512, val);
+    ram.value = clamped;
+    save({ defaultRamMB: clamped }, `Default memory set to ${clamped} MB.`);
+  };
+
+  const java = document.getElementById("set-java");
+  java.onchange = () => {
+    const val = java.value.trim();
+    java.value = val;
+    save({ javaPath: val }, val ? "Java path saved." : "Using the Java Lodestone installs for you.");
+  };
+
+  const keep = document.getElementById("set-keep");
+  keep.onclick = () => {
+    const on = !keep.classList.contains("on");
+    keep.classList.toggle("on", on);
+    keep.setAttribute("aria-checked", on ? "true" : "false");
+    save({ keepLauncherOpen: on }, on ? "Launcher will stay open while you play." : "Launcher will tuck away while you play.");
+  };
+
+  document.getElementById("set-open-data").onclick = () => API.openDataDir();
+  document.getElementById("set-check-update").onclick = () => { API.update.check(); toast("Checking for updates…"); };
+}
+
 // ---------- nav ----------
 function placeholder(title) {
   return `<div class="placeholder">${ico("i-grid")}<h2>${title}</h2><p>Ports next — Home, Instances &amp; Discover are live.</p></div>`;
@@ -294,7 +401,7 @@ function bindCommon() {
 function navigate(section) {
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("is-active", b.dataset.section === section));
   if (section === "discover") discoverTarget = null;   // sidebar Discover = browse for any instance
-  ({ home: renderHome, instances: renderInstances, discover: renderDiscover }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
+  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, settings: renderSettings }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
 }
 
 // ---------- Account / sign-in ----------

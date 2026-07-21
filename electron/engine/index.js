@@ -13,6 +13,7 @@ const curseforge = require("./curseforge");
 const worlds = require("./worlds");
 const auth = require("./auth");
 const cloud = require("./cloud");
+const sync = require("./sync"); // [Cloud Sync — Vertical A]
 const settings = require("./settings");
 const serverEngine = require("./server");
 const maintenance = require("./maintenance");
@@ -28,12 +29,21 @@ function init(userDataPath) {
   auth.init(DATA_DIR);
   cloud.init(DATA_DIR);
   settings.init(DATA_DIR);
+  // [Cloud Sync — Vertical A] inject the instance store + reconcile path, then
+  // open the realtime channel if a session was restored from disk.
+  sync.init({
+    getInstance: (id) => readInstances().find((i) => i.id === id),
+    listInstances: () => readInstances(),
+    syncFromCode: (a) => syncInstanceFromCode(a),
+    createFromCode: (code) => createInstanceFromCode(code),
+  });
+  sync.start().catch(() => {});
 }
 
 // ---- App settings (memory / Java override / launcher behavior) ----
 function getSettings() { return settings.getSettings(); }
 function setSettings(patch) { return settings.setSettings(patch); }
-function setEmitter(fn) { emit = fn || (() => {}); cloud.setEmitter(emit); }
+function setEmitter(fn) { emit = fn || (() => {}); cloud.setEmitter(emit); sync.setEmitter(emit); }
 
 // ---- Cloud account (Lodestone social/sync identity — distinct from Minecraft) ----
 function cloudStatus() { return cloud.status(); }
@@ -45,6 +55,18 @@ function cloudUpdateProfile(a) { return cloud.updateProfile(a); }
 function cloudLinkMinecraft() { return cloud.linkMinecraft(auth.account()); }
 function cloudSearchProfiles(a) { return cloud.searchProfiles(a && a.query); }
 function dataDir() { return DATA_DIR; }
+
+// ---- Cloud Sync (Vertical A) — instance manifests ⇄ synced_instances ----
+// Re/open the realtime channel around the auth boundary so live reconcile follows
+// the session. Guarded so a signed-out / unconfigured launcher is unaffected.
+async function cloudSignInSync(a) { const r = await cloudSignIn(a); sync.start().catch(() => {}); return r; }
+async function cloudSignUpSync(a) { const r = await cloudSignUp(a); if (r && r.signedIn) sync.start().catch(() => {}); return r; }
+async function cloudSignOutSync() { sync.stop(); return cloudSignOut(); }
+function cloudSyncPush(a) { return sync.pushInstance(a && a.instanceId); }
+function cloudSyncList() { return sync.listCloud(); }
+function cloudSyncPull(a) { return sync.pullInstance(a); }
+function cloudSyncRemove(a) { return sync.removeCloud(a); }
+function cloudSyncStatus(a) { return sync.syncStatus(a && a.instanceId); }
 
 function info() {
   return {
@@ -399,8 +421,11 @@ module.exports = {
   exportInstanceCode, exportInstanceMrpack, syncInstanceFromCode, createInstanceFromCode,
   worldList, worldBackups, worldBackup, worldRestore, worldRename, worldRemove,
   account, signOut, signInStart, signInComplete,
-  cloudStatus, cloudSignUp, cloudSignIn, cloudSignOut,
+  cloudStatus,
+  cloudSignUp: cloudSignUpSync, cloudSignIn: cloudSignInSync, cloudSignOut: cloudSignOutSync, // [Cloud Sync] session-aware
   cloudProfile, cloudUpdateProfile, cloudLinkMinecraft, cloudSearchProfiles,
+  // [Cloud Sync — Vertical A]
+  cloudSyncPush, cloudSyncList, cloudSyncPull, cloudSyncRemove, cloudSyncStatus,
   launch, stop, isRunning,
   repairInstance, updateAllContent,
   listServers, createServer, startServer, stopServer, serverCommand,

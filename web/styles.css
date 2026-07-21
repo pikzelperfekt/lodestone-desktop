@@ -511,3 +511,46 @@ svg.ico { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-widt
 .cloud-mc-row .btn-soft { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex: 0 0 auto; }
 .cloud-mc-row .btn-soft .ico { font-size: 14px; }
 .cloud-soon { text-align: center; color: var(--text-tertiary); font-size: 12.5px; line-height: 1.5; }
+
+/* ---------- Cloud Sync (Vertical A) ---------- */
+/* Instance-detail control */
+.sync-panel { display: flex; align-items: center; gap: 16px; padding: 16px; margin-top: 12px; }
+.sync-info { flex: 1; min-width: 0; }
+.sync-title { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 700;
+  font-size: 14px; color: var(--text-primary); }
+.sync-title .ico { font-size: 15px; color: var(--accent); }
+.sync-meta { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; margin-top: 5px; }
+.sync-meta b { color: var(--text-primary); }
+.sync-actions { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.sync-actions .btn-accent, .sync-actions .btn-soft { width: auto; padding: 9px 16px; display: inline-flex;
+  align-items: center; gap: 7px; white-space: nowrap; }
+.sync-actions .ico { font-size: 14px; }
+
+/* Account-tab "synced from your other devices" list */
+.cloud-sync-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 6px; }
+.cloud-sync-head .cloud-h2 { margin-bottom: 0; }
+.cloud-sync-refresh { width: auto; padding: 6px 12px; font-size: 12px; flex: 0 0 auto; }
+.sync-loading { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-tertiary); padding: 8px 0; }
+#cloud-sync-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.sync-row { display: flex; align-items: center; gap: 14px; padding: 12px 14px; }
+.sync-row-art { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center;
+  justify-content: center; background: var(--fill-soft); border: 1px solid var(--stroke); }
+.sync-row-art .ico { font-size: 18px; color: var(--text-secondary); }
+.sync-row-meta { flex: 1; min-width: 0; }
+.sync-row-title { display: flex; align-items: center; gap: 9px; font-family: var(--font-display); font-weight: 600;
+  font-size: 13.5px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sync-tag { flex: 0 0 auto; font-family: var(--font-body); font-weight: 600; font-size: 10px; letter-spacing: .3px;
+  color: var(--accent); background: rgba(94,230,160,.13); border-radius: var(--radius-pill); padding: 2px 8px; }
+.sync-row-sub { font-size: 11.5px; color: var(--text-tertiary); margin-top: 3px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.sync-row-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.sync-row-actions .btn-accent, .sync-row-actions .btn-soft { width: auto; padding: 8px 13px; font-size: 12.5px;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.sync-row-actions .ico { font-size: 13px; }
+.sync-x { width: auto; padding: 8px; display: inline-flex; }
+.sync-x .ico { font-size: 15px; }
+
+@media (max-width: 560px) {
+  .sync-panel { flex-direction: column; align-items: stretch; }
+  .sync-actions { justify-content: flex-end; }
+}

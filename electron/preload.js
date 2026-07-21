@@ -70,6 +70,14 @@ contextBridge.exposeInMainWorld("lodestone", {
     updateProfile: (patch) => call("cloud:updateProfile", patch),
     linkMinecraft: () => call("cloud:linkMinecraft"),
     searchProfiles: (query) => call("cloud:searchProfiles", { query }),
+    // [Cloud Sync — Vertical A] push/pull an instance's manifest to synced_instances.
+    sync: {
+      push: (instanceId) => call("cloud:sync:push", { instanceId }),
+      list: () => call("cloud:sync:list"),
+      pull: (id) => call("cloud:sync:pull", { id }),
+      remove: (id) => call("cloud:sync:remove", { id }),
+      status: (instanceId) => call("cloud:sync:status", { instanceId }),
+    },
   },
   openDataDir: () => call("open:dataDir"),
   openExternal: (url) => call("open:external", { url }),

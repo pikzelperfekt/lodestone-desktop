@@ -98,6 +98,26 @@
       async updateProfile(patch) { return bridge ? unwrap(await bridge.cloud.updateProfile(patch)) : null; },
       async linkMinecraft() { return bridge ? unwrap(await bridge.cloud.linkMinecraft()) : null; },
       async searchProfiles(query) { return bridge ? unwrap(await bridge.cloud.searchProfiles(query)) : []; },
+
+      // [Cloud Sync — Vertical A] mirror an instance's manifest to the cloud +
+      // rebuild it on another machine. Browser preview has no engine, so status
+      // reports "not configured", lists are empty, and actions explain themselves.
+      sync: {
+        async status(instanceId) { return bridge ? unwrap(await bridge.cloud.sync.status(instanceId)) : { configured: false, signedIn: false, row: null }; },
+        async list() { return bridge ? unwrap(await bridge.cloud.sync.list()) : []; },
+        async push(instanceId) {
+          if (bridge) return unwrap(await bridge.cloud.sync.push(instanceId));
+          throw new Error("Cloud sync runs in the desktop app.");
+        },
+        async pull(id) {
+          if (bridge) return unwrap(await bridge.cloud.sync.pull(id));
+          throw new Error("Cloud sync runs in the desktop app.");
+        },
+        async remove(id) {
+          if (bridge) return unwrap(await bridge.cloud.sync.remove(id));
+          throw new Error("Cloud sync runs in the desktop app.");
+        },
+      },
     },
 
     on(channel, fn) { return bridge ? bridge.on(channel, fn) : () => {}; },

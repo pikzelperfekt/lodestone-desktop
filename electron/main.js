@@ -114,6 +114,12 @@ handle("cloud:profile", () => engine.cloudProfile());
 handle("cloud:updateProfile", (a) => engine.cloudUpdateProfile(a));
 handle("cloud:linkMinecraft", () => engine.cloudLinkMinecraft());
 handle("cloud:searchProfiles", (a) => engine.cloudSearchProfiles(a));
+// [Cloud Sync — Vertical A] instance manifests ⇄ synced_instances.
+handle("cloud:sync:push", (a) => engine.cloudSyncPush(a));
+handle("cloud:sync:list", () => engine.cloudSyncList());
+handle("cloud:sync:pull", (a) => engine.cloudSyncPull(a));
+handle("cloud:sync:remove", (a) => engine.cloudSyncRemove(a));
+handle("cloud:sync:status", (a) => engine.cloudSyncStatus(a));
 ipcMain.handle("open:dataDir", () => shell.openPath(engine.dataDir()));
 ipcMain.handle("open:external", (_e, a) => shell.openExternal(a.url));
 

@@ -173,4 +173,4 @@ async function installJava(root, component, onProgress, onLog) {
   return javaBinary;
 }
 
-module.exports = { paths, resolveVersionJSON, installVersion, ruleAllowed };
+module.exports = { paths, resolveVersionJSON, installVersion, installJava, ruleAllowed };

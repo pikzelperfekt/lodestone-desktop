@@ -42,12 +42,23 @@ Legend: [x] done · [~] partial · [ ] not started
       (`electron/engine/cloud.js`) with disk-persisted sessions + realtime shim,
       `cloud:*` IPC, and an **Account** tab (sign up / in / out, profile edit,
       link Minecraft). Runs fully offline until a project is connected (`SETUP.md`).
+- [x] **Cloud Sync** (vertical A — `sync.js`): push an instance's manifest to
+      `synced_instances`, pull + reconcile on another machine via share.js, live over Realtime.
 - [ ] Connect a live project (2-min manual step — see `SETUP.md`) + smoke test end to end
-- [ ] Cloud sync of instances (vertical A — `synced_instances` + share.js reconcile)
+      **← the only thing between "built" and "shippable"; blocks the v0.3.0 release**
 
 ## Social & extras
-- [~] Friends / presence / chat — **backend ready** (`friendships`, `messages`,
-      `squads`, Realtime); verticals B (friends+presence) & C (chat+squads) next
+- [x] **Friends + Presence** (vertical B — `social.js`): search / request / accept /
+      remove / block over `friendships`; live online status via Realtime Presence;
+      launcher broadcasts "Playing <instance>".
+- [x] **Chat + Squads** (vertical C — `chat.js`): squad channels + DMs over `messages`,
+      create / join-by-code / leave squads, live delivery; join uses a SECURITY DEFINER
+      RPC (`0002_squad_join_by_code.sql`) so RLS stays tight.
+- [ ] Plugins (JS sandbox)
+- [ ] Skins
+- [ ] Themes
+- [ ] Achievements / playtime heatmap / wrapped recap
+- [ ] Onboarding
 - [ ] Plugins (JS sandbox)
 - [ ] Skins
 - [ ] Themes

@@ -1,6 +1,6 @@
 {
   "name": "lodestone-desktop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Lodestone — cross-platform Minecraft launcher (Windows/Electron build)",
   "main": "electron/main.js",
   "author": "KingEstel",
@@ -33,7 +33,7 @@
     "win": {
       "target": ["nsis"],
       "icon": "build/icon.ico",
-      "artifactName": "${productName}-Setup-${version}.${ext}"
+      "artifactName": "${productName}-Setup.${ext}"
     },
     "nsis": {
       "oneClick": true,

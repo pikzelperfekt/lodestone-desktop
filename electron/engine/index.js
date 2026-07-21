@@ -15,6 +15,7 @@ const auth = require("./auth");
 const cloud = require("./cloud");
 const sync = require("./sync"); // [Cloud Sync — Vertical A]
 const social = require("./social"); // Vertical B — Friends + Presence
+const chat = require("./chat");   // Vertical C — Chat + Squads
 const settings = require("./settings");
 const serverEngine = require("./server");
 const maintenance = require("./maintenance");
@@ -39,13 +40,14 @@ function init(userDataPath) {
     syncFromCode: (a) => syncInstanceFromCode(a),
     createFromCode: (code) => createInstanceFromCode(code),
   });
-  sync.start().catch(() => {});
+  // Open sync + chat realtime if a session was restored from disk at boot.
+  startVerticalRealtime();
 }
 
 // ---- App settings (memory / Java override / launcher behavior) ----
 function getSettings() { return settings.getSettings(); }
 function setSettings(patch) { return settings.setSettings(patch); }
-function setEmitter(fn) { emit = fn || (() => {}); cloud.setEmitter(emit); sync.setEmitter(emit); social.setEmitter(emit); }
+function setEmitter(fn) { emit = fn || (() => {}); cloud.setEmitter(emit); sync.setEmitter(emit); social.setEmitter(emit); chat.setEmitter(emit); }
 
 // ---- Cloud account (Lodestone social/sync identity — distinct from Minecraft) ----
 function cloudStatus() { return cloud.status(); }
@@ -71,14 +73,31 @@ function dataDir() { return DATA_DIR; }
 // ---- Cloud Sync (Vertical A) — instance manifests ⇄ synced_instances ----
 // Re/open the realtime channel around the auth boundary so live reconcile follows
 // the session. Guarded so a signed-out / unconfigured launcher is unaffected.
-async function cloudSignInSync(a) { const r = await cloudSignIn(a); sync.start().catch(() => {}); return r; }
-async function cloudSignUpSync(a) { const r = await cloudSignUp(a); if (r && r.signedIn) sync.start().catch(() => {}); return r; }
-async function cloudSignOutSync() { sync.stop(); return cloudSignOut(); }
+async function cloudSignInSync(a) { const r = await cloudSignIn(a); startVerticalRealtime(); return r; }
+async function cloudSignUpSync(a) { const r = await cloudSignUp(a); if (r && r.signedIn) startVerticalRealtime(); return r; }
+async function cloudSignOutSync() { stopVerticalRealtime(); return cloudSignOut(); }
 function cloudSyncPush(a) { return sync.pushInstance(a && a.instanceId); }
 function cloudSyncList() { return sync.listCloud(); }
 function cloudSyncPull(a) { return sync.pullInstance(a); }
 function cloudSyncRemove(a) { return sync.removeCloud(a); }
 function cloudSyncStatus(a) { return sync.syncStatus(a && a.instanceId); }
+
+// ---- Chat + Squads (Vertical C — squad channels + direct messages) ----
+function chatCreateSquad(a) { return chat.createSquad(a); }
+function chatJoinSquad(a) { return chat.joinSquad(a); }
+function chatLeaveSquad(a) { return chat.leaveSquad(a); }
+function chatListSquads() { return chat.listSquads(); }
+function chatSquadInvite(a) { return chat.squadInvite(a); }
+function chatStartDm(a) { return chat.startDm(a); }
+function chatListDMs() { return chat.listDMs(); }
+function chatHistory(a) { return chat.history(a); }
+function chatSend(a) { return chat.send(a); }
+
+// One place to open/close every vertical's realtime around the auth boundary.
+// social manages its own via an internal auth listener; sync + chat are driven
+// here. All are guarded, so a signed-out / unconfigured launcher is unaffected.
+function startVerticalRealtime() { sync.start().catch(() => {}); if (chat.start) chat.start().catch(() => {}); }
+function stopVerticalRealtime() { sync.stop(); if (chat.stop) chat.stop(); }
 
 function info() {
   return {
@@ -441,6 +460,9 @@ module.exports = {
   cloudSyncPush, cloudSyncList, cloudSyncPull, cloudSyncRemove, cloudSyncStatus,
   // [Friends + Presence — Vertical B]
   friendsList, friendsSearch, friendsRequest, friendsRespond, friendsRemove, friendsBlock, friendsSetActivity,
+  // [Chat + Squads — Vertical C]
+  chatCreateSquad, chatJoinSquad, chatLeaveSquad, chatListSquads, chatSquadInvite,
+  chatStartDm, chatListDMs, chatHistory, chatSend,
   launch, stop, isRunning,
   repairInstance, updateAllContent,
   listServers, createServer, startServer, stopServer, serverCommand,

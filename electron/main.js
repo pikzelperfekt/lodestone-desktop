@@ -128,6 +128,16 @@ handle("cloud:friends:respond", (a) => engine.friendsRespond(a));
 handle("cloud:friends:remove", (a) => engine.friendsRemove(a));
 handle("cloud:friends:block", (a) => engine.friendsBlock(a));
 handle("cloud:friends:setActivity", (a) => engine.friendsSetActivity(a));
+// Chat + Squads (Vertical C) — squad channels + direct messages; live over "cloud:message".
+handle("cloud:createSquad", (a) => engine.chatCreateSquad(a));
+handle("cloud:joinSquad", (a) => engine.chatJoinSquad(a));
+handle("cloud:leaveSquad", (a) => engine.chatLeaveSquad(a));
+handle("cloud:listSquads", () => engine.chatListSquads());
+handle("cloud:squadInvite", (a) => engine.chatSquadInvite(a));
+handle("cloud:startDm", (a) => engine.chatStartDm(a));
+handle("cloud:listDMs", () => engine.chatListDMs());
+handle("cloud:chatHistory", (a) => engine.chatHistory(a));
+handle("cloud:chatSend", (a) => engine.chatSend(a));
 ipcMain.handle("open:dataDir", () => shell.openPath(engine.dataDir()));
 ipcMain.handle("open:external", (_e, a) => shell.openExternal(a.url));
 

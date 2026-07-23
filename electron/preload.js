@@ -132,4 +132,24 @@ contextBridge.exposeInMainWorld("lodestone", {
     ipcRenderer.on(channel, handler);
     return () => ipcRenderer.removeListener(channel, handler);
   },
+  // ==========================================================================
+  // [Content managers vertical] resource packs / shaders / datapacks + keybinds.
+  // ==========================================================================
+  packs: {
+    resourcePacks: (instanceId) => call("packs:resourcepacks", { instanceId }),
+    setResourcePack: (opts) => call("packs:resourcepacks:set", opts),
+    reorderResourcePacks: (opts) => call("packs:resourcepacks:reorder", opts),
+    shaders: (instanceId) => call("packs:shaders", { instanceId }),
+    selectShader: (opts) => call("packs:shaders:select", opts),
+    datapacks: (opts) => call("packs:datapacks", opts),
+    delete: (opts) => call("packs:delete", opts),
+    import: (opts) => call("packs:import", opts),
+    openFolder: (opts) => call("packs:openFolder", opts),
+  },
+  keybinds: {
+    list: (instanceId) => call("keybinds:list", { instanceId }),
+    set: (opts) => call("keybinds:set", opts),
+    reset: (opts) => call("keybinds:reset", opts),
+    resetAll: (instanceId) => call("keybinds:resetAll", { instanceId }),
+  },
 });

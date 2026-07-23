@@ -13,6 +13,15 @@ function toast(msg) {
 
 function loaderLabel(l) { return l === "vanilla" ? "Vanilla" : l[0].toUpperCase() + l.slice(1); }
 function subtitle(i) { return i.loader === "vanilla" ? i.mcVersion : `${loaderLabel(i.loader)} ${i.mcVersion}`; }
+// [Design overhaul] "Played …" line for instance cards (lastPlayed is ms or null).
+function playedLabel(i) {
+  if (!i.lastPlayed) return "Not played yet";
+  const days = Math.floor((Date.now() - i.lastPlayed) / 86400000);
+  if (days <= 0) return "Played today";
+  if (days === 1) return "Played yesterday";
+  if (days < 30) return `Played ${days} days ago`;
+  return "Played " + fmtDate(i.lastPlayed);
+}
 const fmtCount = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : "" + n);
 const accentFor = (hex) => `linear-gradient(135deg, ${hex}, ${hex}aa)`;
 
@@ -64,7 +73,7 @@ async function renderInstances() {
     </div>
     <div id="new-panel"></div>
     <div class="grid">
-      ${instances.map(instGridCard).join("") || `<div class="empty-line">No instances yet — create one.</div>`}
+      ${instances.map(instGridCard).join("") || `<div class="empty-line">No instances yet. Hit <b>New Instance</b>, <b>Import</b> a .mrpack or .lodepack, or drag a pack file anywhere in this window.</div>`}
     </div>`;
   document.getElementById("import-pack").onclick = async () => {
     const btn = document.getElementById("import-pack");
@@ -428,21 +437,24 @@ async function toggleNewPanel() {
 const instGridCard = (i) => `
   <div class="glass inst-card wide" data-open="${i.id}">
     <div class="inst-art" style="background:${accentFor(i.accent)}33">${ico("i-stack")}
-      <button class="card-del" data-del="${i.id}" title="Delete">${ico("i-trash")}</button>
+      <button class="card-del" data-del="${i.id}" title="Delete instance">${ico("i-trash")}</button>
+      <button class="card-play" data-play="${i.id}" title="Play ${esc(i.name)}">${ico("i-play")}</button>
     </div>
     <div class="inst-body">
       <div class="inst-name">${esc(i.name)}</div>
-      <div class="inst-sub">${esc(subtitle(i))}${i.mods ? ` · ${i.mods} mod${i.mods === 1 ? "" : "s"}` : ""}</div>
-      <button class="btn-accent" data-play="${i.id}" style="margin-top:10px">${ico("i-play")} Play</button>
+      <div class="inst-chips"><span class="chip">${loaderLabel(i.loader)}</span><span class="chip mono">${esc(i.mcVersion)}</span>${i.mods ? `<span class="chip">${i.mods} mod${i.mods === 1 ? "" : "s"}</span>` : ""}</div>
+      <div class="inst-stats">${playedLabel(i)}</div>
     </div>
   </div>`;
 
 const instCard = (i) => `
-  <div class="glass inst-card" data-play="${i.id}">
-    <div class="inst-art" style="background:${accentFor(i.accent)}33">${ico("i-stack")}</div>
+  <div class="glass inst-card" data-play="${i.id}" title="Play ${esc(i.name)}">
+    <div class="inst-art" style="background:${accentFor(i.accent)}33">${ico("i-stack")}
+      <span class="card-play sm" aria-hidden="true">${ico("i-play")}</span>
+    </div>
     <div class="inst-body">
       <div class="inst-name">${esc(i.name)}</div>
-      <div class="inst-sub">${esc(subtitle(i))}${i.mods ? ` · ${i.mods} mods` : ""}</div>
+      <div class="inst-chips"><span class="chip">${loaderLabel(i.loader)}</span><span class="chip mono">${esc(i.mcVersion)}</span></div>
     </div>
   </div>`;
 
@@ -1031,7 +1043,7 @@ function updateServerState(status, code) {
 
 // ---------- nav ----------
 function placeholder(title) {
-  return `<div class="placeholder">${ico("i-grid")}<h2>${title}</h2><p>Ports next — Home, Instances &amp; Discover are live.</p></div>`;
+  return `<div class="placeholder">${ico("i-compass")}<h2>${title}</h2><p>Not built yet. It arrives in a future update.</p></div>`;
 }
 
 function bindCommon() {
@@ -2857,8 +2869,9 @@ async function ldiEnsure() {
 // Used both as the fallback art for instances without an icon and as the
 // built-in preset set in the picker (rasterized to a real icon.png on pick).
 const LDI_GRADIENTS = [
-  ["#5EE6A0", "#36C9E0"], ["#B57BE6", "#7B6BE6"], ["#E08A3C", "#E6C05E"], ["#FF7A6B", "#E0497A"],
-  ["#7BC6E6", "#5E8DE6"], ["#E65E9E", "#B57BE6"], ["#9BE65E", "#36C9A0"], ["#8A93A6", "#4A5261"],
+  // [Design overhaul] tuned to the Deepslate & Glint palette — Minecraft-material hues.
+  ["#8B93F8", "#5A5FCC"], ["#4E8ED9", "#2F5FA8"], ["#3FA98E", "#1F7A66"], ["#C98A3C", "#96601F"],
+  ["#B75E6B", "#8A3A50"], ["#8A67C9", "#5E3F9E"], ["#6FA84A", "#47772B"], ["#8A93A6", "#4A5261"],
 ];
 function ldiDrawTile(letter, grad, size) {
   const canvas = document.createElement("canvas");
@@ -2873,7 +2886,7 @@ function ldiDrawTile(letter, grad, size) {
   if (letter) {
     const family = (getComputedStyle(document.documentElement).getPropertyValue("--font-display") || "system-ui").trim() || "system-ui";
     ctx.fillStyle = "rgba(255,255,255,.94)";
-    ctx.font = `700 ${Math.round(size * 0.52)}px ${family}`;
+    ctx.font = `700 ${Math.round(size * 0.46)}px ${family}`;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(letter, size / 2, size * 0.55);
   }
@@ -2885,7 +2898,7 @@ function ldiFallbackURI(inst) {
   const letter = ldiLetter(inst.name);
   const grad = LDI_GRADIENTS[ldiHash(inst.id + "|" + letter) % LDI_GRADIENTS.length];
   const key = letter + grad[0];
-  if (!LDI.tiles.has(key)) LDI.tiles.set(key, ldiDrawTile(letter, grad, 128).toDataURL("image/png"));
+  if (!LDI.tiles.has(key)) LDI.tiles.set(key, ldiDrawTile(letter, grad, 512).toDataURL("image/png"));
   return LDI.tiles.get(key);
 }
 
@@ -2936,7 +2949,7 @@ async function openIconModal(id) {
   if (!inst) { toast("Instance not found."); return; }
   const letter = ldiLetter(inst.name);
   const presets = LDI_GRADIENTS.map((g, idx) =>
-    `<div class="ld-icon-tile" data-preset="${idx}" title="Use this tile" style="background-image:url('${ldiDrawTile(letter, g, 64).toDataURL("image/png")}')"></div>`).join("");
+    `<div class="ld-icon-tile" data-preset="${idx}" title="Use this tile" style="background-image:url('${ldiDrawTile(letter, g, 128).toDataURL("image/png")}')"></div>`).join("");
   showModal(`
     <div class="share-card">
       <div class="share-h">${ico("i-grid")} Instance icon</div>

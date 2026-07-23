@@ -15,7 +15,7 @@ function createWindow() {
     height: 760,
     minWidth: 940,
     minHeight: 640,
-    backgroundColor: "#06080B",
+    backgroundColor: "#0C0F14",   // --deepslate-0 (web/design-tokens.css)
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     title: "Lodestone",
     webPreferences: {

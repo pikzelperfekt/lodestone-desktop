@@ -16,6 +16,7 @@ const cloud = require("./cloud");
 const sync = require("./sync"); // [Cloud Sync — Vertical A]
 const social = require("./social"); // Vertical B — Friends + Presence
 const chat = require("./chat");   // Vertical C — Chat + Squads
+const doctor = require("./doctor"); // [Crash Doctor] scan + fixes + mod bisect
 const settings = require("./settings");
 const serverEngine = require("./server");
 const maintenance = require("./maintenance");
@@ -419,6 +420,53 @@ async function updateAllContent(id) {
   return result;
 }
 
+// ---- [Crash Doctor] scan / apply-fix / mod bisect (doctor.js) ----
+// Scan reads the newest crash report + latest.log tail and returns ranked diagnoses
+// whose fixes map onto real engine actions; doctorFix executes one (RAM edit, Repair,
+// disable/remove/update a mod, install a missing dependency) and persists through the
+// standard instance store. The bisect is a disk-persisted binary search over the
+// enabled mods (rename .jar ⇄ .jar.disabled), driven by the user's crash reports.
+function doctorScan(instanceId) {
+  const inst = readInstances().find((i) => i.id === instanceId);
+  if (!inst) throw new Error("Instance not found.");
+  return doctor.scan({ dataDir: DATA_DIR, instance: inst, prefs: settings.getSettings() });
+}
+async function doctorFix({ instanceId, fix }) {
+  const list = readInstances();
+  const inst = list.find((i) => i.id === instanceId);
+  if (!inst) throw new Error("Instance not found.");
+  if (running[instanceId]) throw new Error("Stop the instance before applying a fix.");
+  const result = await doctor.applyFix({
+    dataDir: DATA_DIR, instance: inst, fix,
+    onLog: (m) => emit("content:log", { instanceId, line: m }),
+  });
+  inst.mods = (inst.content || []).filter((c) => c.kind === "mod").length;
+  writeInstances(list);
+  return result;
+}
+function doctorBisectStatus(instanceId) {
+  const inst = readInstances().find((i) => i.id === instanceId);
+  if (!inst) throw new Error("Instance not found.");
+  return doctor.bisectStatus({ dataDir: DATA_DIR, instance: inst });
+}
+function doctorBisectStart(instanceId) {
+  const inst = readInstances().find((i) => i.id === instanceId);
+  if (!inst) throw new Error("Instance not found.");
+  if (running[instanceId]) throw new Error("Stop the instance before starting a bisect.");
+  return doctor.bisectStart({ dataDir: DATA_DIR, instance: inst });
+}
+function doctorBisectReport({ instanceId, crashed }) {
+  const inst = readInstances().find((i) => i.id === instanceId);
+  if (!inst) throw new Error("Instance not found.");
+  if (running[instanceId]) throw new Error("Stop the instance before reporting the round.");
+  return doctor.bisectReport({ dataDir: DATA_DIR, instance: inst, crashed: !!crashed });
+}
+function doctorBisectAbort({ instanceId, restore }) {
+  const inst = readInstances().find((i) => i.id === instanceId);
+  if (!inst) throw new Error("Instance not found.");
+  return doctor.bisectAbort({ dataDir: DATA_DIR, instance: inst, restore });
+}
+
 // ---- Dedicated servers (create / run / console / properties) ----
 // The server engine streams its console + lifecycle through this module's `emit`,
 // on the "server:log" and "server:state" channels the renderer subscribes to.
@@ -465,6 +513,8 @@ module.exports = {
   chatStartDm, chatListDMs, chatHistory, chatSend,
   launch, stop, isRunning,
   repairInstance, updateAllContent,
+  // [Crash Doctor]
+  doctorScan, doctorFix, doctorBisectStatus, doctorBisectStart, doctorBisectReport, doctorBisectAbort,
   listServers, createServer, startServer, stopServer, serverCommand,
   serverProperties, setServerProperties, serverHostingInfo, setServerOnlineMode, removeServer,
 };

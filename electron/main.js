@@ -138,6 +138,13 @@ handle("cloud:startDm", (a) => engine.chatStartDm(a));
 handle("cloud:listDMs", () => engine.chatListDMs());
 handle("cloud:chatHistory", (a) => engine.chatHistory(a));
 handle("cloud:chatSend", (a) => engine.chatSend(a));
+// [Crash Doctor] — crash scan + apply-fix + the persistent mod bisect (doctor.js).
+handle("doctor:scan", (a) => engine.doctorScan(a.instanceId));
+handle("doctor:fix", (a) => engine.doctorFix(a));
+handle("doctor:bisect:status", (a) => engine.doctorBisectStatus(a.instanceId));
+handle("doctor:bisect:start", (a) => engine.doctorBisectStart(a.instanceId));
+handle("doctor:bisect:report", (a) => engine.doctorBisectReport(a));
+handle("doctor:bisect:abort", (a) => engine.doctorBisectAbort(a));
 ipcMain.handle("open:dataDir", () => shell.openPath(engine.dataDir()));
 ipcMain.handle("open:external", (_e, a) => shell.openExternal(a.url));
 

@@ -707,3 +707,49 @@ svg.ico { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-widt
   .chat-side { max-height: 210px; }
   .chat-main { height: 60vh; }
 }
+
+/* ======================================================================
+   [Crash Doctor] — diagnosis cards + bisect flow on the instance detail
+   ====================================================================== */
+.doctor-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 10px;
+  font-size: 12px; color: var(--text-secondary); }
+.doctor-meta .ico { font-size: 13px; color: var(--accent); flex: 0 0 auto; }
+.doctor-meta b { color: var(--text-primary); font-weight: 600; }
+.doctor-mono { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-secondary); }
+
+.doctor-card { padding: 16px; margin-top: 12px; }
+.doctor-card-head { display: flex; align-items: center; gap: 10px; }
+.doctor-card-title { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;
+  font-family: var(--font-display); font-weight: 700; font-size: 14.5px; color: var(--text-primary); }
+.doctor-card-title .ico { font-size: 15px; color: var(--accent); flex: 0 0 auto; }
+
+.doctor-conf { flex: 0 0 auto; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: var(--radius-pill); border: 1px solid var(--stroke-strong); }
+.doctor-conf.high   { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.doctor-conf.medium { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.doctor-conf.low    { color: var(--text-tertiary); }
+
+.doctor-evidence { font-family: var(--font-mono); font-size: 11px; line-height: 1.55; color: var(--text-secondary);
+  background: rgba(0, 0, 0, .32); border: 1px solid var(--stroke); border-radius: 10px;
+  padding: 10px 12px; margin: 10px 0 0; max-height: 130px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+.doctor-evidence::-webkit-scrollbar { width: 8px; }
+.doctor-evidence::-webkit-scrollbar-thumb { background: rgba(255,255,255,.08); border-radius: 8px; }
+
+.doctor-fix-text { font-size: 12.5px; color: var(--text-secondary); line-height: 1.55; margin-top: 10px; }
+.doctor-fix-text b { color: var(--text-primary); }
+
+.doctor-mods { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.doctor-mod-chip { font-size: 11px; font-weight: 600; color: var(--text-secondary);
+  border: 1px solid var(--stroke); background: var(--fill-soft); border-radius: var(--radius-chip); padding: 3px 8px; }
+
+.doctor-card-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.doctor-card-actions .btn-accent, .doctor-card-actions .btn-soft { width: auto; padding: 9px 16px;
+  display: inline-flex; align-items: center; gap: 7px; }
+.doctor-card-actions .ico { font-size: 14px; }
+
+/* Bisect specifics */
+.doctor-bar { margin-top: 12px; }
+.doctor-disabled { margin-top: 10px; }
+.doctor-disabled summary { font-size: 12px; color: var(--text-secondary); cursor: pointer; user-select: none; }
+.doctor-disabled summary:hover { color: var(--text-primary); }
+.doctor-clean-state .doctor-card-title .ico { color: var(--accent); }

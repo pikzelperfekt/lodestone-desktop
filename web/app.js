@@ -210,9 +210,11 @@ async function renderInstanceDetail(id) {
   });
   el().querySelectorAll("[data-wdelete]").forEach((b) => b.onclick = async () => {
     const world = b.dataset.wdelete;
-    if (!confirm(`Delete "${world}" permanently? This cannot be undone.`)) return;
-    try { await API.worlds.remove({ instanceId: id, world }); toast("World deleted."); renderInstanceDetail(id); }
+    // [wave0] trash-tier delete: worlds go to the Recycle Bin (Mac parity)
+    if (!confirm(`Move "${world}" to the Recycle Bin?`)) return;
+    try { const r = await API.worlds.remove({ instanceId: id, world }); toast(r && r.trashed ? "World moved to the Recycle Bin." : "World deleted."); renderInstanceDetail(id); }
     catch (err) { toast("Delete failed: " + err.message); }
+    // [/wave0]
   });
   // Backups: restore.
   el().querySelectorAll("[data-wrestore]").forEach((b) => b.onclick = async () => {
@@ -361,7 +363,7 @@ const worldRow = (w) => `
     <div class="world-actions">
       <button class="btn-soft" data-wbackup="${esc(w.name)}">${ico("i-download")} Backup</button>
       <button class="btn-soft" data-wrename="${esc(w.name)}">Rename</button>
-      <button class="btn-ghost world-x" data-wdelete="${esc(w.name)}" title="Delete permanently">${ico("i-trash")}</button>
+      <button class="btn-ghost world-x" data-wdelete="${esc(w.name)}" title="Move to Recycle Bin">${ico("i-trash")}</button><!-- [wave0] trash-tier copy -->
     </div>
   </div>`;
 
@@ -2669,12 +2671,14 @@ function bindPacksEvents(id, state) {
   root.querySelectorAll("[data-pack-del]").forEach((b) => b.onclick = async () => {
     const fileName = b.dataset.packDel;
     const kind = b.dataset.kind;
-    if (!confirm(`Delete "${fileName}" permanently? This cannot be undone.`)) return;
+    // [wave0] trash-tier delete: packs go to the Recycle Bin (Mac parity)
+    if (!confirm(`Move "${fileName}" to the Recycle Bin?`)) return;
     b.disabled = true;
     try {
-      await API.packs.delete({ instanceId: id, kind, fileName, world: kind === "datapack" ? state.selWorld : undefined });
-      toast(`Deleted ${fileName}.`); refresh();
+      const r = await API.packs.delete({ instanceId: id, kind, fileName, world: kind === "datapack" ? state.selWorld : undefined });
+      toast(r && r.trashed ? `Moved ${fileName} to the Recycle Bin.` : `Deleted ${fileName}.`); refresh();
     } catch (e) { b.disabled = false; toast("Couldn't delete: " + e.message); }
+    // [/wave0]
   });
 
   // Import .zip(s) via the file picker.

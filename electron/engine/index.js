@@ -49,6 +49,10 @@ function init(userDataPath) {
 function getSettings() { return settings.getSettings(); }
 function setSettings(patch) { return settings.setSettings(patch); }
 function setEmitter(fn) { emit = fn || (() => {}); cloud.setEmitter(emit); sync.setEmitter(emit); social.setEmitter(emit); chat.setEmitter(emit); }
+// [wave0] Trash-tier deletes: Electron main injects shell.trashItem so world /
+// resource-pack / shader / datapack deletes are recoverable (Mac parity).
+// Headless runs never call this and those deletes stay permanent (flagged).
+function setTrash(fn) { worlds.setTrash(fn); packs.setTrash(fn); }
 
 // ---- Cloud account (Lodestone social/sync identity — distinct from Minecraft) ----
 function cloudStatus() { return cloud.status(); }
@@ -497,7 +501,7 @@ function setServerOnlineMode({ id, on }) { return serverEngine.setOnlineMode(DAT
 function removeServer(id) { return serverEngine.remove(DATA_DIR, id); }
 
 module.exports = {
-  init, setEmitter, dataDir, info,
+  init, setEmitter, setTrash, dataDir, info,   // [wave0] setTrash
   getSettings, setSettings,
   listInstances, createInstance, deleteInstance, updateInstance,
   listVersions, modrinthSearch, curseforgeSearch,

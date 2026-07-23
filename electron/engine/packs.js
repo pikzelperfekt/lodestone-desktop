@@ -15,6 +15,12 @@ const AdmZip = require("adm-zip");
 
 function instanceDir(dataDir, instanceId) { return path.join(dataDir, "instances", instanceId); }
 
+// [wave0] Trash-tier deletes (Mac parity): resource/shader/datapacks go to the OS
+// Recycle Bin. Injected like worlds.js's — Electron main passes shell.trashItem;
+// headless test runs have none and fall back to a permanent delete.
+let trashFn = null;
+function setTrash(fn) { trashFn = typeof fn === "function" ? fn : null; }
+
 // A single, safe path segment (same guard worlds.js uses): no separators, no
 // "." / ".." traversal, so a crafted name can't escape the instance folder.
 function safeName(name) {
@@ -321,12 +327,20 @@ function listDatapacks(dataDir, instanceId, world) {
 }
 
 // ---- Shared: delete / import ----
-function deletePack(dataDir, instanceId, kind, fileName, world) {
+// [wave0] Recoverable delete: Recycle Bin via the injected trash fn, permanent
+// only headless. Returns { trashed } so the UI can word the toast honestly.
+async function deletePack(dataDir, instanceId, kind, fileName, world) {
   const name = safeName(fileName);
   const dir = packsFolder(dataDir, instanceId, kind, world);
   const full = path.join(dir, name);
   if (!fs.existsSync(full)) throw new Error(`"${name}" not found.`);
-  fs.rmSync(full, { recursive: true, force: true });
+  let trashed = false;
+  if (trashFn) {
+    await trashFn(full);   // failure propagates — never silently downgrade to permanent
+    trashed = true;
+  } else {
+    fs.rmSync(full, { recursive: true, force: true });
+  }
   if (kind === "resourcepack") {
     // Also drop it from the enabled list so options.txt never points at a ghost.
     const doc = readOptions(instanceDir(dataDir, instanceId));
@@ -336,7 +350,7 @@ function deletePack(dataDir, instanceId, kind, fileName, world) {
       if (next.length !== list.length) { setOption(doc, "resourcePacks", JSON.stringify(next)); writeLineFile(doc); }
     }
   }
-  return true;
+  return { trashed };   // [wave0]
 }
 
 // Copy a .zip into the pack folder (collision-safe name). The archive must at
@@ -360,7 +374,7 @@ module.exports = {
   listResourcePacks, setResourcePackEnabled, reorderResourcePacks,
   listShaderPacks, selectShaderPack,
   listDatapacks,
-  deletePack, importPack, packsFolder,
+  deletePack, importPack, packsFolder, setTrash,   // [wave0] setTrash
   // shared line-file helpers (keybinds.js edits options.txt through these)
   instanceDir, safeName, splitLines, joinLines,
   readLineFile, writeLineFile, readOptions, getOption, setOption, removeOptions,

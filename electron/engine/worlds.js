@@ -10,6 +10,13 @@ const AdmZip = require("adm-zip");
 function savesDir(dataDir, instanceId) { return path.join(dataDir, "instances", instanceId, "saves"); }
 function backupsDir(dataDir, instanceId) { return path.join(dataDir, "instances", instanceId, "backups"); }
 
+// [wave0] Trash-tier deletes (Mac parity): worlds go to the OS Recycle Bin, not
+// straight to rm. The trash function is injected (Electron main passes
+// shell.trashItem) because these modules also run headless in test scripts —
+// with no trash fn the delete stays permanent and reports { trashed: false }.
+let trashFn = null;
+function setTrash(fn) { trashFn = typeof fn === "function" ? fn : null; }
+
 // A single, safe path segment: no separators, no "." / ".." traversal. Guards every
 // name that reaches the filesystem so a crafted world or backup name can't escape
 // the instance folder.
@@ -104,12 +111,19 @@ function rename(dataDir, instanceId, world, newName) {
   return { name: to };
 }
 
-// Permanently delete a world folder. There is no trash: the user wants deletes gone.
-function remove(dataDir, instanceId, world) {
+// [wave0] Delete a world folder — to the Recycle Bin when a trash fn is injected
+// (Mac parity: worlds are recoverable; only instances are deliberately permanent).
+// Headless (no Electron) it falls back to a permanent delete and says so.
+async function remove(dataDir, instanceId, world) {
   const w = safeName(world);
   const src = path.join(savesDir(dataDir, instanceId), w);
+  if (!fs.existsSync(src)) return { trashed: false };
+  if (trashFn) {
+    await trashFn(src);   // failure propagates — never silently downgrade to permanent
+    return { trashed: true };
+  }
   fs.rmSync(src, { recursive: true, force: true });
-  return true;
+  return { trashed: false };
 }
 
-module.exports = { list, backups, backup, restore, rename, remove };
+module.exports = { list, backups, backup, restore, rename, remove, setTrash };

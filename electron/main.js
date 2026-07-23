@@ -269,6 +269,9 @@ handle("icon:remove", (a) => engine.removeInstanceIcon(a));
 app.whenReady().then(() => {
   engine.init(app.getPath("userData"));
   engine.setEmitter((channel, payload) => { if (win && !win.isDestroyed()) win.webContents.send(channel, payload); });
+  // [wave0] Trash-tier deletes: worlds + resource/shader/datapacks are recoverable
+  // via the OS Recycle Bin (Mac parity); instances/servers stay permanent.
+  engine.setTrash((p) => shell.trashItem(p));
   createWindow();
   setupUpdates();
   app.on("activate", () => {

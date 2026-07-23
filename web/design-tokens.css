@@ -1,68 +1,145 @@
 /*
- * Lodestone design tokens — the exact visual language of the SwiftUI Mac app,
- * ported to CSS so the cross-platform (Windows) UI looks identical.
+ * Lodestone design tokens — "Deepslate & Glint".
  *
- * Source of truth: Sources/Lodestone/Design/Theme.swift. Keep in sync.
- * Deep near-black canvas · emerald→cyan accent · SF Rounded display type.
+ * The lodestone is the block a compass binds to: the fixed point your worlds
+ * navigate home by. The palette is built from that world — layered cool
+ * deepslate surfaces with real depth between levels, and one compass-glint
+ * accent (the enchanted blue-violet shimmer of a bound compass) used only for
+ * primary actions, selection and live state.
+ *
+ * This file is the single source of truth for color, type, radius and motion.
+ * Legacy token names (--accent, --stroke, …) are kept as aliases so every
+ * existing rule and inline style keeps working.
  */
 
-:root {
-  /* --- Accent --- */
-  --accent:      #5EE6A0;   /* Theme.accent      */
-  --accent-alt:  #36C9E0;   /* Theme.accentAlt   */
-  --danger:      #FF6B6B;   /* Theme.danger      */
-  --warn:        #F2C14E;   /* Theme.warn        */
-
-  /* topLeading → bottomTrailing == a 135° diagonal */
-  --accent-gradient: linear-gradient(135deg, #5EE6A0, #36C9E0);
-  --danger-gradient: linear-gradient(135deg, #FF7A6B, #E0497A);
-
-  /* --- Canvas (window background) --- */
-  --bg-top:    #12161D;     /* Theme.bgTop    */
-  --bg-bottom: #06080B;     /* Theme.bgBottom */
-  --app-background: radial-gradient(120% 120% at 50% 0%, #12161D 0%, #06080B 100%);
-
-  /* --- Surfaces / strokes (white at low alpha, like the SwiftUI tokens) --- */
-  --stroke:        rgba(255, 255, 255, 0.09);   /* Theme.stroke        */
-  --stroke-strong: rgba(255, 255, 255, 0.16);   /* Theme.strokeStrong  */
-  --fill-soft:     rgba(255, 255, 255, 0.05);   /* card/chip fills      */
-  --fill-hover:    rgba(255, 255, 255, 0.03);
-
-  /* --- Text --- */
-  --text-primary:   rgba(255, 255, 255, 0.95);  /* Theme.textPrimary   */
-  --text-secondary: rgba(255, 255, 255, 0.58);  /* Theme.textSecondary */
-  --text-tertiary:  rgba(255, 255, 255, 0.34);  /* Theme.textTertiary  */
-
-  /* --- Typography ---
-   * SwiftUI uses SF Rounded for display + SF Mono. On Windows, SF isn't present,
-   * so fall back to the closest rounded/mono faces. Bundling "SF Pro Rounded"
-   * (or a libre rounded face like "Nunito"/"Quicksand") gets a pixel-match.
-   */
-  --font-display: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif;
-  --font-body:    system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono:    ui-monospace, "SF Mono", "Cascadia Code", "Consolas", monospace;
-
-  /* --- Radii (from the SwiftUI RoundedRectangle corners used across the app) --- */
-  --radius-card:  16px;
-  --radius-panel: 14px;
-  --radius-pill:  999px;
-  --radius-chip:  9px;
-
-  /* --- "Glass card" — SwiftUI's .ultraThinMaterial ---
-   * Approximate with a translucent fill + heavy backdrop blur + hairline stroke.
-   */
-  --glass-fill: rgba(255, 255, 255, 0.05);
-  --glass-blur: blur(30px) saturate(1.3);
+/* ---- Local faces (OFL-licensed, bundled — the app works fully offline) ---- */
+@font-face {
+  font-family: "Chakra Petch";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/chakra-petch-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Chakra Petch";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/chakra-petch-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Chakra Petch";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/chakra-petch-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 300 700;               /* variable font */
+  font-display: swap;
+  src: url("fonts/ibm-plex-sans-var.woff2") format("woff2");
 }
 
-/* Reusable primitives the web UI can lean on so panels/cards/pills match 1:1. */
+:root {
+  /* =====================================================================
+     THE PALETTE — six named tokens.
+     Four deepslate surface levels (depth comes from surface color, not
+     borders) + the compass glint pair.
+     ===================================================================== */
+  --deepslate-0: #0C0F14;   /* window chrome / sidebar — the deepest layer   */
+  --deepslate-1: #12151D;   /* content canvas                                */
+  --deepslate-2: #191E28;   /* panels & cards                                */
+  --deepslate-3: #212734;   /* raised: inputs, chips, hover fills            */
+
+  --glint:       #8B93F8;   /* compass glint — enchanted blue-violet         */
+  --glint-deep:  #7C7FEF;   /* the glint's shadowed end (gradients, pressed) */
+
+  /* Status (used sparingly; live = a server that's up, presence online) */
+  --live:   #55C978;
+  --warn:   #D9A93E;
+  --danger: #F07A72;
+
+  /* Glint tints — one recipe for every "accent-washed" fill/border */
+  --glint-fill:      rgba(139, 147, 248, 0.13);
+  --glint-fill-hard: rgba(139, 147, 248, 0.22);
+  --glint-edge:      rgba(139, 147, 248, 0.34);
+  --glint-glow:      rgba(124, 127, 239, 0.30);
+
+  /* ---- Edges: restrained. Depth is surface color; borders only whisper. */
+  --edge:      rgba(233, 236, 244, 0.07);
+  --edge-hard: rgba(233, 236, 244, 0.14);
+  /* "Lit from above" rim for cards */
+  --rim: inset 0 1px 0 rgba(233, 236, 244, 0.045);
+
+  /* ---- Text (cool white; alphas keep it harmonized on every surface) */
+  --text-primary:   rgba(233, 236, 244, 0.95);   /* 12.9:1 on card  */
+  --text-secondary: rgba(233, 236, 244, 0.68);   /*  7.2:1 on card  */
+  --text-tertiary:  rgba(233, 236, 244, 0.52);   /*  4.6:1 on card  */
+  --on-glint:       #0B0D1E;                     /* text on the accent */
+
+  /* =====================================================================
+     TYPE — Chakra Petch (squarish, engineered; display + nav + buttons)
+     over IBM Plex Sans (clean workhorse body). Mono stays native so logs
+     look at home on each OS.
+     ===================================================================== */
+  --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --font-body:    "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono:    ui-monospace, "Cascadia Code", "Consolas", "SF Mono", monospace;
+
+  /* Type scale (1.25 ratio off a 13px body) */
+  --text-xs:   11px;
+  --text-sm:   12px;
+  --text-base: 13px;
+  --text-md:   15px;
+  --text-lg:   18px;
+  --text-xl:   22px;
+  --text-2xl:  27px;
+
+  /* ---- Spacing rhythm (fixed scale — use these, not ad-hoc values) */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;  --sp-4: 16px;  --sp-5: 24px;  --sp-6: 32px;
+
+  /* ---- Radii */
+  --radius-card:  14px;
+  --radius-panel: 12px;
+  --radius-ctl:   10px;   /* buttons, inputs */
+  --radius-chip:  7px;
+  --radius-pill:  999px;
+
+  /* ---- Motion */
+  --ease-settle: cubic-bezier(0.22, 1.4, 0.36, 1);   /* the needle's overshoot */
+  --ease-out:    cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* =====================================================================
+     LEGACY ALIASES — every pre-overhaul token name resolves here.
+     ===================================================================== */
+  --accent:      var(--glint);
+  --accent-alt:  #7FB4F0;
+  --accent-gradient: linear-gradient(135deg, #9BA4FF, var(--glint-deep));
+  --danger-gradient: linear-gradient(135deg, #F07A72, #D85A6A);
+
+  --bg-top:    var(--deepslate-1);
+  --bg-bottom: var(--deepslate-0);
+  --app-background: linear-gradient(180deg, var(--deepslate-1) 0%, var(--deepslate-0) 100%);
+
+  --stroke:        var(--edge);
+  --stroke-strong: var(--edge-hard);
+  --fill-soft:     rgba(233, 236, 244, 0.05);
+  --fill-hover:    rgba(233, 236, 244, 0.04);
+
+  /* Cards are opaque slate now — the "glass" names stay for compatibility. */
+  --glass-fill: var(--deepslate-2);
+  --glass-blur: none;
+}
+
+/* Reusable primitives (names kept; the look is the new one). */
 .ld-app-bg      { background: var(--app-background); color: var(--text-primary); font-family: var(--font-body); }
-.ld-glass-card  { background: var(--glass-fill); -webkit-backdrop-filter: var(--glass-blur);
-                  backdrop-filter: var(--glass-blur); border: 1px solid var(--stroke);
-                  border-radius: var(--radius-card); }
-.ld-accent-btn  { background: var(--accent-gradient); color: rgba(0, 0, 0, 0.82);
-                  font-family: var(--font-display); font-weight: 700; border: none;
-                  border-radius: var(--radius-pill); }
-.ld-chip        { background: var(--fill-soft); border: 1px solid var(--stroke);
+.ld-glass-card  { background: var(--deepslate-2); border: 1px solid var(--edge);
+                  border-radius: var(--radius-card); box-shadow: var(--rim); }
+.ld-accent-btn  { background: var(--accent-gradient); color: var(--on-glint);
+                  font-family: var(--font-display); font-weight: 600; border: none;
+                  border-radius: var(--radius-ctl); }
+.ld-chip        { background: var(--deepslate-3); border: 1px solid var(--edge);
                   border-radius: var(--radius-chip); }
 .ld-mono        { font-family: var(--font-mono); }

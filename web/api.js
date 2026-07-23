@@ -42,7 +42,7 @@
       if (bridge) return unwrap(await bridge.instances.delete(id));
       sample.instances = sample.instances.filter((i) => i.id !== id); return true;
     },
-    async versions() { return bridge ? unwrap(await bridge.versions()) : sample.versions; },
+    async versions(opts) { return bridge ? unwrap(await bridge.versions(opts)) : sample.versions; }, // [wave0] opts.channels
     async search(opts) {
       if (bridge) return unwrap(await bridge.modrinthSearch(opts));
       return [

@@ -45,7 +45,7 @@ handle("instance:update", (a) => engine.updateInstance(a));
 handle("instances:delete", (a) => engine.deleteInstance(a.id));
 handle("instance:repair", (a) => engine.repairInstance(a.id));
 handle("instance:updateAll", (a) => engine.updateAllContent(a.id));
-handle("versions:list", () => engine.listVersions());
+handle("versions:list", (a) => engine.listVersions(a)); // [wave0] a.channels opts in to snapshots/old versions
 handle("modrinth:search", (a) => engine.modrinthSearch(a));
 handle("curseforge:search", (a) => engine.curseforgeSearch(a));
 handle("content:install", (a) => engine.installContent(a));
@@ -269,6 +269,9 @@ handle("icon:remove", (a) => engine.removeInstanceIcon(a));
 app.whenReady().then(() => {
   engine.init(app.getPath("userData"));
   engine.setEmitter((channel, payload) => { if (win && !win.isDestroyed()) win.webContents.send(channel, payload); });
+  // [wave0] Trash-tier deletes: worlds + resource/shader/datapacks are recoverable
+  // via the OS Recycle Bin (Mac parity); instances/servers stay permanent.
+  engine.setTrash((p) => shell.trashItem(p));
   createWindow();
   setupUpdates();
   app.on("activate", () => {

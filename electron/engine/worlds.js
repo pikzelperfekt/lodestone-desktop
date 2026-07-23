@@ -5,10 +5,19 @@
 // archive, so it behaves identically on Windows and macOS.
 const fs = require("fs");
 const path = require("path");
+const zlib = require("zlib");
 const AdmZip = require("adm-zip");
+const nbt = require("./nbt"); // [wave0] level.dat LevelName rewrite
 
 function savesDir(dataDir, instanceId) { return path.join(dataDir, "instances", instanceId, "saves"); }
 function backupsDir(dataDir, instanceId) { return path.join(dataDir, "instances", instanceId, "backups"); }
+
+// [wave0] Trash-tier deletes (Mac parity): worlds go to the OS Recycle Bin, not
+// straight to rm. The trash function is injected (Electron main passes
+// shell.trashItem) because these modules also run headless in test scripts —
+// with no trash fn the delete stays permanent and reports { trashed: false }.
+let trashFn = null;
+function setTrash(fn) { trashFn = typeof fn === "function" ? fn : null; }
 
 // A single, safe path segment: no separators, no "." / ".." traversal. Guards every
 // name that reaches the filesystem so a crafted world or backup name can't escape
@@ -91,7 +100,32 @@ function restore(dataDir, instanceId, backupName) {
   return true;
 }
 
-// Rename a world folder. Refuses to clobber an existing world of the target name.
+// [wave0] Rewrite the in-game world name (Data→LevelName TAG_String) inside a
+// world's gzipped level.dat, in place and atomically (temp file + rename). Best
+// effort: a world that never launched has no level.dat, and a level.dat with no
+// Data/LevelName is left alone — the folder rename above is still the visible
+// change. Every other byte of the NBT structure is preserved (see nbt.js).
+function rewriteLevelName(worldDir, newName) {
+  const levelDat = path.join(worldDir, "level.dat");
+  if (!fs.existsSync(levelDat)) return false;
+  let parsed;
+  try {
+    const raw = zlib.gunzipSync(fs.readFileSync(levelDat));
+    parsed = nbt.parse(raw);
+  } catch { return false; }   // unreadable / not gzipped NBT — don't touch it
+  const data = nbt.getChild(parsed.root, "Data");
+  if (!data) return false;
+  nbt.setString(data, "LevelName", newName);
+  const regz = zlib.gzipSync(nbt.write(parsed.rootName, parsed.root));
+  const tmp = levelDat + ".tmp-" + process.pid + "-" + Date.now();
+  fs.writeFileSync(tmp, regz);
+  fs.renameSync(tmp, levelDat);   // atomic replace; MC keeps its own level.dat_old
+  return true;
+}
+
+// Rename a world folder AND rewrite the in-game LevelName so the two stay in sync
+// (Mac rewrites LevelName; on Windows the folder name is also the identity, so we
+// do both). Refuses to clobber an existing world of the target name.
 function rename(dataDir, instanceId, world, newName) {
   const from = safeName(world);
   const to = safeName(newName);
@@ -101,15 +135,23 @@ function rename(dataDir, instanceId, world, newName) {
   if (!fs.existsSync(src)) throw new Error(`World "${from}" not found.`);
   if (from !== to && fs.existsSync(dest)) throw new Error(`A world named "${to}" already exists.`);
   fs.renameSync(src, dest);
-  return { name: to };
+  const levelNameUpdated = rewriteLevelName(dest, to); // [wave0]
+  return { name: to, levelNameUpdated };
 }
 
-// Permanently delete a world folder. There is no trash: the user wants deletes gone.
-function remove(dataDir, instanceId, world) {
+// [wave0] Delete a world folder — to the Recycle Bin when a trash fn is injected
+// (Mac parity: worlds are recoverable; only instances are deliberately permanent).
+// Headless (no Electron) it falls back to a permanent delete and says so.
+async function remove(dataDir, instanceId, world) {
   const w = safeName(world);
   const src = path.join(savesDir(dataDir, instanceId), w);
+  if (!fs.existsSync(src)) return { trashed: false };
+  if (trashFn) {
+    await trashFn(src);   // failure propagates — never silently downgrade to permanent
+    return { trashed: true };
+  }
   fs.rmSync(src, { recursive: true, force: true });
-  return true;
+  return { trashed: false };
 }
 
-module.exports = { list, backups, backup, restore, rename, remove };
+module.exports = { list, backups, backup, restore, rename, remove, setTrash };

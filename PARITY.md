@@ -15,9 +15,14 @@ Legend: [x] done · [~] partial · [ ] not started
 - [x] Browse Modrinth (search)
 - [x] **Mod install + management** — add mods/resource packs/shaders from Discover into an
       instance (with automatic required-dependency resolution), instance detail page, remove
-- [~] Instance editing: rename / RAM / Java args / MC version (done); icon (todo)
+- [x] Instance editing: rename / RAM / Java args / MC version + **per-instance icon**
+      (picked image, center-cropped to icon.png, or a built-in generated tile; travels
+      inside `.lodepack` files and is picked up from `.mrpack`/`.zip` root icons)
 - [x] World manager: backup / restore / rename / delete
-- [~] `.mrpack` import (done); CurseForge / `.lodepack` import (todo)
+- [x] `.mrpack` import (done); CurseForge `.zip` import (done); **native `.lodepack`
+      import (v1 JSON + v2 container) & export** — round-trips with the Mac app
+      (linked Modrinth mods + bundled jars + configs + keybinds + icon + RAM) —
+      plus drag-and-drop import of any pack file
 
 ## Power tools
 - [x] Settings screen (default RAM, Java path override, data folder, update check, about)

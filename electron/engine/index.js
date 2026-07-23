@@ -593,3 +593,111 @@ Object.assign(module.exports, {
   packsDelete, packsImport, packsFolderPath,
   keybindsList, keybindsSet, keybindsReset, keybindsResetAll,
 });
+
+// ============================================================================
+// [Icons + .lodepack — vertical feat/win-icons-lodepack] — additive section.
+// Per-instance icons (a real icon.* file in the instance dir, tracked on the
+// record) and Lodestone's own .lodepack format (v1 JSON + v2 container import,
+// v2 export), plus a unified importer that routes any pack file by its actual
+// contents. Exports are attached via Object.assign so the section stays a pure
+// append; `importModpack` is re-pointed at the unified router so the classic
+// import path accepts .lodepack too and picks up pack icons.
+const iconsEngine = require("./icons");
+const lodepack = require("./lodepack");
+
+// ---- Instance icons ----
+function setInstanceIcon({ id, dataBase64, ext }) {
+  const list = readInstances();
+  const inst = list.find((i) => i.id === id);
+  if (!inst) throw new Error("Instance not found.");
+  const buffer = Buffer.from(String(dataBase64 || ""), "base64");
+  iconsEngine.setIconBuffer({ dataDir: DATA_DIR, instance: inst, buffer, ext });
+  writeInstances(list);
+  return inst;
+}
+function removeInstanceIcon({ id }) {
+  const list = readInstances();
+  const inst = list.find((i) => i.id === id);
+  if (!inst) throw new Error("Instance not found.");
+  iconsEngine.removeIcon({ dataDir: DATA_DIR, instance: inst });
+  writeInstances(list);
+  return inst;
+}
+
+// Some .mrpack / CurseForge archives ship a root-level icon.* alongside the index
+// (non-standard but common); adopt it as the new instance's icon when present.
+function adoptArchiveIcon(filePath, inst) {
+  const zip = new AdmZip(filePath);
+  for (const ext of iconsEngine.ICON_EXTS) {
+    const entry = zip.getEntry(`icon.${ext}`);
+    if (entry && !entry.isDirectory) {
+      const updated = setInstanceIcon({ id: inst.id, dataBase64: entry.getData().toString("base64"), ext });
+      inst.icon = updated.icon; inst.iconPath = updated.iconPath; inst.iconVersion = updated.iconVersion;
+      return true;
+    }
+  }
+  return false;
+}
+
+// ---- .lodepack import (v1 JSON) ----
+// The old plain-JSON SharePack: rebuild via the existing share.js Modrinth install
+// path. A failure mid-install discards the half-created instance.
+async function importLodepackV1(filePath) {
+  const def = lodepack.readV1(filePath);
+  let created = null;
+  const trackCreate = (opts) => { created = createInstance(opts); return created; };
+  try {
+    const { instance, summary } = await share.createFromDef({
+      dataDir: DATA_DIR, def, createInstance: trackCreate, persist: persistInstance,
+      onLog: (line) => emit("content:log", { line }),
+    });
+    if (def.skippedLocal) {
+      emit("content:log", { line: `${def.skippedLocal} non-Modrinth item${def.skippedLocal === 1 ? "" : "s"} skipped — v1 packs don't carry their files.` });
+    }
+    return { ...instance, importSummary: { format: 1, linked: summary.added.length, bundled: 0, skippedLocal: def.skippedLocal, failedDownloads: [] } };
+  } catch (e) {
+    if (created) { try { deleteInstance(created.id); } catch {} }
+    throw e;
+  }
+}
+
+// ---- Unified pack import ----
+// Routes by real file contents: .lodepack v2 container → lodepack importer,
+// .lodepack v1 JSON → SharePack rebuild, anything else → the existing
+// .mrpack / CurseForge .zip importer (plus root-icon pickup).
+async function importAnyPack(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) throw new Error("Pack file not found.");
+  const kind = lodepack.detect(filePath);
+  if (kind === "lodepack2") {
+    return lodepack.importLodepack({
+      dataDir: DATA_DIR, filePath, createInstance, persist: persistInstance,
+      discard: (id) => { try { deleteInstance(id); } catch {} },
+      onLog: (line) => emit("content:log", { line }),
+    });
+  }
+  if (kind === "lodepack1") return importLodepackV1(filePath);
+  if (/\.lodepack$/i.test(filePath)) {
+    throw new Error("This .lodepack isn't valid — it has no lodepack.json manifest. Re-export it from Lodestone and try again.");
+  }
+  const inst = await importModpack(filePath);
+  try { adoptArchiveIcon(filePath, inst); } catch {}
+  return inst;
+}
+
+// ---- .lodepack export ----
+async function exportInstanceLodepack(id, outPath) {
+  const inst = readInstances().find((i) => i.id === id);
+  if (!inst) throw new Error("Instance not found.");
+  let author = null;
+  try { const a = account(); author = (a && a.name) || null; } catch {}
+  return lodepack.exportLodepack({
+    dataDir: DATA_DIR, instance: inst, outPath, author,
+    onLog: (line) => emit("content:log", { instanceId: id, line }),
+  });
+}
+
+Object.assign(module.exports, {
+  setInstanceIcon, removeInstanceIcon,
+  importAnyPack, exportInstanceLodepack,
+  importModpack: importAnyPack, // classic channel now routes .lodepack + adopts pack icons
+});

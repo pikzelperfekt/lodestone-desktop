@@ -277,3 +277,37 @@
     },
   };
 })();
+
+// ======================================================================
+// [Crash Doctor] — crash scan + fixes + the persistent mod bisect.
+// Browser preview: reads fail soft to empty shapes; mutations explain that
+// the doctor runs in the desktop app — never a crash.
+// ======================================================================
+(function () {
+  const bridge = (typeof window !== "undefined" && window.lodestone && window.lodestone.isDesktop)
+    ? window.lodestone : null;
+  const unwrap = (r) => (r && r.ok ? r.data : (() => { throw new Error((r && r.error) || "engine error"); })());
+
+  window.API.doctor = {
+    async scan(instanceId) {
+      if (bridge) return unwrap(await bridge.doctor.scan(instanceId));
+      return { crashReport: null, latestLog: null, description: null, exception: null, diagnoses: [], enabledMods: 0, disabledMods: 0 };
+    },
+    async fix(instanceId, fix) {
+      if (bridge) return unwrap(await bridge.doctor.fix(instanceId, fix));
+      throw new Error("Crash Doctor runs in the desktop app.");
+    },
+    bisect: {
+      async status(instanceId) { return bridge ? unwrap(await bridge.doctor.bisectStatus(instanceId)) : { active: false, status: "none" }; },
+      async start(instanceId) {
+        if (bridge) return unwrap(await bridge.doctor.bisectStart(instanceId));
+        throw new Error("Crash Doctor runs in the desktop app.");
+      },
+      async report(instanceId, crashed) {
+        if (bridge) return unwrap(await bridge.doctor.bisectReport(instanceId, crashed));
+        throw new Error("Crash Doctor runs in the desktop app.");
+      },
+      async abort(instanceId, restore) { return bridge ? unwrap(await bridge.doctor.bisectAbort(instanceId, restore)) : { cleared: true, restored: false }; },
+    },
+  };
+})();

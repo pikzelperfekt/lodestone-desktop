@@ -27,7 +27,12 @@ Legend: [x] done · [~] partial · [ ] not started
 - [x] Repair (clear cached game files, re-download on next launch)
 - [x] Update all mods (re-resolve installed Modrinth content to newest)
 - [x] Command palette (Ctrl/Cmd-K)
-- [ ] Crash doctor
+- [x] **Crash doctor** (`electron/engine/doctor.js`) — scans the newest crash report +
+      latest.log tail into ranked diagnoses (missing/mismatched deps, wrong-loader /
+      wrong-MC-version mods, OutOfMemory, Java mismatch, corrupted files, mixin
+      conflicts, world corruption, stack-trace mod forensics) with one-click fixes
+      wired to real engine actions, plus a disk-persisted mod bisect
+      (`.jar` ⇄ `.jar.disabled` binary search) on the instance detail page
 
 ## Servers & multiplayer
 - [x] Servers tab + console (create vanilla/Paper/Fabric, start/stop, console, server.properties editor)

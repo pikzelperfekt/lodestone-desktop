@@ -102,6 +102,15 @@ contextBridge.exposeInMainWorld("lodestone", {
       send: (opts) => call("cloud:chatSend", opts),
     },
   },
+  // [Crash Doctor] crash scan + fixes + the persistent mod bisect.
+  doctor: {
+    scan: (instanceId) => call("doctor:scan", { instanceId }),
+    fix: (instanceId, fix) => call("doctor:fix", { instanceId, fix }),
+    bisectStatus: (instanceId) => call("doctor:bisect:status", { instanceId }),
+    bisectStart: (instanceId) => call("doctor:bisect:start", { instanceId }),
+    bisectReport: (instanceId, crashed) => call("doctor:bisect:report", { instanceId, crashed }),
+    bisectAbort: (instanceId, restore) => call("doctor:bisect:abort", { instanceId, restore }),
+  },
   openDataDir: () => call("open:dataDir"),
   openExternal: (url) => call("open:external", { url }),
   // App settings (memory / Java override / launcher behavior).

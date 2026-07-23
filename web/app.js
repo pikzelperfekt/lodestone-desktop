@@ -139,6 +139,9 @@ async function renderInstanceDetail(id) {
     <!-- [Cloud Sync — Vertical A] filled async by renderInstanceCloudSync; hidden when the backend isn't set up. -->
     <div id="cloud-sync-panel"></div>
 
+    <!-- [Crash Doctor] filled async by renderInstanceDoctor; slim when the last session was clean. -->
+    <div id="doctor-panel"></div>
+
     <div class="section-head" style="margin-top:26px"><span class="section-title">WORLDS</span></div>
     <div class="worlds-list">
       ${worlds.length ? worlds.map(worldRow).join("") : `<div class="empty-line">No worlds yet. Play the instance to create one.</div>`}
@@ -167,6 +170,7 @@ async function renderInstanceDetail(id) {
   bindCommon();
   detailInstForSync = inst;                 // [Cloud Sync] so live cloud:sync events can refresh the panel
   renderInstanceCloudSync(inst);            // fills #cloud-sync-panel (async; no-op when unconfigured)
+  renderInstanceDoctor(inst);               // [Crash Doctor] fills #doctor-panel (async)
   document.getElementById("detail-add").onclick = () => openDiscoverFor(inst.id);
   document.getElementById("detail-share").onclick = () => openShareModal(inst);
   el().querySelectorAll("[data-remove]").forEach((b) => b.onclick = async () => {
@@ -2237,3 +2241,210 @@ setupCloud();
 setupFriends();
 setupCommandPalette();
 navigate("home");
+
+// ========================================================================
+// [Crash Doctor] — diagnosis cards + the mod bisect flow (instance detail).
+// Scan reads the newest crash report + latest.log tail through the engine and
+// shows ranked causes with one-click fixes wired to real actions; the bisect
+// drives the engine's persistent binary search over the enabled mods.
+// ========================================================================
+let doctorLastScan = null;   // latest scan for the open detail page (fix lookup by index)
+
+const doctorConfChip = (c) => `<span class="doctor-conf ${esc(c)}">${esc(c)}</span>`;
+
+function doctorFixLabel(fix) {
+  if (!fix) return "Apply fix";
+  return {
+    ram: "Raise RAM", repair: "Run Repair", clearJavaOverride: "Clear Java override",
+    disableMod: "Disable mod", enableMod: "Re-enable mod", removeMod: "Remove mod",
+    installDep: "Install dependency", updateMod: "Update mod",
+  }[fix.type] || "Apply fix";
+}
+
+function doctorDiagCard(d, i) {
+  const mods = (d.mods || []).filter((m) => m && m.title);
+  const bisectable = !d.autoFixable && ["mixin-conflict", "mod-crash", "world-crash", "unknown"].includes(d.cause);
+  return `
+  <div class="glass doctor-card">
+    <div class="doctor-card-head">
+      <div class="doctor-card-title">${ico("i-pulse")} ${esc(d.title)}</div>
+      ${doctorConfChip(d.confidence)}
+    </div>
+    ${d.evidence ? `<pre class="doctor-evidence">${esc(d.evidence)}</pre>` : ""}
+    <div class="doctor-fix-text">${esc(d.suggestedFix)}</div>
+    ${mods.length ? `<div class="doctor-mods">${mods.map((m) => `<span class="doctor-mod-chip" title="${esc(m.fileName || "")}">${esc(m.title)}</span>`).join("")}</div>` : ""}
+    <div class="doctor-card-actions">
+      ${d.autoFixable && d.fix ? `<button class="btn-accent doctor-apply" data-dfix="${i}">${ico("i-bolt")} ${esc(doctorFixLabel(d.fix))}</button>` : ""}
+      ${bisectable ? `<button class="btn-soft doctor-bisect-cta">${ico("i-search")} Start mod bisect</button>` : ""}
+    </div>
+  </div>`;
+}
+
+function doctorBisectCard(st) {
+  if (st.status === "active") {
+    const done = Math.max(0, st.totalMods - st.suspectCount);
+    const pct = st.totalMods > 1 ? Math.round((done / (st.totalMods - 1)) * 100) : 0;
+    const disabledList = (st.disabled || []).map((f) => esc(f.replace(/\.disabled$/i, ""))).join("\n");
+    return `
+    <div class="glass doctor-card doctor-bisect">
+      <div class="doctor-card-head">
+        <div class="doctor-card-title">${ico("i-search")} Mod bisect — round ${st.round}</div>
+        <span class="doctor-conf medium">${st.suspectCount} suspected</span>
+      </div>
+      <div class="doctor-fix-text">Round ${st.round} — ${st.suspectCount} mod${st.suspectCount === 1 ? "" : "s"} suspected ·
+        ${st.disabledCount} disabled for this test · about ${st.roundsLeft} launch${st.roundsLeft === 1 ? "" : "es"} to go.</div>
+      <div class="bar doctor-bar"><div class="bar-fill" style="width:${pct}%"></div></div>
+      ${st.disabledCount ? `<details class="doctor-disabled"><summary>${st.disabledCount} mod${st.disabledCount === 1 ? "" : "s"} disabled this round</summary><pre class="doctor-evidence">${disabledList}</pre></details>` : ""}
+      <div class="doctor-fix-text">Launch the instance, see whether it crashes, then report the result.</div>
+      <div class="doctor-card-actions">
+        <button class="btn-accent" data-play="${esc(doctorLastScan ? doctorLastScan.instanceId : "")}">${ico("i-play")} Play to test</button>
+        <button class="btn-soft doctor-crashed">It crashed</button>
+        <button class="btn-soft doctor-clean">It ran fine</button>
+        <button class="btn-ghost doctor-abort">Abort + restore all</button>
+      </div>
+    </div>`;
+  }
+  // done
+  if (st.culprit) {
+    const name = st.culprit.title && st.culprit.title !== st.culprit.fileName
+      ? `${esc(st.culprit.title)} <span class="hit-author">${esc(st.culprit.fileName || "")}</span>`
+      : esc(st.culprit.fileName || st.culprit.title || "unknown");
+    return `
+    <div class="glass doctor-card doctor-bisect">
+      <div class="doctor-card-head">
+        <div class="doctor-card-title">${ico("i-search")} Culprit isolated</div>
+        <span class="doctor-conf high">done</span>
+      </div>
+      <div class="doctor-fix-text">The bisect pinned the crash on <b>${name}</b> after ${st.round} round${st.round === 1 ? "" : "s"}.
+        Everything else is re-enabled; the culprit is parked as <span class="doctor-mono">.jar.disabled</span>.
+        Play once more to confirm the crash is gone.</div>
+      <div class="doctor-card-actions">
+        <button class="btn-accent doctor-remove-culprit">${ico("i-trash")} Remove it</button>
+        <button class="btn-soft doctor-keep-disabled">Keep disabled &amp; dismiss</button>
+        <button class="btn-ghost doctor-restore-culprit">Re-enable everything</button>
+      </div>
+    </div>`;
+  }
+  return `
+  <div class="glass doctor-card doctor-bisect">
+    <div class="doctor-card-head">
+      <div class="doctor-card-title">${ico("i-search")} Bisect finished</div>
+      <span class="doctor-conf low">inconclusive</span>
+    </div>
+    <div class="doctor-fix-text">${esc(st.message || "The hunt ended without a single culprit.")} All mods have been re-enabled.</div>
+    <div class="doctor-card-actions"><button class="btn-ghost doctor-keep-disabled">Dismiss</button></div>
+  </div>`;
+}
+
+async function renderInstanceDoctor(inst) {
+  const box = document.getElementById("doctor-panel");
+  if (!box) return;
+  let scan = null, bisect = null;
+  try { [scan, bisect] = await Promise.all([API.doctor.scan(inst.id), API.doctor.bisect.status(inst.id)]); }
+  catch { box.innerHTML = ""; return; }
+  if (!box.isConnected) return;                 // navigated away while awaiting
+  doctorLastScan = { instanceId: inst.id, scan };
+
+  const head = `<div class="section-head" style="margin-top:26px"><span class="section-title">CRASH DOCTOR</span>
+    <span class="section-action" id="doctor-rescan">Rescan</span></div>`;
+
+  const meta = scan.crashReport
+    ? `<div class="doctor-meta">${ico("i-pulse")} Newest crash report: <b>${esc(scan.crashReport.name)}</b> · ${esc(fmtDate(scan.crashReport.modified))}${scan.exception ? ` · <span class="doctor-mono">${esc(scan.exception.length > 90 ? scan.exception.slice(0, 90) + "…" : scan.exception)}</span>` : ""}</div>`
+    : "";
+
+  const showBisect = bisect && bisect.status && bisect.status !== "none";
+  let body;
+  if (!showBisect && !scan.diagnoses.length) {
+    body = `
+    <div class="glass doctor-card doctor-clean-state">
+      <div class="doctor-card-head">
+        <div class="doctor-card-title">${ico("i-pulse")} No crashes detected</div>
+        <span class="doctor-conf high">healthy</span>
+      </div>
+      <div class="doctor-fix-text">${scan.crashReport
+        ? "The newest crash report matched no active problem — the current setup looks clean."
+        : "No crash reports found for this instance."}
+        ${scan.enabledMods >= 2 ? " If the game is still misbehaving, a mod bisect can hunt the culprit by halves." : ""}</div>
+      ${scan.enabledMods >= 2 ? `<div class="doctor-card-actions"><button class="btn-soft doctor-bisect-cta">${ico("i-search")} Start mod bisect</button></div>` : ""}
+    </div>`;
+  } else {
+    body = `${showBisect ? doctorBisectCard(bisect) : ""}
+      ${showBisect && bisect.status === "active" ? "" : scan.diagnoses.map((d, i) => doctorDiagCard(d, i)).join("")}`;
+  }
+  box.innerHTML = `${head}${meta}${body}`;
+
+  // ---- handlers ----
+  const rescan = box.querySelector("#doctor-rescan");
+  if (rescan) rescan.onclick = () => renderInstanceDoctor(inst);
+
+  box.querySelectorAll("[data-play]").forEach((n) => n.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    try { const r = await API.launch(inst.id); if (!r.started) toast(r.message || ""); }
+    catch (err) { toast("Launch failed: " + err.message); }
+  }));
+
+  box.querySelectorAll(".doctor-apply").forEach((b) => b.onclick = async () => {
+    const d = scan.diagnoses[Number(b.dataset.dfix)];
+    if (!d || !d.fix) return;
+    const original = b.innerHTML; b.disabled = true; b.innerHTML = `<span class="spinner"></span> Working…`;
+    try {
+      const r = await API.doctor.fix(inst.id, d.fix);
+      toast(r.message || "Fix applied.");
+      renderInstanceDetail(inst.id);            // content / settings may have changed — full refresh
+    } catch (err) { b.disabled = false; b.innerHTML = original; toast("Couldn't apply the fix: " + err.message); }
+  });
+
+  box.querySelectorAll(".doctor-bisect-cta").forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    try {
+      const st = await API.doctor.bisect.start(inst.id);
+      toast(`Bisect started — ${st.disabledCount} of ${st.totalMods} mods disabled for round 1.`);
+      renderInstanceDoctor(inst);
+    } catch (err) { b.disabled = false; toast("Couldn't start the bisect: " + err.message); }
+  });
+
+  const report = async (crashed) => {
+    try {
+      const st = await API.doctor.bisect.report(inst.id, crashed);
+      if (st.status === "done") toast(st.culprit ? `Culprit isolated: ${st.culprit.title || st.culprit.fileName}.` : "Bisect finished.");
+      else toast(`Round ${st.round}: ${st.suspectCount} mods still suspected.`);
+      renderInstanceDoctor(inst);
+    } catch (err) { toast("Couldn't record the round: " + err.message); }
+  };
+  const crashedBtn = box.querySelector(".doctor-crashed");
+  if (crashedBtn) crashedBtn.onclick = () => report(true);
+  const cleanBtn = box.querySelector(".doctor-clean");
+  if (cleanBtn) cleanBtn.onclick = () => report(false);
+
+  const abortBtn = box.querySelector(".doctor-abort");
+  if (abortBtn) abortBtn.onclick = async () => {
+    if (!confirm("Abort the bisect and re-enable every mod it disabled?")) return;
+    abortBtn.disabled = true;
+    try { await API.doctor.bisect.abort(inst.id, true); toast("Bisect aborted — all mods restored."); renderInstanceDoctor(inst); }
+    catch (err) { abortBtn.disabled = false; toast("Couldn't abort: " + err.message); }
+  };
+
+  const removeCulprit = box.querySelector(".doctor-remove-culprit");
+  if (removeCulprit) removeCulprit.onclick = async () => {
+    const c = bisect.culprit || {};
+    if (!confirm(`Remove ${c.title || c.fileName} from this instance permanently?`)) return;
+    removeCulprit.disabled = true;
+    try {
+      await API.doctor.fix(inst.id, { type: "removeMod", projectId: c.projectId || null, fileName: c.fileName });
+      await API.doctor.bisect.abort(inst.id, false);    // forget the session; nothing left to restore
+      toast(`${c.title || c.fileName} removed.`);
+      renderInstanceDetail(inst.id);
+    } catch (err) { removeCulprit.disabled = false; toast("Couldn't remove it: " + err.message); }
+  };
+  const keepDisabled = box.querySelector(".doctor-keep-disabled");
+  if (keepDisabled) keepDisabled.onclick = async () => {
+    try { await API.doctor.bisect.abort(inst.id, false); toast("Dismissed — the culprit stays disabled."); renderInstanceDoctor(inst); }
+    catch (err) { toast("Couldn't dismiss: " + err.message); }
+  };
+  const restoreCulprit = box.querySelector(".doctor-restore-culprit");
+  if (restoreCulprit) restoreCulprit.onclick = async () => {
+    restoreCulprit.disabled = true;
+    try { await API.doctor.bisect.abort(inst.id, true); toast("All mods re-enabled."); renderInstanceDoctor(inst); }
+    catch (err) { restoreCulprit.disabled = false; toast("Couldn't restore: " + err.message); }
+  };
+}

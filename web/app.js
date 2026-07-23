@@ -2237,3 +2237,380 @@ setupCloud();
 setupFriends();
 setupCommandPalette();
 navigate("home");
+
+// ============================================================================
+// [Content managers vertical] Resource packs / shader packs / datapacks (per
+// world) + the keybinds manager, as new sections on the instance detail page.
+// The shared renderInstanceDetail stays untouched: it's wrapped here, and these
+// sections render into their own #packs-root appended after the core page —
+// union-merge friendly with the other verticals.
+// ============================================================================
+let packsWorldSel = {};   // instanceId -> selected world for the datapacks card
+
+const _renderInstanceDetailCore = renderInstanceDetail;
+renderInstanceDetail = async function (id) {
+  await _renderInstanceDetailCore(id);
+  try { await renderPacksSections(id); } catch (e) { console.error("packs sections:", e); }
+};
+
+const packTitle = (p) => p.fileName.replace(/\.zip$/i, "");
+function packSubline(p) {
+  if (p.malformed) return `⚠ Unreadable pack.mcmeta — showing the file only`;
+  const bits = [];
+  if (p.description) bits.push(esc(p.description));
+  else if (p.missingMeta) bits.push("No pack.mcmeta at the zip root");
+  if (p.packFormat != null) bits.push(`format ${p.packFormat}`);
+  if (p.isDir) bits.push("folder pack"); else if (p.size) bits.push(esc(fmtSize(p.size)));
+  return bits.join(" · ") || esc(p.fileName);
+}
+const packIconHtml = (p) =>
+  p.icon ? `<img class="hit-icon pack-icon" src="${esc(p.icon)}" />` : `<div class="hit-icon ph">${ico("i-grid")}</div>`;
+
+async function renderPacksSections(id) {
+  const host = el();
+  if (!host || !host.querySelector(".detail-hero")) return;   // not on a detail page anymore
+
+  const [rp, sh, pkWorlds, kb] = await Promise.all([
+    API.packs.resourcePacks(id).catch((e) => ({ hasOptions: false, packs: [], enabledOrder: [], error: e.message })),
+    API.packs.shaders(id).catch((e) => ({ packs: [], configFile: null, canSelect: false, selected: null, shadersOn: false, error: e.message })),
+    API.worlds.list(id).catch(() => []),
+    API.keybinds.list(id).catch((e) => ({ hasOptions: false, binds: [], categories: [], error: e.message })),
+  ]);
+  if (!host.isConnected || !host.querySelector(".detail-hero")) return;   // navigated away while loading
+
+  // Datapacks are per world: pick the remembered world when it still exists.
+  let selWorld = packsWorldSel[id];
+  if (!pkWorlds.some((w) => w.name === selWorld)) selWorld = pkWorlds.length ? pkWorlds[0].name : null;
+  packsWorldSel[id] = selWorld;
+  let dp = { packs: [] };
+  if (selWorld) dp = await API.packs.datapacks({ instanceId: id, world: selWorld }).catch(() => ({ packs: [] }));
+  if (!host.isConnected || !host.querySelector(".detail-hero")) return;
+
+  let root = document.getElementById("packs-root");
+  if (!root) { root = document.createElement("div"); root.id = "packs-root"; host.appendChild(root); }
+
+  // ---- Resource packs (display: highest priority first, then disabled A→Z) ----
+  const dispOrder = (rp.enabledOrder || []).slice().reverse();
+  const enabledRows = dispOrder
+    .map((name) => rp.packs.find((p) => p.fileName === name))
+    .filter(Boolean);
+  const disabledRows = rp.packs.filter((p) => !p.enabled);
+
+  const rpRow = (p, dispIdx) => `
+    <div class="glass pack-row${p.enabled ? " on" : ""}">
+      ${packIconHtml(p)}
+      <div class="hit-meta">
+        <div class="hit-title">${esc(packTitle(p))}${p.enabled ? `<span class="pack-pill">#${dispIdx + 1}</span>` : ""}</div>
+        <div class="hit-desc">${packSubline(p)}</div>
+      </div>
+      <div class="pack-actions">
+        ${p.enabled ? `
+          <button class="btn-ghost pack-arrow" data-rp-up="${esc(p.fileName)}" title="Higher priority" ${dispIdx === 0 ? "disabled" : ""}>▲</button>
+          <button class="btn-ghost pack-arrow" data-rp-down="${esc(p.fileName)}" title="Lower priority" ${dispIdx === enabledRows.length - 1 ? "disabled" : ""}>▼</button>` : ""}
+        <button class="switch pack-switch${p.enabled ? " on" : ""}" role="switch" aria-checked="${p.enabled ? "true" : "false"}"
+          data-rp-toggle="${esc(p.fileName)}" data-enabled="${p.enabled ? "1" : ""}" title="${p.enabled ? "Disable" : "Enable"}"><span class="knob"></span></button>
+        <button class="btn-ghost world-x" data-pack-del="${esc(p.fileName)}" data-kind="resourcepack" title="Delete file">${ico("i-trash")}</button>
+      </div>
+    </div>`;
+
+  const rpListHtml = rp.packs.length
+    ? enabledRows.map(rpRow).join("") + disabledRows.map((p) => rpRow(p, -1)).join("")
+    : `<div class="empty-line">No resource packs yet. Import a .zip, or add some from Discover.</div>`;
+
+  // ---- Shader packs ----
+  const shRow = (p) => {
+    const active = sh.canSelect && sh.shadersOn && sh.selected === p.fileName;
+    return `
+    <div class="glass pack-row${active ? " on" : ""}">
+      <div class="hit-icon ph">${ico("i-bolt")}</div>
+      <div class="hit-meta">
+        <div class="hit-title">${esc(packTitle(p))}${active ? `<span class="pack-pill live">ACTIVE</span>` : ""}</div>
+        <div class="hit-desc">${p.isDir ? "folder pack" : esc(fmtSize(p.size))} · updated ${esc(fmtDate(p.modified))}</div>
+      </div>
+      <div class="pack-actions">
+        ${sh.canSelect && !active ? `<button class="btn-soft" data-sh-use="${esc(p.fileName)}">Use</button>` : ""}
+        ${active ? `<button class="btn-soft" data-sh-off="1">Turn off</button>` : ""}
+        <button class="btn-ghost world-x" data-pack-del="${esc(p.fileName)}" data-kind="shader" title="Delete file">${ico("i-trash")}</button>
+      </div>
+    </div>`;
+  };
+  const shListHtml = sh.packs.length
+    ? sh.packs.map(shRow).join("")
+    : `<div class="empty-line">No shader packs yet. Import a .zip to get started.</div>`;
+
+  // ---- Datapacks ----
+  const dpRow = (p) => `
+    <div class="glass pack-row">
+      ${packIconHtml(p)}
+      <div class="hit-meta">
+        <div class="hit-title">${esc(packTitle(p))}</div>
+        <div class="hit-desc">${packSubline(p)}</div>
+      </div>
+      <div class="pack-actions">
+        <button class="btn-ghost world-x" data-pack-del="${esc(p.fileName)}" data-kind="datapack" title="Delete">${ico("i-trash")}</button>
+      </div>
+    </div>`;
+  const worldOpts = pkWorlds.map((w) => `<option${w.name === selWorld ? " selected" : ""}>${esc(w.name)}</option>`).join("");
+  const dpBody = !pkWorlds.length
+    ? `<div class="empty-line">No worlds yet — play the instance to create one. Datapacks live inside a world.</div>`
+    : (dp.packs.length ? dp.packs.map(dpRow).join("") : `<div class="empty-line">No datapacks in ${esc(selWorld)} yet.</div>`);
+
+  // ---- Keybinds ----
+  let kbBody;
+  if (!kb.hasOptions) {
+    kbBody = `<div class="empty-line">No options.txt yet — launch the instance once and Minecraft will create it. Then rebind anything here.</div>`;
+  } else if (!kb.binds.length) {
+    kbBody = `<div class="empty-line">No keybinds recorded yet — they appear here after the first launch.</div>`;
+  } else {
+    const groups = [];
+    for (const cat of kb.categories) {
+      const rows = kb.binds.filter((b) => b.category === cat);
+      if (!rows.length) continue;
+      groups.push(`
+        <div class="kb-cat">${esc(cat.toUpperCase())}</div>
+        <div class="kb-grid">
+          ${rows.map((b) => `
+            <div class="kb-row">
+              <span class="kb-label" title="${esc(b.action)}">${esc(b.label)}</span>
+              <button class="kb-key${b.conflict ? " conflict" : ""}" data-kb="${esc(b.action)}" data-label="${esc(b.label)}"
+                title="${b.conflict ? "Also bound to another action — " : ""}Click, then press the new key">${esc(b.valueLabel)}</button>
+              <button class="btn-ghost kb-reset" data-kb-reset="${esc(b.action)}" title="Reset to default">↺</button>
+            </div>`).join("")}
+        </div>`);
+    }
+    kbBody = groups.join("");
+  }
+
+  root.innerHTML = `
+    <div class="section-head" style="margin-top:26px"><span class="section-title">RESOURCE PACKS</span>
+      <span class="pack-head-actions">
+        <button class="btn-soft" data-pack-import="resourcepack">${ico("i-download")} Import .zip</button>
+        <button class="btn-soft" data-pack-open="resourcepack">Open folder</button>
+      </span>
+    </div>
+    <div class="packs-list">${rpListHtml}</div>
+    ${rp.packs.length ? `<div class="pack-note">Top of the list wins when packs overlap.${rp.hasOptions ? "" : " This instance hasn't launched yet — enabling a pack writes a fresh options.txt the game picks up on first launch."}</div>` : ""}
+
+    <div class="section-head" style="margin-top:26px"><span class="section-title">SHADER PACKS</span>
+      <span class="pack-head-actions">
+        <button class="btn-soft" data-pack-import="shader">${ico("i-download")} Import .zip</button>
+        <button class="btn-soft" data-pack-open="shader">Open folder</button>
+      </span>
+    </div>
+    <div class="packs-list">${shListHtml}</div>
+    ${sh.canSelect
+      ? `<div class="pack-note">Shader switching via ${esc(sh.configFile)}.${sh.shadersOn && sh.selected ? "" : " Shaders are currently off."}</div>`
+      : (sh.packs.length ? `<div class="pack-note">To switch shaders from here, add Iris (Fabric/Quilt) or Oculus (Forge/NeoForge) to this instance and launch once. The files are managed above either way.</div>` : "")}
+
+    <div class="section-head" style="margin-top:26px"><span class="section-title">DATAPACKS</span>
+      ${pkWorlds.length ? `<select id="dp-world" class="dp-world">${worldOpts}</select>` : ""}
+      <span class="pack-head-actions">
+        <button class="btn-soft" data-pack-import="datapack" ${pkWorlds.length ? "" : "disabled"}>${ico("i-download")} Import .zip</button>
+        <button class="btn-soft" data-pack-open="datapack" ${pkWorlds.length ? "" : "disabled"}>Open folder</button>
+      </span>
+    </div>
+    <div class="packs-list">${dpBody}</div>
+
+    <div class="section-head" style="margin-top:26px"><span class="section-title">KEYBINDS</span>
+      <span class="pack-head-actions">
+        ${kb.hasOptions && kb.binds.length ? `<button class="btn-soft" id="kb-reset-all">Reset all to defaults</button>` : ""}
+      </span>
+    </div>
+    <div class="glass kb-panel">${kbBody}</div>`;
+
+  bindPacksEvents(id, { rp, sh, dispOrder: enabledRows.map((p) => p.fileName), selWorld });
+}
+
+function bindPacksEvents(id, state) {
+  const root = document.getElementById("packs-root");
+  if (!root) return;
+  const refresh = () => renderPacksSections(id);
+
+  // Enable / disable a resource pack.
+  root.querySelectorAll("[data-rp-toggle]").forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    const fileName = b.dataset.rpToggle;
+    const enable = !b.dataset.enabled;
+    try {
+      await API.packs.setResourcePack({ instanceId: id, fileName, enabled: enable });
+      toast(enable ? `Enabled ${fileName}.` : `Disabled ${fileName}.`);
+      refresh();
+    } catch (e) { b.disabled = false; toast("Couldn't update: " + e.message); }
+  });
+
+  // Priority arrows. Display order is highest-first; options.txt stores the
+  // reverse, so convert back before asking the engine to reorder.
+  const move = async (fileName, delta) => {
+    const disp = state.dispOrder.slice();
+    const i = disp.indexOf(fileName);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= disp.length) return;
+    [disp[i], disp[j]] = [disp[j], disp[i]];
+    try {
+      await API.packs.reorderResourcePacks({ instanceId: id, order: disp.slice().reverse() });
+      refresh();
+    } catch (e) { toast("Couldn't reorder: " + e.message); }
+  };
+  root.querySelectorAll("[data-rp-up]").forEach((b) => b.onclick = () => move(b.dataset.rpUp, -1));
+  root.querySelectorAll("[data-rp-down]").forEach((b) => b.onclick = () => move(b.dataset.rpDown, 1));
+
+  // Delete a pack file (any kind).
+  root.querySelectorAll("[data-pack-del]").forEach((b) => b.onclick = async () => {
+    const fileName = b.dataset.packDel;
+    const kind = b.dataset.kind;
+    if (!confirm(`Delete "${fileName}" permanently? This cannot be undone.`)) return;
+    b.disabled = true;
+    try {
+      await API.packs.delete({ instanceId: id, kind, fileName, world: kind === "datapack" ? state.selWorld : undefined });
+      toast(`Deleted ${fileName}.`); refresh();
+    } catch (e) { b.disabled = false; toast("Couldn't delete: " + e.message); }
+  });
+
+  // Import .zip(s) via the file picker.
+  root.querySelectorAll("[data-pack-import]").forEach((b) => b.onclick = async () => {
+    const kind = b.dataset.packImport;
+    const original = b.innerHTML;
+    b.disabled = true; b.innerHTML = `<span class="spinner"></span> Importing…`;
+    try {
+      const res = await API.packs.import({ instanceId: id, kind, world: kind === "datapack" ? state.selWorld : undefined });
+      if (res === null) { b.disabled = false; b.innerHTML = original; return; }   // picker canceled
+      const noMeta = res.filter((p) => p && p.missingMeta).length;
+      toast(`Imported ${res.length} pack${res.length === 1 ? "" : "s"}.${noMeta && kind !== "shader" ? ` ${noMeta} ha${noMeta === 1 ? "s" : "ve"} no pack.mcmeta at the zip root — Minecraft may not accept ${noMeta === 1 ? "it" : "them"}.` : ""}`);
+      refresh();
+    } catch (e) { b.disabled = false; b.innerHTML = original; toast("Couldn't import: " + e.message); }
+  });
+
+  // Open the pack folder in the file manager.
+  root.querySelectorAll("[data-pack-open]").forEach((b) => b.onclick = async () => {
+    const kind = b.dataset.packOpen;
+    try { await API.packs.openFolder({ instanceId: id, kind, world: kind === "datapack" ? state.selWorld : undefined }); }
+    catch (e) { toast("Couldn't open: " + e.message); }
+  });
+
+  // Shader activate / deactivate.
+  root.querySelectorAll("[data-sh-use]").forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    try { await API.packs.selectShader({ instanceId: id, fileName: b.dataset.shUse }); toast(`Activated ${b.dataset.shUse}.`); refresh(); }
+    catch (e) { b.disabled = false; toast("Couldn't activate: " + e.message); }
+  });
+  root.querySelectorAll("[data-sh-off]").forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    try { await API.packs.selectShader({ instanceId: id, fileName: null }); toast("Shaders turned off."); refresh(); }
+    catch (e) { b.disabled = false; toast("Couldn't turn off: " + e.message); }
+  });
+
+  // Datapacks world picker.
+  const dw = document.getElementById("dp-world");
+  if (dw) dw.onchange = () => { packsWorldSel[id] = dw.value; refresh(); };
+
+  // Keybinds: capture-to-rebind, reset one, reset all.
+  root.querySelectorAll("[data-kb]").forEach((b) => b.onclick = () => startKeyCapture(id, b));
+  root.querySelectorAll("[data-kb-reset]").forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    try { await API.keybinds.reset({ instanceId: id, action: b.dataset.kbReset }); toast("Reset to default — the game restores it on next launch."); refresh(); }
+    catch (e) { b.disabled = false; toast("Couldn't reset: " + e.message); }
+  });
+  const ra = document.getElementById("kb-reset-all");
+  if (ra) ra.onclick = async () => {
+    if (!confirm("Reset every keybind to its default? Minecraft rebuilds them on the next launch.")) return;
+    ra.disabled = true;
+    try { await API.keybinds.resetAll(id); toast("All keybinds reset to defaults."); refresh(); }
+    catch (e) { ra.disabled = false; toast("Couldn't reset: " + e.message); }
+  };
+}
+
+// ---- Keybind capture: click a bind, press the new key (Esc cancels) ----
+// DOM KeyboardEvent.code -> Minecraft key.keyboard.* names (GLFW naming).
+const KB_CODE_TO_MC = (() => {
+  const m = {
+    Space: "space", Enter: "enter", Backspace: "backspace", Tab: "tab",
+    Insert: "insert", Delete: "delete", Home: "home", End: "end",
+    PageUp: "page.up", PageDown: "page.down",
+    ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
+    ShiftLeft: "left.shift", ShiftRight: "right.shift",
+    ControlLeft: "left.control", ControlRight: "right.control",
+    AltLeft: "left.alt", AltRight: "right.alt",
+    MetaLeft: "left.win", MetaRight: "right.win",
+    CapsLock: "caps.lock", NumLock: "num.lock", ScrollLock: "scroll.lock",
+    PrintScreen: "print.screen", Pause: "pause", ContextMenu: "menu",
+    Quote: "apostrophe", Comma: "comma", Minus: "minus", Period: "period", Slash: "slash",
+    Semicolon: "semicolon", Equal: "equal", BracketLeft: "left.bracket", BracketRight: "right.bracket",
+    Backslash: "backslash", Backquote: "grave.accent", IntlBackslash: "world.1",
+    NumpadAdd: "keypad.add", NumpadSubtract: "keypad.subtract", NumpadMultiply: "keypad.multiply",
+    NumpadDivide: "keypad.divide", NumpadDecimal: "keypad.decimal", NumpadEnter: "keypad.enter", NumpadEqual: "keypad.equal",
+  };
+  for (let i = 0; i <= 9; i++) { m["Digit" + i] = String(i); m["Numpad" + i] = "keypad." + i; }
+  for (let i = 1; i <= 24; i++) m["F" + i] = "f" + i;
+  for (const c of "abcdefghijklmnopqrstuvwxyz") m["Key" + c.toUpperCase()] = c;
+  return m;
+})();
+const domCodeToMc = (code) => (KB_CODE_TO_MC[code] ? "key.keyboard." + KB_CODE_TO_MC[code] : null);
+const domMouseToMc = (button) =>
+  button === 0 ? "key.mouse.left" : button === 1 ? "key.mouse.middle" : button === 2 ? "key.mouse.right" : "key.mouse." + (button + 1);
+
+let kbCapture = null;   // { cleanup } while listening for the next input
+
+function cancelKeyCapture() {
+  if (!kbCapture) return;
+  const c = kbCapture; kbCapture = null;
+  c.cleanup();
+}
+
+function startKeyCapture(instanceId, btn) {
+  cancelKeyCapture();
+  const action = btn.dataset.kb;
+  const label = btn.dataset.label || action;
+  const prev = btn.textContent;
+  btn.classList.add("capturing");
+  btn.textContent = "Press a key…";
+
+  const commit = async (value) => {
+    cancelKeyCapture();
+    try {
+      await API.keybinds.set({ instanceId, action, value });
+      toast(`${label} rebound.`);
+      renderPacksSections(instanceId);
+    } catch (e) {
+      toast("Couldn't rebind: " + e.message);
+      renderPacksSections(instanceId);
+    }
+  };
+
+  const onKey = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.code === "Escape") { cancelKeyCapture(); return; }
+    const mc = domCodeToMc(e.code);
+    if (!mc) { toast("That key can't be bound."); return; }
+    commit(mc);
+  };
+  let viaMouse = false;
+  const onMouse = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    viaMouse = true;
+    commit(domMouseToMc(e.button));
+  };
+  const onCtx = (e) => { e.preventDefault(); e.stopPropagation(); };
+  // Swallows one click, then removes itself — so the click that completes a
+  // mouse-button bind can't also press whatever the cursor happens to be over.
+  const removeSwallow = () => document.removeEventListener("click", swallowClick, true);
+  const swallowClick = (e) => { e.preventDefault(); e.stopPropagation(); removeSwallow(); };
+
+  kbCapture = {
+    cleanup() {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("mousedown", onMouse, true);
+      document.removeEventListener("contextmenu", onCtx, true);
+      if (viaMouse) setTimeout(removeSwallow, 600);   // fallback if the trailing click never lands
+      else removeSwallow();
+      if (btn.isConnected) { btn.classList.remove("capturing"); btn.textContent = prev; }
+    },
+  };
+  // Attach after the opening click has fully finished so it can't self-bind.
+  setTimeout(() => {
+    if (!kbCapture) return;
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("mousedown", onMouse, true);
+    document.addEventListener("contextmenu", onCtx, true);
+    document.addEventListener("click", swallowClick, true);
+  }, 0);
+}

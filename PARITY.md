@@ -22,8 +22,13 @@ Legend: [x] done · [~] partial · [ ] not started
 ## Power tools
 - [x] Settings screen (default RAM, Java path override, data folder, update check, about)
 - [x] CurseForge browse + install + `.zip` import (needs a user CurseForge API key)
-- [ ] Resource pack / shader / datapack managers (dedicated views)
-- [ ] Keybinds manager
+- [x] **Resource pack / shader / datapack managers** (`packs.js` + instance-detail
+      sections): resource packs with pack.mcmeta metadata + enable/disable/reorder
+      via options.txt, shaders with Iris/Oculus activation (list-only fallback),
+      per-world datapacks; .zip import, delete, open folder for all three
+- [x] **Keybinds manager** (`keybinds.js`): options.txt `key_*` lines grouped by
+      category with human key names, click-to-rebind (keyboard + mouse capture),
+      conflict highlighting, reset-one / reset-all (byte-preserving line edits)
 - [x] Repair (clear cached game files, re-download on next launch)
 - [x] Update all mods (re-resolve installed Modrinth content to newest)
 - [x] Command palette (Ctrl/Cmd-K)

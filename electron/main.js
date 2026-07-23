@@ -141,6 +141,40 @@ handle("cloud:chatSend", (a) => engine.chatSend(a));
 ipcMain.handle("open:dataDir", () => shell.openPath(engine.dataDir()));
 ipcMain.handle("open:external", (_e, a) => shell.openExternal(a.url));
 
+// ============================================================================
+// [Content managers vertical] resource packs / shaders / datapacks + keybinds.
+// ============================================================================
+handle("packs:resourcepacks", (a) => engine.packsResourcePacks(a));
+handle("packs:resourcepacks:set", (a) => engine.packsResourceSet(a));
+handle("packs:resourcepacks:reorder", (a) => engine.packsResourceReorder(a));
+handle("packs:shaders", (a) => engine.packsShaders(a));
+handle("packs:shaders:select", (a) => engine.packsShaderSelect(a));
+handle("packs:datapacks", (a) => engine.packsDatapacks(a));
+handle("packs:delete", (a) => engine.packsDelete(a));
+// Import one or more .zip packs. Without explicit paths, a file picker opens.
+handle("packs:import", async (a) => {
+  let files = (a && a.paths) || null;
+  if (!files || !files.length) {
+    const kindLabel = a && a.kind === "shader" ? "Shader pack" : a && a.kind === "datapack" ? "Datapack" : "Resource pack";
+    const res = await dialog.showOpenDialog(win, {
+      properties: ["openFile", "multiSelections"],
+      filters: [{ name: `${kindLabel} (.zip)`, extensions: ["zip"] }],
+    });
+    if (res.canceled || !res.filePaths.length) return null;
+    files = res.filePaths;
+  }
+  const imported = [];
+  for (const filePath of files) {
+    imported.push(await engine.packsImport({ instanceId: a.instanceId, kind: a.kind, world: a.world, filePath }));
+  }
+  return imported;
+});
+handle("packs:openFolder", (a) => shell.openPath(engine.packsFolderPath(a)));
+handle("keybinds:list", (a) => engine.keybindsList(a));
+handle("keybinds:set", (a) => engine.keybindsSet(a));
+handle("keybinds:reset", (a) => engine.keybindsReset(a));
+handle("keybinds:resetAll", (a) => engine.keybindsResetAll(a));
+
 // ---- Auto-update (electron-updater over the GitHub Releases feed) ----
 // Only meaningful in a packaged, installed build; a dev run has no version to update.
 function sendUpdate(payload) { if (win && !win.isDestroyed()) win.webContents.send("update:state", payload); }

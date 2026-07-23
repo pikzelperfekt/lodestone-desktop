@@ -468,3 +468,78 @@ module.exports = {
   listServers, createServer, startServer, stopServer, serverCommand,
   serverProperties, setServerProperties, serverHostingInfo, setServerOnlineMode, removeServer,
 };
+
+// ============================================================================
+// [Content managers vertical — packs.js + keybinds.js]
+// Resource pack / shader / datapack managers (per instance, datapacks per
+// world) + the keybinds manager. Appended as a self-contained region and
+// exported via Object.assign so the shared module surface above is untouched.
+// ============================================================================
+const packs = require("./packs");
+const keybinds = require("./keybinds");
+
+function requirePackInstance(id) {
+  const inst = readInstances().find((i) => i.id === id);
+  if (!inst) throw new Error("Instance not found.");
+  return inst;
+}
+
+function packsResourcePacks({ instanceId }) {
+  requirePackInstance(instanceId);
+  return packs.listResourcePacks(DATA_DIR, instanceId);
+}
+function packsResourceSet({ instanceId, fileName, enabled }) {
+  requirePackInstance(instanceId);
+  return packs.setResourcePackEnabled(DATA_DIR, instanceId, fileName, !!enabled);
+}
+function packsResourceReorder({ instanceId, order }) {
+  requirePackInstance(instanceId);
+  return packs.reorderResourcePacks(DATA_DIR, instanceId, order);
+}
+function packsShaders({ instanceId }) {
+  requirePackInstance(instanceId);
+  return packs.listShaderPacks(DATA_DIR, instanceId);
+}
+function packsShaderSelect({ instanceId, fileName }) {
+  requirePackInstance(instanceId);
+  return packs.selectShaderPack(DATA_DIR, instanceId, fileName == null ? null : fileName);
+}
+function packsDatapacks({ instanceId, world }) {
+  requirePackInstance(instanceId);
+  return packs.listDatapacks(DATA_DIR, instanceId, world);
+}
+function packsDelete({ instanceId, kind, fileName, world }) {
+  requirePackInstance(instanceId);
+  return packs.deletePack(DATA_DIR, instanceId, kind, fileName, world);
+}
+function packsImport({ instanceId, kind, world, filePath }) {
+  requirePackInstance(instanceId);
+  return packs.importPack(DATA_DIR, instanceId, kind, world, filePath);
+}
+function packsFolderPath({ instanceId, kind, world }) {
+  requirePackInstance(instanceId);
+  return packs.packsFolder(DATA_DIR, instanceId, kind, world);
+}
+function keybindsList({ instanceId }) {
+  requirePackInstance(instanceId);
+  return keybinds.list(DATA_DIR, instanceId);
+}
+function keybindsSet({ instanceId, action, value }) {
+  requirePackInstance(instanceId);
+  return keybinds.set(DATA_DIR, instanceId, action, value);
+}
+function keybindsReset({ instanceId, action }) {
+  requirePackInstance(instanceId);
+  return keybinds.reset(DATA_DIR, instanceId, action);
+}
+function keybindsResetAll({ instanceId }) {
+  requirePackInstance(instanceId);
+  return keybinds.resetAll(DATA_DIR, instanceId);
+}
+
+Object.assign(module.exports, {
+  packsResourcePacks, packsResourceSet, packsResourceReorder,
+  packsShaders, packsShaderSelect, packsDatapacks,
+  packsDelete, packsImport, packsFolderPath,
+  keybindsList, keybindsSet, keybindsReset, keybindsResetAll,
+});

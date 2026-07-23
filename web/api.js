@@ -277,3 +277,71 @@
     },
   };
 })();
+
+// ============================================================================
+// [Content managers vertical] API.packs + API.keybinds — resource packs /
+// shaders / datapacks + the keybinds manager. A separate IIFE appended after
+// the core API so the shared block above stays untouched (union-merge safe).
+// In a plain browser, reads return empty desktop-shaped data and mutations
+// explain they need the desktop app — never a crash.
+// ============================================================================
+(function () {
+  const bridge = (typeof window !== "undefined" && window.lodestone && window.lodestone.isDesktop)
+    ? window.lodestone : null;
+  const unwrap = (r) => (r && r.ok ? r.data : (() => { throw new Error((r && r.error) || "engine error"); })());
+  const desktopOnly = (what) => { throw new Error(`${what} run in the desktop app.`); };
+
+  window.API.packs = {
+    async resourcePacks(instanceId) {
+      return bridge ? unwrap(await bridge.packs.resourcePacks(instanceId)) : { hasOptions: false, packs: [], enabledOrder: [] };
+    },
+    async setResourcePack(opts) {
+      if (bridge) return unwrap(await bridge.packs.setResourcePack(opts));
+      desktopOnly("Pack managers");
+    },
+    async reorderResourcePacks(opts) {
+      if (bridge) return unwrap(await bridge.packs.reorderResourcePacks(opts));
+      desktopOnly("Pack managers");
+    },
+    async shaders(instanceId) {
+      return bridge ? unwrap(await bridge.packs.shaders(instanceId)) : { packs: [], configFile: null, canSelect: false, selected: null, shadersOn: false };
+    },
+    async selectShader(opts) {
+      if (bridge) return unwrap(await bridge.packs.selectShader(opts));
+      desktopOnly("Pack managers");
+    },
+    async datapacks(opts) {
+      return bridge ? unwrap(await bridge.packs.datapacks(opts)) : { packs: [] };
+    },
+    async delete(opts) {
+      if (bridge) return unwrap(await bridge.packs.delete(opts));
+      desktopOnly("Pack managers");
+    },
+    async import(opts) {
+      if (bridge) return unwrap(await bridge.packs.import(opts));
+      desktopOnly("Pack managers");
+    },
+    async openFolder(opts) {
+      if (bridge) return unwrap(await bridge.packs.openFolder(opts));
+      desktopOnly("Pack managers");
+    },
+  };
+
+  window.API.keybinds = {
+    async list(instanceId) {
+      return bridge ? unwrap(await bridge.keybinds.list(instanceId)) : { hasOptions: false, binds: [], categories: [] };
+    },
+    async set(opts) {
+      if (bridge) return unwrap(await bridge.keybinds.set(opts));
+      desktopOnly("Keybinds");
+    },
+    async reset(opts) {
+      if (bridge) return unwrap(await bridge.keybinds.reset(opts));
+      desktopOnly("Keybinds");
+    },
+    async resetAll(instanceId) {
+      if (bridge) return unwrap(await bridge.keybinds.resetAll(instanceId));
+      desktopOnly("Keybinds");
+    },
+  };
+})();

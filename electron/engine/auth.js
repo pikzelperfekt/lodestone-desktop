@@ -97,7 +97,7 @@ async function xsts(xblToken) {
 }
 async function minecraftLogin(uhs, xstsToken) {
   const r = await postJSON(MC_LOGIN, { identityToken: `XBL3.0 x=${uhs};${xstsToken}` });
-  return r.access_token;
+  return { token: r.access_token, expiresIn: Number(r.expires_in) || 86400 };
 }
 async function fetchProfile(mcToken) {
   const r = await fetch(PROFILE, { headers: { Authorization: "Bearer " + mcToken } });
@@ -106,25 +106,92 @@ async function fetchProfile(mcToken) {
   return r.json();
 }
 
+// MSA access token → Xbox Live → XSTS → Minecraft token → profile. Shared by the
+// initial device-code sign-in and the launch-time refresh (mirrors the Mac
+// AuthService's single chain). Returns the fields to persist on the account.
+async function sessionFromMsa(msaAccessToken) {
+  const xblRes = await authenticateXBL(msaAccessToken);
+  const xstsRes = await xsts(xblRes.token);
+  const mc = await minecraftLogin(xstsRes.uhs, xstsRes.token);
+  const prof = await fetchProfile(mc.token);
+  const uuid = prof.id.replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, "$1-$2-$3-$4-$5");
+  return {
+    name: prof.name, uuid,
+    accessToken: mc.token,
+    accessTokenExpiresAt: Date.now() + mc.expiresIn * 1000,
+  };
+}
+
 // Poll until the user finishes the browser sign-in, then complete the full chain.
 async function completeSignIn(device) {
   const msa = await pollToken(device);
-  const xblRes = await authenticateXBL(msa.access_token);
-  const xstsRes = await xsts(xblRes.token);
-  const mcToken = await minecraftLogin(xstsRes.uhs, xstsRes.token);
-  const prof = await fetchProfile(mcToken);
-  const uuid = prof.id.replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, "$1-$2-$3-$4-$5");
-  saveAccount({ name: prof.name, uuid, accessToken: mcToken, refreshToken: msa.refresh_token, userType: "msa" });
-  return { name: prof.name, uuid };
+  const fresh = await sessionFromMsa(msa.access_token);
+  saveAccount({ ...fresh, refreshToken: msa.refresh_token, userType: "msa" });
+  return { name: fresh.name, uuid: fresh.uuid };
 }
 
-function currentSession() {
+// The Minecraft token is good for ~24h; treat it as stale inside a 5-minute margin
+// (same margin the Mac app uses) so a launch never hands the game a dying token.
+const EXPIRY_MARGIN_MS = 5 * 60 * 1000;
+function tokenFresh(a) {
+  return !!(a && a.accessToken && a.accessTokenExpiresAt &&
+    a.accessTokenExpiresAt - Date.now() > EXPIRY_MARGIN_MS);
+}
+
+// Mint a fresh session from the stored refresh token: refresh_token grant against
+// the MSA token endpoint (live.com requires the scope on refresh too), then the
+// same Xbox chain as sign-in. Persists the rotated refresh token + new expiry.
+// Throws { needsSignIn: true } only on a definitive OAuth rejection (revoked /
+// expired refresh token) — that flags the account file but never deletes it, so a
+// transient network failure can't sign the user out.
+async function refreshSession(a) {
+  const { status, json } = await form(TOKEN_URL, {
+    client_id: CLIENT_ID, scope: SCOPE,
+    refresh_token: a.refreshToken, grant_type: "refresh_token",
+  });
+  if (status === 200 && json.access_token) {
+    const fresh = await sessionFromMsa(json.access_token);
+    const updated = {
+      ...a, ...fresh,
+      refreshToken: json.refresh_token || a.refreshToken,   // rotate when Microsoft rotates
+      userType: "msa",
+    };
+    delete updated.needsSignIn;
+    saveAccount(updated);
+    return updated;
+  }
+  if (status >= 400 && status < 500 && json && json.error) {
+    saveAccount({ ...a, needsSignIn: true });   // keep the file — the UI shows who to re-sign-in
+    const e = new Error("Your Microsoft session expired — please sign in again.");
+    e.needsSignIn = true;
+    throw e;
+  }
+  const e = new Error(`Token refresh failed (${status || "network"}).`);
+  e.transient = true;
+  throw e;
+}
+
+// Launch-ready session. Fast path: the cached Minecraft token while it's still
+// valid — zero network. Slow path: refresh the whole chain once, then cache it.
+// Returns null (never throws) when there's no way to an online session; the
+// account file survives so the user can retry or re-sign-in.
+async function currentSession() {
   const a = loadAccount();
-  return a ? { name: a.name, uuid: a.uuid, accessToken: a.accessToken, userType: "msa", offline: false } : null;
+  if (!a) return null;
+  if (tokenFresh(a)) {
+    return { name: a.name, uuid: a.uuid, accessToken: a.accessToken, userType: "msa", offline: false };
+  }
+  if (!a.refreshToken) return null;   // pre-refresh account shape with a dead token
+  try {
+    const u = await refreshSession(a);
+    return { name: u.name, uuid: u.uuid, accessToken: u.accessToken, userType: "msa", offline: false };
+  } catch {
+    return null;   // revoked → account flagged needsSignIn; transient → file untouched
+  }
 }
 function account() {
   const a = loadAccount();
-  return a ? { name: a.name, uuid: a.uuid } : null;
+  return a ? { name: a.name, uuid: a.uuid, needsSignIn: !!a.needsSignIn } : null;
 }
 
 module.exports = { init, startDeviceCode, completeSignIn, currentSession, account, signOut };

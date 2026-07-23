@@ -344,7 +344,12 @@ async function launch(id) {
     return { started: false, message: `${nice} isn't supported. Vanilla, Fabric, Quilt, NeoForge, and Forge all launch.` };
   }
 
-  const session = auth.currentSession() || offlineSession(account()?.name || "Player");
+  // currentSession() refreshes an expired Minecraft token from the stored MSA
+  // refresh token (network only when stale). Null = no online session possible.
+  const session = (await auth.currentSession()) || offlineSession(account()?.name || "Player");
+  if (session.offline && auth.account()) {
+    emit("launch:log", { line: "Microsoft sign-in expired or unreachable — launching offline. Sign in again for online play." });
+  }
   emit("launch:state", { id, status: "installing" });
   emit("launch:log", { line: `Preparing ${inst.name} (${inst.mcVersion})…` });
 

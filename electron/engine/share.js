@@ -15,11 +15,14 @@ const FOLDER = { mod: "mods", resourcepack: "resourcepacks", shader: "shaderpack
 // Our loader id → the modrinth.index.json dependencies key. Vanilla has no loader key.
 const LOADER_DEP_KEY = { fabric: "fabric-loader", quilt: "quilt-loader", neoforge: "neoforge", forge: "forge" };
 
-// A Modrinth id is base62 (letters + digits). CurseForge records are prefixed "cf:" (or
-// carry a purely-numeric project id), and modpack-imported files have no id at all — none
-// of those can be re-resolved from a Modrinth code, so we skip them when sharing.
+// A Modrinth id is base62 (letters + digits). CurseForge records are prefixed "cf:" /
+// "cf-web:" (or carry a purely-numeric project id), .lodepack-imported bundled files are
+// prefixed "local:" (lodepack.js — the Mac app's convention), and modpack-imported files
+// have no id at all — none of those can be re-resolved from a Modrinth code, so we skip
+// them when sharing. Mirrors lodepack.isModrinthSourced.
 function isModrinthId(id) {
-  return typeof id === "string" && id.length > 0 && !id.startsWith("cf:") && !/^\d+$/.test(id);
+  return typeof id === "string" && id.length > 0
+    && !/^(cf:|cf-web:|local:)/.test(id) && !/^\d+$/.test(id);
 }
 
 function primaryFile(v) {

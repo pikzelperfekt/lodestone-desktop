@@ -30,14 +30,15 @@ function greeting() { const h = new Date().getHours(); return h < 12 ? "Good mor
 // ---------- HOME ----------
 async function renderHome() {
   el().innerHTML = `<div class="placeholder">${ico("i-home")}<h2>Loading…</h2></div>`;
-  const [info, instances] = await Promise.all([API.info(), API.instances()]);
+  const [info, instances, acc] = await Promise.all([API.info(), API.instances(), API.account.get().catch(() => null)]);
   const recent = instances[0];
+  const who = acc && acc.name ? `, ${esc(acc.name)}` : "";
 
   el().innerHTML = `
     <section class="hero">
       <div>
-        <div class="hero-greeting">${greeting()}, KingEstel.</div>
-        <div class="hero-sub">${recent ? `Jump back into ${esc(recent.name)} — ${esc(subtitle(recent))}.` : "Create your first instance to start playing."}</div>
+        <div class="hero-greeting">${greeting()}${who}.</div>
+        <div class="hero-sub">${recent ? `Jump back into ${esc(recent.name)} · ${esc(subtitle(recent))}.` : "Create your first instance to start playing."}</div>
       </div>
       <div class="hero-spacer"></div>
       ${recent
@@ -52,7 +53,7 @@ async function renderHome() {
       <div class="section-head"><span class="section-title">RECENT INSTANCES</span>
         <span class="section-action" data-goto="instances">All</span></div>
       ${instances.length ? `<div class="scroll-row">${instances.slice(0, 8).map(instCard).join("")}</div>`
-        : `<div class="empty-line">No instances yet — head to <a data-goto="instances">Instances</a>.</div>`}
+        : `<div class="empty-line">No instances yet. Head to <a data-goto="instances">Instances</a>.</div>`}
     </section>`;
   bindCommon();
 }
@@ -285,7 +286,7 @@ async function openShareModal(inst) {
 
   document.getElementById("share-copy").onclick = async () => {
     const ok = await copyText(code, document.getElementById("share-code"));
-    toast(ok ? "Share code copied to the clipboard." : "Couldn't copy — select the code and copy it by hand.");
+    toast(ok ? "Share code copied to the clipboard." : "Couldn't copy. Select the code and copy it by hand.");
   };
 
   document.getElementById("share-mrpack").onclick = async (e) => {
@@ -1269,7 +1270,7 @@ async function renderCloud() {
         <div class="cloud-card glass cloud-setup">
           ${ico("i-globe")}
           <h2>Cloud backend not set up yet</h2>
-          <p>The launcher works fully offline without this. To turn on accounts and the social features, connect a Supabase project once — it takes about two minutes.</p>
+          <p>The launcher works fully offline without this. To turn on accounts and the social features, connect a Supabase project once. It takes about two minutes.</p>
           <p class="cloud-hint">See <b>SETUP.md</b> in the repo for the exact steps, then restart Lodestone.</p>
         </div>
       </div>`;
@@ -1366,7 +1367,7 @@ function renderCloudSignedIn(status) {
           <div>
             <h2 class="cloud-h2">Minecraft</h2>
             <p class="cloud-sub-inline">${mcLinked
-              ? `Linked to <b>${esc(p.minecraft_name || "your account")}</b> — friends see this name and skin.`
+              ? `Linked to <b>${esc(p.minecraft_name || "your account")}</b> . Friends see this name and skin.`
               : `Link your Minecraft account so friends recognize you by your in-game name and skin.`}</p>
           </div>
           <button class="btn-soft" id="cloud-linkmc">${ico("i-link")} ${mcLinked ? "Relink" : "Link Minecraft"}</button>
@@ -1379,12 +1380,12 @@ function renderCloudSignedIn(status) {
           <h2 class="cloud-h2">Synced from your other devices</h2>
           <button class="btn-ghost cloud-sync-refresh" id="cloud-sync-refresh">Refresh</button>
         </div>
-        <p class="cloud-sub-inline">Instances you've pushed to the cloud from any machine. Pull one to rebuild it here — a matching local instance is reconciled, otherwise it's added as new.</p>
+        <p class="cloud-sub-inline">Instances you've pushed to the cloud from any machine. Pull one to rebuild it here: a matching local instance is reconciled, otherwise it's added as new.</p>
         <div id="cloud-sync-list"><div class="sync-loading"><span class="spinner"></span> Loading…</div></div>
       </div>
 
       <div class="cloud-card glass cloud-soon">
-        <p><b>Friends &amp; chat</b> light up here as they ship — this account is what they run on.</p>
+        <p><b>Friends &amp; chat</b> light up here as they ship. This account is what they run on.</p>
       </div>
     </div>`;
 
@@ -1474,7 +1475,7 @@ async function renderInstanceCloudSync(inst) {
   };
   const rm = box.querySelector(".sync-remove");
   if (rm) rm.onclick = async () => {
-    if (!confirm(`Remove "${inst.name}" from your cloud? Your local instance stays — only the cloud copy is deleted.`)) return;
+    if (!confirm(`Remove "${inst.name}" from your cloud? Your local instance stays. Only the cloud copy is deleted.`)) return;
     rm.disabled = true;
     try { await API.cloud.sync.remove(row.id); toast("Removed from the cloud."); renderInstanceCloudSync(inst); }
     catch (err) { rm.disabled = false; toast("Couldn't remove: " + err.message); }
@@ -1523,7 +1524,7 @@ async function renderCloudSyncList() {
       const detail = parts.length ? ` (${parts.join(", ")})` : "";
       toast(r.mode === "created"
         ? `Added ${r.instanceName}${detail}.`
-        : `Synced ${r.instanceName} to this machine${detail || " — already up to date"}.`);
+        : `Synced ${r.instanceName} to this machine${detail || " · already up to date"}.`);
       renderCloudSyncList();
     } catch (err) { b.disabled = false; b.innerHTML = original; toast("Couldn't pull: " + err.message); }
   });
@@ -1602,7 +1603,7 @@ async function renderFriends() {
           <h2>${status.configured ? "Sign in to see your friends" : "Cloud backend not set up yet"}</h2>
           <p>${status.configured
             ? "Friends and presence run on your Lodestone account. Head to Account to sign in."
-            : "Connect a Supabase project once to turn on accounts and the social features — the launcher works fully offline without it."}</p>
+            : "Connect a Supabase project once to turn on accounts and the social features. The launcher works fully offline without it."}</p>
           <button class="btn-soft" id="fr-goto-account">Go to Account</button>
         </div>
       </div>`;
@@ -1678,7 +1679,7 @@ function renderFriendLists() {
 
   if (countEl) countEl.textContent = friends.length ? String(friends.length) : "";
   if (!friends.length) {
-    listEl.innerHTML = `<div class="friends-empty">No friends yet — search above to add someone.</div>`;
+    listEl.innerHTML = `<div class="friends-empty">No friends yet. Search above to add someone.</div>`;
   } else {
     const online = (u) => (friendsPresence[u.id] && friendsPresence[u.id].status === "online" ? 0 : 1);
     const sorted = friends.slice().sort((a, b) => online(a.user) - online(b.user));
@@ -1796,7 +1797,7 @@ async function renderSquads() {
         <div class="cloud-head"><h1>Squads</h1><p class="cloud-sub">Group up and chat in squads and direct messages.</p></div>
         <div class="cloud-card glass cloud-setup">${ico("i-chat")}
           <h2>Cloud backend not set up yet</h2>
-          <p>Squads and chat run on a Lodestone account. Connect a Supabase project once to turn them on — the launcher works fully offline without it.</p>
+          <p>Squads and chat run on a Lodestone account. Connect a Supabase project once to turn them on. The launcher works fully offline without it.</p>
           <p class="cloud-hint">See <b>SETUP.md</b> in the repo, then restart Lodestone.</p>
         </div>
       </div>`;
@@ -2129,7 +2130,7 @@ function openSquadInviteModal(s) {
   document.getElementById("inv-close").onclick = hideModal;
   document.getElementById("inv-copy").onclick = async () => {
     const ok = await copyText(code, document.getElementById("inv-code"));
-    toast(ok ? "Invite code copied." : "Couldn't copy — select the code and copy it by hand.");
+    toast(ok ? "Invite code copied." : "Couldn't copy. Select the code and copy it by hand.");
   };
 }
 
@@ -2212,7 +2213,7 @@ function setupLaunchOverlay() {
   API.on("launch:progress", (p) => {
     const bar = document.getElementById("lp"); const ph = document.getElementById("lphase");
     if (bar && p.total) bar.style.width = Math.round((p.done / p.total) * 100) + "%";
-    if (ph) ph.textContent = `${phaseLabel[p.phase] || p.phase} — ${p.done}/${p.total}`;
+    if (ph) ph.textContent = `${phaseLabel[p.phase] || p.phase} · ${p.done}/${p.total}`;
   });
   API.on("launch:log", (l) => {
     const log = document.getElementById("llog");
@@ -2300,10 +2301,10 @@ function doctorBisectCard(st) {
     return `
     <div class="glass doctor-card doctor-bisect">
       <div class="doctor-card-head">
-        <div class="doctor-card-title">${ico("i-search")} Mod bisect — round ${st.round}</div>
+        <div class="doctor-card-title">${ico("i-search")} Mod bisect · round ${st.round}</div>
         <span class="doctor-conf medium">${st.suspectCount} suspected</span>
       </div>
-      <div class="doctor-fix-text">Round ${st.round} — ${st.suspectCount} mod${st.suspectCount === 1 ? "" : "s"} suspected ·
+      <div class="doctor-fix-text">Round ${st.round} · ${st.suspectCount} mod${st.suspectCount === 1 ? "" : "s"} suspected ·
         ${st.disabledCount} disabled for this test · about ${st.roundsLeft} launch${st.roundsLeft === 1 ? "" : "es"} to go.</div>
       <div class="bar doctor-bar"><div class="bar-fill" style="width:${pct}%"></div></div>
       ${st.disabledCount ? `<details class="doctor-disabled"><summary>${st.disabledCount} mod${st.disabledCount === 1 ? "" : "s"} disabled this round</summary><pre class="doctor-evidence">${disabledList}</pre></details>` : ""}
@@ -2374,7 +2375,7 @@ async function renderInstanceDoctor(inst) {
         <span class="doctor-conf high">healthy</span>
       </div>
       <div class="doctor-fix-text">${scan.crashReport
-        ? "The newest crash report matched no active problem — the current setup looks clean."
+        ? "The newest crash report matched no active problem. The current setup looks clean."
         : "No crash reports found for this instance."}
         ${scan.enabledMods >= 2 ? " If the game is still misbehaving, a mod bisect can hunt the culprit by halves." : ""}</div>
       ${scan.enabledMods >= 2 ? `<div class="doctor-card-actions"><button class="btn-soft doctor-bisect-cta">${ico("i-search")} Start mod bisect</button></div>` : ""}
@@ -2410,7 +2411,7 @@ async function renderInstanceDoctor(inst) {
     b.disabled = true;
     try {
       const st = await API.doctor.bisect.start(inst.id);
-      toast(`Bisect started — ${st.disabledCount} of ${st.totalMods} mods disabled for round 1.`);
+      toast(`Bisect started: ${st.disabledCount} of ${st.totalMods} mods disabled for round 1.`);
       renderInstanceDoctor(inst);
     } catch (err) { b.disabled = false; toast("Couldn't start the bisect: " + err.message); }
   });
@@ -2432,7 +2433,7 @@ async function renderInstanceDoctor(inst) {
   if (abortBtn) abortBtn.onclick = async () => {
     if (!confirm("Abort the bisect and re-enable every mod it disabled?")) return;
     abortBtn.disabled = true;
-    try { await API.doctor.bisect.abort(inst.id, true); toast("Bisect aborted — all mods restored."); renderInstanceDoctor(inst); }
+    try { await API.doctor.bisect.abort(inst.id, true); toast("Bisect aborted. All mods restored."); renderInstanceDoctor(inst); }
     catch (err) { abortBtn.disabled = false; toast("Couldn't abort: " + err.message); }
   };
 
@@ -2450,7 +2451,7 @@ async function renderInstanceDoctor(inst) {
   };
   const keepDisabled = box.querySelector(".doctor-keep-disabled");
   if (keepDisabled) keepDisabled.onclick = async () => {
-    try { await API.doctor.bisect.abort(inst.id, false); toast("Dismissed — the culprit stays disabled."); renderInstanceDoctor(inst); }
+    try { await API.doctor.bisect.abort(inst.id, false); toast("Dismissed. The culprit stays disabled."); renderInstanceDoctor(inst); }
     catch (err) { toast("Couldn't dismiss: " + err.message); }
   };
   const restoreCulprit = box.querySelector(".doctor-restore-culprit");
@@ -2478,7 +2479,7 @@ renderInstanceDetail = async function (id) {
 
 const packTitle = (p) => p.fileName.replace(/\.zip$/i, "");
 function packSubline(p) {
-  if (p.malformed) return `⚠ Unreadable pack.mcmeta — showing the file only`;
+  if (p.malformed) return `⚠ Unreadable pack.mcmeta, showing the file only`;
   const bits = [];
   if (p.description) bits.push(esc(p.description));
   else if (p.missingMeta) bits.push("No pack.mcmeta at the zip root");
@@ -2575,15 +2576,15 @@ async function renderPacksSections(id) {
     </div>`;
   const worldOpts = pkWorlds.map((w) => `<option${w.name === selWorld ? " selected" : ""}>${esc(w.name)}</option>`).join("");
   const dpBody = !pkWorlds.length
-    ? `<div class="empty-line">No worlds yet — play the instance to create one. Datapacks live inside a world.</div>`
+    ? `<div class="empty-line">No worlds yet. Play the instance to create one. Datapacks live inside a world.</div>`
     : (dp.packs.length ? dp.packs.map(dpRow).join("") : `<div class="empty-line">No datapacks in ${esc(selWorld)} yet.</div>`);
 
   // ---- Keybinds ----
   let kbBody;
   if (!kb.hasOptions) {
-    kbBody = `<div class="empty-line">No options.txt yet — launch the instance once and Minecraft will create it. Then rebind anything here.</div>`;
+    kbBody = `<div class="empty-line">No options.txt yet. Launch the instance once and Minecraft will create it. Then rebind anything here.</div>`;
   } else if (!kb.binds.length) {
-    kbBody = `<div class="empty-line">No keybinds recorded yet — they appear here after the first launch.</div>`;
+    kbBody = `<div class="empty-line">No keybinds recorded yet. They appear here after the first launch.</div>`;
   } else {
     const groups = [];
     for (const cat of kb.categories) {
@@ -2596,7 +2597,7 @@ async function renderPacksSections(id) {
             <div class="kb-row">
               <span class="kb-label" title="${esc(b.action)}">${esc(b.label)}</span>
               <button class="kb-key${b.conflict ? " conflict" : ""}" data-kb="${esc(b.action)}" data-label="${esc(b.label)}"
-                title="${b.conflict ? "Also bound to another action — " : ""}Click, then press the new key">${esc(b.valueLabel)}</button>
+                title="${b.conflict ? "Also bound to another action. " : ""}Click, then press the new key">${esc(b.valueLabel)}</button>
               <button class="btn-ghost kb-reset" data-kb-reset="${esc(b.action)}" title="Reset to default">↺</button>
             </div>`).join("")}
         </div>`);
@@ -2612,7 +2613,7 @@ async function renderPacksSections(id) {
       </span>
     </div>
     <div class="packs-list">${rpListHtml}</div>
-    ${rp.packs.length ? `<div class="pack-note">Top of the list wins when packs overlap.${rp.hasOptions ? "" : " This instance hasn't launched yet — enabling a pack writes a fresh options.txt the game picks up on first launch."}</div>` : ""}
+    ${rp.packs.length ? `<div class="pack-note">Top of the list wins when packs overlap.${rp.hasOptions ? "" : " This instance hasn't launched yet. Enabling a pack writes a fresh options.txt the game picks up on first launch."}</div>` : ""}
 
     <div class="section-head" style="margin-top:26px"><span class="section-title">SHADER PACKS</span>
       <span class="pack-head-actions">
@@ -2698,7 +2699,7 @@ function bindPacksEvents(id, state) {
       const res = await API.packs.import({ instanceId: id, kind, world: kind === "datapack" ? state.selWorld : undefined });
       if (res === null) { b.disabled = false; b.innerHTML = original; return; }   // picker canceled
       const noMeta = res.filter((p) => p && p.missingMeta).length;
-      toast(`Imported ${res.length} pack${res.length === 1 ? "" : "s"}.${noMeta && kind !== "shader" ? ` ${noMeta} ha${noMeta === 1 ? "s" : "ve"} no pack.mcmeta at the zip root — Minecraft may not accept ${noMeta === 1 ? "it" : "them"}.` : ""}`);
+      toast(`Imported ${res.length} pack${res.length === 1 ? "" : "s"}.${noMeta && kind !== "shader" ? ` ${noMeta} ha${noMeta === 1 ? "s" : "ve"} no pack.mcmeta at the zip root. Minecraft may not accept ${noMeta === 1 ? "it" : "them"}.` : ""}`);
       refresh();
     } catch (e) { b.disabled = false; b.innerHTML = original; toast("Couldn't import: " + e.message); }
   });
@@ -2730,7 +2731,7 @@ function bindPacksEvents(id, state) {
   root.querySelectorAll("[data-kb]").forEach((b) => b.onclick = () => startKeyCapture(id, b));
   root.querySelectorAll("[data-kb-reset]").forEach((b) => b.onclick = async () => {
     b.disabled = true;
-    try { await API.keybinds.reset({ instanceId: id, action: b.dataset.kbReset }); toast("Reset to default — the game restores it on next launch."); refresh(); }
+    try { await API.keybinds.reset({ instanceId: id, action: b.dataset.kbReset }); toast("Reset to default. The game restores it on next launch."); refresh(); }
     catch (e) { b.disabled = false; toast("Couldn't reset: " + e.message); }
   });
   const ra = document.getElementById("kb-reset-all");
@@ -2953,7 +2954,7 @@ async function openIconModal(id) {
   showModal(`
     <div class="share-card">
       <div class="share-h">${ico("i-grid")} Instance icon</div>
-      <p class="share-sub">Pick an image for <b>${esc(inst.name)}</b>, or use a built-in tile. It shows on the card and detail page — and travels inside exported <b>.lodepack</b> files.</p>
+      <p class="share-sub">Pick an image for <b>${esc(inst.name)}</b>, or use a built-in tile. It shows on the card and detail page, and travels inside exported <b>.lodepack</b> files.</p>
       <div class="ld-icon-row">
         <div class="ld-icon-preview" id="ld-icon-preview"></div>
         <div class="ld-icon-side">
@@ -3022,8 +3023,8 @@ function ldiImportToast(inst) {
     if (s.includedKeybinds) bits.push("keybinds");
     const failed = (s.failedDownloads || []).length;
     const skipped = s.skippedLocal || 0;
-    toast(`Imported ${inst.name}${bits.length ? ` — ${bits.join(", ")}` : ""}` +
-      `${failed ? `. ${failed} download${failed === 1 ? "" : "s"} failed — import again to retry` : ""}` +
+    toast(`Imported ${inst.name}${bits.length ? ` · ${bits.join(", ")}` : ""}` +
+      `${failed ? `. ${failed} download${failed === 1 ? "" : "s"} failed. Import again to retry` : ""}` +
       `${skipped ? `. ${skipped} non-Modrinth item${skipped === 1 ? "" : "s"} skipped (v1 packs don't carry files)` : ""}.`);
   } else {
     const manual = (inst.manualDownloads && inst.manualDownloads.length) || 0;
@@ -3096,7 +3097,7 @@ openShareModal = ((orig) => async function (inst) {
         const bits = [`${res.linked} linked`, `${res.bundled} bundled`];
         if (res.includedConfigs) bits.push("configs");
         if (res.includedKeybinds) bits.push("keybinds");
-        toast(`Exported ${res.name}.lodepack — ${bits.join(", ")}.`);
+        toast(`Exported ${res.name}.lodepack · ${bits.join(", ")}.`);
       }
     } catch (e) { toast("Couldn't export: " + e.message); }
     b.disabled = false; b.innerHTML = original;

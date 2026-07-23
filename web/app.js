@@ -2237,3 +2237,268 @@ setupCloud();
 setupFriends();
 setupCommandPalette();
 navigate("home");
+
+// ============================================================================
+// [Icons + .lodepack — vertical feat/win-icons-lodepack] — additive section.
+// Instance icons (user image or a generated letter tile) on every card + the
+// detail hero, an icon picker modal, unified pack import (.mrpack / CurseForge
+// .zip / .lodepack) with drag-and-drop, and ".lodepack export" in the Share
+// modal. Everything here wraps existing bindings — it never edits them.
+
+// ---- Icon cache: every API.instances() call feeds it ----
+const LDI = { list: null, byId: new Map(), tiles: new Map(), loading: null };
+
+function ldiRemember(list) {
+  if (!Array.isArray(list)) return;
+  LDI.list = list;
+  LDI.byId = new Map(list.map((i) => [i.id, i]));
+}
+API.instances = ((orig) => async function () {
+  const list = await orig();
+  ldiRemember(list);
+  return list;
+})(API.instances.bind(API));
+
+async function ldiEnsure() {
+  if (LDI.list) return;
+  if (!LDI.loading) LDI.loading = API.instances().catch(() => []).finally(() => { LDI.loading = null; });
+  await LDI.loading;
+}
+
+// ---- Generated letter tiles (drawn in code — no binary assets) ----
+// Used both as the fallback art for instances without an icon and as the
+// built-in preset set in the picker (rasterized to a real icon.png on pick).
+const LDI_GRADIENTS = [
+  ["#5EE6A0", "#36C9E0"], ["#B57BE6", "#7B6BE6"], ["#E08A3C", "#E6C05E"], ["#FF7A6B", "#E0497A"],
+  ["#7BC6E6", "#5E8DE6"], ["#E65E9E", "#B57BE6"], ["#9BE65E", "#36C9A0"], ["#8A93A6", "#4A5261"],
+];
+function ldiDrawTile(letter, grad, size) {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const g = ctx.createLinearGradient(0, 0, size, size);
+  g.addColorStop(0, grad[0]); g.addColorStop(1, grad[1]);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, size, size);
+  const glow = ctx.createRadialGradient(size * 0.3, size * 0.18, 0, size * 0.3, size * 0.18, size);
+  glow.addColorStop(0, "rgba(255,255,255,.26)"); glow.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, size, size);
+  if (letter) {
+    const family = (getComputedStyle(document.documentElement).getPropertyValue("--font-display") || "system-ui").trim() || "system-ui";
+    ctx.fillStyle = "rgba(255,255,255,.94)";
+    ctx.font = `700 ${Math.round(size * 0.52)}px ${family}`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(letter, size / 2, size * 0.55);
+  }
+  return canvas;
+}
+function ldiHash(s) { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h; }
+function ldiLetter(name) { return (String(name || "?").trim().charAt(0) || "?").toUpperCase(); }
+function ldiFallbackURI(inst) {
+  const letter = ldiLetter(inst.name);
+  const grad = LDI_GRADIENTS[ldiHash(inst.id + "|" + letter) % LDI_GRADIENTS.length];
+  const key = letter + grad[0];
+  if (!LDI.tiles.has(key)) LDI.tiles.set(key, ldiDrawTile(letter, grad, 128).toDataURL("image/png"));
+  return LDI.tiles.get(key);
+}
+
+// ---- Card + hero decoration (runs after every render via the bindCommon wrap) ----
+function ldiApply(artEl, inst) {
+  if (!artEl || !inst) return;
+  const url = inst.iconPath ? `${fileURL(inst.iconPath)}?v=${inst.iconVersion || 0}` : ldiFallbackURI(inst);
+  artEl.classList.add("ld-has-icon");
+  artEl.style.backgroundImage = `url("${url}")`;
+}
+
+function ldiDecorate() {
+  const root = el(); if (!root) return;
+  ldiBindImport(root);
+  const cards = root.querySelectorAll(".inst-card[data-open], .inst-card[data-play]");
+  const hero = root.querySelector(".detail-hero");
+  const heroPlay = hero && hero.querySelector(".detail-actions [data-play]");
+  if (!cards.length && !heroPlay) return;
+  if (!LDI.list) { ldiEnsure().then(() => ldiDecorate()); return; }
+  cards.forEach((card) => ldiApply(card.querySelector(".inst-art"), LDI.byId.get(card.dataset.open || card.dataset.play)));
+  if (heroPlay) {
+    const inst = LDI.byId.get(heroPlay.dataset.play);
+    const art = hero.querySelector(".inst-art");
+    if (inst) ldiApply(art, inst);
+    if (inst && art && !art.dataset.ldIcon) {
+      art.dataset.ldIcon = "1";
+      art.classList.add("ld-click");
+      art.title = "Change icon";
+      art.addEventListener("click", () => openIconModal(inst.id));
+    }
+    const actions = hero.querySelector(".detail-actions");
+    if (inst && actions && !actions.querySelector("[data-ld-icon-btn]")) {
+      const b = document.createElement("button");
+      b.className = "btn-soft";
+      b.setAttribute("data-ld-icon-btn", "1");
+      b.innerHTML = `${ico("i-grid")} Icon`;
+      b.onclick = () => openIconModal(inst.id);
+      actions.appendChild(b);
+    }
+  }
+}
+bindCommon = ((orig) => function () { orig(); ldiDecorate(); })(bindCommon);
+
+// ---- Icon picker modal ----
+async function openIconModal(id) {
+  await ldiEnsure();
+  let inst = LDI.byId.get(id);
+  if (!inst) { toast("Instance not found."); return; }
+  const letter = ldiLetter(inst.name);
+  const presets = LDI_GRADIENTS.map((g, idx) =>
+    `<div class="ld-icon-tile" data-preset="${idx}" title="Use this tile" style="background-image:url('${ldiDrawTile(letter, g, 64).toDataURL("image/png")}')"></div>`).join("");
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-grid")} Instance icon</div>
+      <p class="share-sub">Pick an image for <b>${esc(inst.name)}</b>, or use a built-in tile. It shows on the card and detail page — and travels inside exported <b>.lodepack</b> files.</p>
+      <div class="ld-icon-row">
+        <div class="ld-icon-preview" id="ld-icon-preview"></div>
+        <div class="ld-icon-side">
+          <button class="btn-accent" id="ld-icon-choose" style="width:auto">${ico("i-download")} Choose image…</button>
+          <button class="btn-soft" id="ld-icon-remove" ${inst.icon ? "" : "disabled"}>${ico("i-trash")} Remove icon</button>
+        </div>
+      </div>
+      <div class="share-label">BUILT-IN TILES</div>
+      <div class="ld-icon-grid">${presets}</div>
+      <div class="np-actions"><button class="btn-ghost" id="ld-icon-close">Close</button></div>
+    </div>`);
+  const modal = document.getElementById("modal");
+  const preview = document.getElementById("ld-icon-preview");
+  const paint = () => {
+    const url = inst.iconPath ? `${fileURL(inst.iconPath)}?v=${inst.iconVersion || 0}` : ldiFallbackURI(inst);
+    preview.style.backgroundImage = `url("${url}")`;
+  };
+  paint();
+  const applied = (updated) => {
+    if (!updated) return;
+    inst = updated;
+    LDI.byId.set(id, updated);
+    if (LDI.list) LDI.list = LDI.list.map((x) => (x.id === id ? updated : x));
+    paint();
+    const rm = document.getElementById("ld-icon-remove");
+    if (rm) rm.disabled = !updated.icon;
+    ldiDecorate();   // live-refresh the card/hero behind the modal
+  };
+  document.getElementById("ld-icon-close").onclick = hideModal;
+  document.getElementById("ld-icon-choose").onclick = async () => {
+    try {
+      const updated = await API.icons.pick(id);
+      if (updated) { applied(updated); toast("Icon updated."); }
+    } catch (e) { toast("Couldn't set the icon: " + e.message); }
+  };
+  document.getElementById("ld-icon-remove").onclick = async () => {
+    try { applied(await API.icons.remove(id)); toast("Icon removed."); }
+    catch (e) { toast("Couldn't remove the icon: " + e.message); }
+  };
+  modal.querySelectorAll("[data-preset]").forEach((tile) => tile.onclick = async () => {
+    try {
+      const grad = LDI_GRADIENTS[Number(tile.dataset.preset)];
+      const dataURL = ldiDrawTile(letter, grad, 256).toDataURL("image/png");
+      applied(await API.icons.set(id, dataURL.split(",")[1], "png"));
+      toast("Icon updated.");
+    } catch (e) { toast("Couldn't set the icon: " + e.message); }
+  });
+}
+
+// ---- Unified pack import (button + drag-and-drop) ----
+function ldiBindImport(root) {
+  const btn = root.querySelector("#import-pack");
+  if (!btn || btn.dataset.ldPacks || !API.hasEngine) return;
+  btn.dataset.ldPacks = "1";
+  btn.title = "Import a Modrinth .mrpack, CurseForge .zip, or Lodestone .lodepack";
+  btn.onclick = () => ldiImportPack(null, btn);
+}
+
+function ldiImportToast(inst) {
+  const s = inst.importSummary;
+  if (s) {
+    const bits = [];
+    if (s.linked) bits.push(`${s.linked} linked`);
+    if (s.bundled) bits.push(`${s.bundled} bundled`);
+    if (s.includedConfigs) bits.push("configs");
+    if (s.includedKeybinds) bits.push("keybinds");
+    const failed = (s.failedDownloads || []).length;
+    const skipped = s.skippedLocal || 0;
+    toast(`Imported ${inst.name}${bits.length ? ` — ${bits.join(", ")}` : ""}` +
+      `${failed ? `. ${failed} download${failed === 1 ? "" : "s"} failed — import again to retry` : ""}` +
+      `${skipped ? `. ${skipped} non-Modrinth item${skipped === 1 ? "" : "s"} skipped (v1 packs don't carry files)` : ""}.`);
+  } else {
+    const manual = (inst.manualDownloads && inst.manualDownloads.length) || 0;
+    toast(manual
+      ? `Imported ${inst.name}. ${manual} mod${manual === 1 ? "" : "s"} must be added by hand (the author blocked API downloads).`
+      : `Imported ${inst.name}.`);
+  }
+}
+
+async function ldiImportPack(path, btn) {
+  const original = btn ? btn.innerHTML : null;
+  if (btn) { btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Importing…`; }
+  try {
+    const inst = await API.packs.import(path || undefined);
+    if (inst) {
+      LDI.list = null;   // instance set changed; refill on next render
+      ldiImportToast(inst);
+      navigate("instances");
+    } else if (btn) { btn.disabled = false; btn.innerHTML = original; }   // dialog canceled
+  } catch (e) {
+    toast("Couldn't import: " + e.message);
+    if (btn) { btn.disabled = false; btn.innerHTML = original; }
+  }
+}
+
+// Drop a pack file anywhere in the window to import it.
+(function ldiSetupDrop() {
+  if (!API.hasEngine || !window.lodestonePacks) return;
+  const overlayEl = document.createElement("div");
+  overlayEl.className = "ld-drop-overlay";
+  overlayEl.hidden = true;
+  overlayEl.innerHTML = `<div class="ld-drop-card glass">${ico("i-download")}<div><b>Drop to import</b><span>.mrpack · CurseForge .zip · .lodepack</span></div></div>`;
+  document.body.appendChild(overlayEl);
+  let depth = 0;
+  const hasFiles = (e) => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("Files");
+  window.addEventListener("dragenter", (e) => { if (!hasFiles(e)) return; e.preventDefault(); depth++; overlayEl.hidden = false; });
+  window.addEventListener("dragover", (e) => { if (hasFiles(e)) e.preventDefault(); });
+  window.addEventListener("dragleave", (e) => { if (!hasFiles(e)) return; depth = Math.max(0, depth - 1); if (!depth) overlayEl.hidden = true; });
+  window.addEventListener("drop", async (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    depth = 0; overlayEl.hidden = true;
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!file) return;
+    if (!/\.(mrpack|zip|lodepack)$/i.test(file.name)) { toast("Drop a .mrpack, CurseForge .zip, or .lodepack file."); return; }
+    const p = API.packs.pathForFile(file);
+    if (!p) { toast("Couldn't read the dropped file's path."); return; }
+    toast(`Importing ${file.name}…`);
+    await ldiImportPack(p, null);
+  });
+})();
+
+// ---- ".lodepack export" rides along in the Share modal ----
+openShareModal = ((orig) => async function (inst) {
+  await orig(inst);
+  const anchor = document.getElementById("share-mrpack");
+  if (!anchor || document.getElementById("share-lodepack")) return;
+  const b = document.createElement("button");
+  b.className = "btn-soft";
+  b.id = "share-lodepack";
+  b.innerHTML = `${ico("i-download")} Export .lodepack`;
+  b.title = "Lodestone's own pack file: mods + configs + keybinds + icon + RAM. Imports on Mac and Windows.";
+  anchor.insertAdjacentElement("afterend", b);
+  b.onclick = async () => {
+    const original = b.innerHTML;
+    b.disabled = true; b.innerHTML = `<span class="spinner"></span> Exporting…`;
+    try {
+      const res = await API.packs.exportLodepack(inst.id, inst.name);
+      if (res) {
+        const bits = [`${res.linked} linked`, `${res.bundled} bundled`];
+        if (res.includedConfigs) bits.push("configs");
+        if (res.includedKeybinds) bits.push("keybinds");
+        toast(`Exported ${res.name}.lodepack — ${bits.join(", ")}.`);
+      }
+    } catch (e) { toast("Couldn't export: " + e.message); }
+    b.disabled = false; b.innerHTML = original;
+  };
+})(openShareModal);
+// ============================================================================

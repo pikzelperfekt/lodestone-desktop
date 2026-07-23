@@ -707,3 +707,33 @@ svg.ico { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-widt
   .chat-side { max-height: 210px; }
   .chat-main { height: 60vh; }
 }
+
+/* ============================================================================
+   [Icons + .lodepack — vertical feat/win-icons-lodepack] — additive section.
+   Instance icon art on cards + the detail hero, the icon picker modal, and the
+   full-window drag-and-drop import overlay. */
+.inst-art.ld-has-icon { background-size: cover !important; background-position: center; }
+.inst-art.ld-has-icon > .ico { display: none; }
+.detail-hero .inst-art.ld-click { cursor: pointer; transition: filter .15s ease; }
+.detail-hero .inst-art.ld-click:hover { filter: brightness(1.14); }
+
+.ld-icon-row { display: flex; align-items: center; gap: 16px; margin: 14px 0 8px; }
+.ld-icon-preview { width: 84px; height: 84px; flex: none; border-radius: var(--radius-panel, 14px);
+  border: 1px solid var(--stroke, rgba(255,255,255,.09)); background-size: cover; background-position: center; }
+.ld-icon-side { display: flex; flex-direction: column; gap: 8px; }
+.ld-icon-grid { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 4px; }
+.ld-icon-tile { width: 52px; height: 52px; border-radius: 12px; cursor: pointer; background-size: cover;
+  border: 1px solid var(--stroke, rgba(255,255,255,.09));
+  transition: transform .12s ease, border-color .12s ease; }
+.ld-icon-tile:hover { transform: scale(1.07); border-color: var(--stroke-strong, rgba(255,255,255,.16)); }
+
+.ld-drop-overlay { position: fixed; inset: 0; z-index: 400; display: flex; align-items: center;
+  justify-content: center; background: rgba(6, 8, 11, .74); pointer-events: none; }
+.ld-drop-overlay[hidden] { display: none; }
+.ld-drop-card { display: flex; align-items: center; gap: 14px; padding: 22px 30px;
+  border-radius: var(--radius-card, 16px); border: 2px dashed var(--accent, #5EE6A0);
+  font-family: var(--font-display, system-ui); }
+.ld-drop-card .ico { width: 28px; height: 28px; color: var(--accent, #5EE6A0); }
+.ld-drop-card b { display: block; font-size: 17px; }
+.ld-drop-card span { display: block; color: var(--text-secondary, rgba(255,255,255,.58)); font-size: 13px; margin-top: 2px; }
+/* ========================================================================== */

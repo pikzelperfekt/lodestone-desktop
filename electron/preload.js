@@ -124,3 +124,25 @@ contextBridge.exposeInMainWorld("lodestone", {
     return () => ipcRenderer.removeListener(channel, handler);
   },
 });
+
+// ============================================================================
+// [Icons + .lodepack — vertical feat/win-icons-lodepack] — additive section.
+// A second, self-contained bridge (window.lodestonePacks) so this vertical never
+// edits the main allowlist above: unified pack import, .lodepack export, and
+// per-instance icons.
+let webUtils = null;
+try { ({ webUtils } = require("electron")); } catch {}
+
+contextBridge.exposeInMainWorld("lodestonePacks", {
+  importPack: (path) => call("import:pack", { path }),
+  exportLodepack: (id, name) => call("share:lodepack", { id, name }),
+  iconPick: (id) => call("icon:pick", { id }),
+  iconSet: (id, dataBase64, ext) => call("icon:set", { id, dataBase64, ext }),
+  iconRemove: (id) => call("icon:remove", { id }),
+  // Electron ≥32 removed File.path — resolve a dragged file's real path either way.
+  pathForFile: (file) => {
+    try { if (webUtils && webUtils.getPathForFile) return webUtils.getPathForFile(file); } catch {}
+    return (file && file.path) || null;
+  },
+});
+// ============================================================================

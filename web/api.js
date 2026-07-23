@@ -277,3 +277,42 @@
     },
   };
 })();
+
+// ============================================================================
+// [Icons + .lodepack — vertical feat/win-icons-lodepack] — additive section.
+// Augments window.API with unified pack import (.mrpack / .zip / .lodepack),
+// .lodepack export, and per-instance icons over the window.lodestonePacks bridge.
+// In a plain browser these explain themselves instead of crashing (same policy
+// as everything above).
+(function () {
+  const packs = (typeof window !== "undefined" && window.lodestonePacks) ? window.lodestonePacks : null;
+  const unwrap = (r) => (r && r.ok ? r.data : (() => { throw new Error((r && r.error) || "engine error"); })());
+
+  window.API.packs = {
+    async import(path) {
+      if (packs) return unwrap(await packs.importPack(path));
+      throw new Error("Pack import runs in the desktop build.");
+    },
+    async exportLodepack(id, name) {
+      if (packs) return unwrap(await packs.exportLodepack(id, name));
+      throw new Error("Pack export runs in the desktop build.");
+    },
+    pathForFile(file) { return packs ? packs.pathForFile(file) : null; },
+  };
+
+  window.API.icons = {
+    async pick(id) {
+      if (packs) return unwrap(await packs.iconPick(id));
+      throw new Error("Instance icons run in the desktop build.");
+    },
+    async set(id, dataBase64, ext) {
+      if (packs) return unwrap(await packs.iconSet(id, dataBase64, ext));
+      throw new Error("Instance icons run in the desktop build.");
+    },
+    async remove(id) {
+      if (packs) return unwrap(await packs.iconRemove(id));
+      throw new Error("Instance icons run in the desktop build.");
+    },
+  };
+})();
+// ============================================================================

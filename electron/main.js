@@ -165,6 +165,66 @@ function setupUpdates() {
 ipcMain.handle("update:check", () => (app.isPackaged ? autoUpdater.checkForUpdates().catch(() => null) : null));
 ipcMain.handle("update:install", () => { autoUpdater.quitAndInstall(); });
 
+// ============================================================================
+// [Icons + .lodepack — vertical feat/win-icons-lodepack] — additive section.
+// Unified pack import (.mrpack / CurseForge .zip / .lodepack v1+v2), .lodepack
+// export, and per-instance icons (image decode/resize happens here with
+// nativeImage; the engine only ever sees bytes).
+const { nativeImage } = require("electron");
+
+handle("import:pack", async (a) => {
+  let filePath = a && a.path;
+  if (!filePath) {
+    const res = await dialog.showOpenDialog(win, {
+      properties: ["openFile"],
+      filters: [
+        { name: "Modpacks", extensions: ["mrpack", "zip", "lodepack"] },
+        { name: "Lodestone pack", extensions: ["lodepack"] },
+        { name: "Modrinth modpack", extensions: ["mrpack"] },
+        { name: "CurseForge modpack", extensions: ["zip"] },
+      ],
+    });
+    if (res.canceled || !res.filePaths.length) return null;
+    filePath = res.filePaths[0];
+  }
+  return engine.importAnyPack(filePath);
+});
+
+handle("share:lodepack", async (a) => {
+  const base = String((a && a.name) || "pack").replace(/[\\/:*?"<>|]+/g, " ").trim() || "pack";
+  const res = await dialog.showSaveDialog(win, {
+    title: "Export Lodestone pack (.lodepack)",
+    defaultPath: `${base}.lodepack`,
+    filters: [{ name: "Lodestone pack", extensions: ["lodepack"] }],
+  });
+  if (res.canceled || !res.filePath) return null;
+  return engine.exportInstanceLodepack(a.id, res.filePath);
+});
+
+// Pick an image file, center-crop it square, resize to 256px, store as icon.png.
+handle("icon:pick", async (a) => {
+  const res = await dialog.showOpenDialog(win, {
+    title: "Choose an instance icon",
+    properties: ["openFile"],
+    filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }],
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  const img = nativeImage.createFromPath(res.filePaths[0]);
+  if (!img || img.isEmpty()) throw new Error("Couldn't read that image — use a .png or .jpg file.");
+  const { width, height } = img.getSize();
+  const side = Math.min(width, height);
+  const square = img.crop({
+    x: Math.floor((width - side) / 2), y: Math.floor((height - side) / 2),
+    width: side, height: side,
+  });
+  const png = square.resize({ width: 256, height: 256 }).toPNG();
+  return engine.setInstanceIcon({ id: a.id, dataBase64: png.toString("base64"), ext: "png" });
+});
+// Raw PNG bytes from the renderer (the built-in generated tile set).
+handle("icon:set", (a) => engine.setInstanceIcon(a));
+handle("icon:remove", (a) => engine.removeInstanceIcon(a));
+// ============================================================================
+
 app.whenReady().then(() => {
   engine.init(app.getPath("userData"));
   engine.setEmitter((channel, payload) => { if (win && !win.isDestroyed()) win.webContents.send(channel, payload); });

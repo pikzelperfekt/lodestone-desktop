@@ -89,11 +89,14 @@ async function install({ dataDir, instance, projectId, versionId, onLog }) {
   return installed;
 }
 
-// Delete an installed file from its instance folder.
+// Delete an installed file from its instance folder. The Crash Doctor can park a
+// jar as "<name>.jar.disabled" (disableMod fix / bisect culprit), so remove that
+// form too — otherwise removing a parked mod leaves the orphaned file behind.
 function remove({ dataDir, instance, fileName, kind }) {
   const folder = FOLDER[kind] || "mods";
   const file = path.join(paths(dataDir).instanceDir(instance.id), folder, fileName);
   try { fs.rmSync(file, { force: true }); } catch {}
+  try { fs.rmSync(file + ".disabled", { force: true }); } catch {}
   return true;
 }
 

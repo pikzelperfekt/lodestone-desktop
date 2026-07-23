@@ -159,15 +159,30 @@ function updateInstance({ id, name, ramMB, javaArgs, mcVersion }) {
 }
 
 // ---- Mojang versions ----
+// [wave0] Default = releases only (unchanged). Opt in to other channels with
+// listVersions({ channels: ["snapshot","old_beta","old_alpha"] }); each requested
+// channel comes back as its own manifest-ordered id array (newest first) so the
+// create-instance UI can offer "Show snapshots" / "Show old versions" without a
+// second fetch. The raw manifest is cached once and every view derives from it.
 const MANIFEST = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json";
-let versionCache = null;
-async function listVersions() {
-  if (versionCache) return versionCache;
+let manifestCache = null;
+async function fetchManifest() {
+  if (manifestCache) return manifestCache;
   const res = await fetch(MANIFEST);
   if (!res.ok) throw new Error(`Mojang manifest ${res.status}`);
-  const json = await res.json();
-  versionCache = { releases: json.versions.filter((v) => v.type === "release").map((v) => v.id), latest: json.latest.release };
-  return versionCache;
+  manifestCache = await res.json();
+  return manifestCache;
+}
+const CHANNELS = ["snapshot", "old_beta", "old_alpha"];
+async function listVersions(opts) {
+  const json = await fetchManifest();
+  const idsOfType = (t) => json.versions.filter((v) => v.type === t).map((v) => v.id);
+  const out = { releases: idsOfType("release"), latest: json.latest.release, latestSnapshot: json.latest.snapshot };
+  const requested = (opts && Array.isArray(opts.channels)) ? opts.channels : [];
+  for (const ch of requested) {
+    if (CHANNELS.includes(ch)) out[ch === "snapshot" ? "snapshots" : ch] = idsOfType(ch);
+  }
+  return out;
 }
 
 // ---- Modrinth search ----

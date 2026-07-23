@@ -389,11 +389,24 @@ const modRow = (m) => `
     <button class="btn-ghost mod-x" data-remove="${esc(m.projectId)}" title="Remove">${ico("i-trash")}</button>
   </div>`;
 
+// [wave0] Version-channel toggles for the create-instance flow. Off by default →
+// releases only (unchanged). Ticking a box refetches with that channel and folds
+// its ids into the picker, newest-channel-first, still capped for length.
+let npSnapshots = false, npOldVersions = false;
+function npVersionOptions(v) {
+  let ids = (v.releases || []).slice(0, 60);
+  if (npSnapshots && v.snapshots) ids = v.snapshots.slice(0, 40).concat(ids);
+  if (npOldVersions) ids = ids.concat((v.old_beta || []), (v.old_alpha || []));
+  return ids.map((r) => `<option>${esc(r)}</option>`).join("");
+}
 async function toggleNewPanel() {
   const panel = document.getElementById("new-panel");
   if (!creating) { panel.innerHTML = ""; return; }
   panel.innerHTML = `<div class="glass new-panel"><div class="np-row"><span>Loading versions…</span></div></div>`;
-  const v = await API.versions();
+  const channels = [];                       // [wave0]
+  if (npSnapshots) channels.push("snapshot");
+  if (npOldVersions) channels.push("old_beta", "old_alpha");
+  const v = await API.versions(channels.length ? { channels } : undefined);
   const loaders = ["vanilla", "fabric", "quilt", "neoforge", "forge"];
   panel.innerHTML = `
     <div class="glass new-panel">
@@ -403,8 +416,13 @@ async function toggleNewPanel() {
           <div class="seg" id="np-loader">${loaders.map((l, i) => `<button data-l="${l}" class="${i === 0 ? "on" : ""}">${loaderLabel(l)}</button>`).join("")}</div>
         </label>
         <label>MINECRAFT VERSION
-          <select id="np-version">${v.releases.slice(0, 60).map((r) => `<option>${r}</option>`).join("")}</select>
+          <select id="np-version">${npVersionOptions(v)}</select>
         </label>
+      </div>
+      <!-- [wave0] snapshot / historical version toggles -->
+      <div class="np-row np-channels" style="gap:18px;font-size:12px;opacity:.85">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="np-snapshots"${npSnapshots ? " checked" : ""}/> Show snapshots</label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="np-old"${npOldVersions ? " checked" : ""}/> Show old versions</label>
       </div>
       <div class="np-actions">
         <button class="btn-ghost" id="np-cancel">Cancel</button>
@@ -416,6 +434,9 @@ async function toggleNewPanel() {
     panel.querySelectorAll("#np-loader button").forEach((x) => x.classList.remove("on"));
     b.classList.add("on"); loader = b.dataset.l;
   });
+  // [wave0] toggling a channel refetches + rerenders the panel
+  panel.querySelector("#np-snapshots").onchange = (e) => { npSnapshots = e.target.checked; toggleNewPanel(); };
+  panel.querySelector("#np-old").onchange = (e) => { npOldVersions = e.target.checked; toggleNewPanel(); };
   panel.querySelector("#np-cancel").onclick = () => { creating = false; toggleNewPanel(); };
   panel.querySelector(".np-create").onclick = async () => {
     const name = panel.querySelector("#np-name").value;

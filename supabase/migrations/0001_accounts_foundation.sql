@@ -25,24 +25,10 @@ begin
 end;
 $$;
 
--- Squad membership/ownership checks used inside RLS policies. SECURITY DEFINER
--- so they bypass RLS on squad_members/squads — this is what breaks the classic
--- "policy queries the same table it protects" recursion.
-create or replace function public.is_squad_member(p_squad uuid, p_user uuid)
-returns boolean language sql security definer stable set search_path = public as $$
-  select exists (
-    select 1 from public.squad_members
-    where squad_id = p_squad and user_id = p_user
-  );
-$$;
-
-create or replace function public.is_squad_owner(p_squad uuid, p_user uuid)
-returns boolean language sql security definer stable set search_path = public as $$
-  select exists (
-    select 1 from public.squads
-    where id = p_squad and owner = p_user
-  );
-$$;
+-- The squad membership/ownership helpers live further down, immediately after
+-- the squads/squad_members tables they read. They are `language sql`, so
+-- Postgres parses and validates their bodies at CREATE time; defining them up
+-- here fails with 42P01 relation "public.squad_members" does not exist.
 
 -- ---------------------------------------------------------------------------
 -- profiles — one row per auth user, auto-created on signup
@@ -153,6 +139,27 @@ create table public.squad_members (
   primary key (squad_id, user_id)
 );
 alter table public.squad_members enable row level security;
+
+-- Squad membership/ownership checks used inside RLS policies. SECURITY DEFINER
+-- so they bypass RLS on squad_members/squads, which is what breaks the classic
+-- "policy queries the same table it protects" recursion. Defined here, after
+-- both tables exist, because `language sql` bodies are validated at CREATE
+-- time (unlike plpgsql, which defers resolution to first call).
+create or replace function public.is_squad_member(p_squad uuid, p_user uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from public.squad_members
+    where squad_id = p_squad and user_id = p_user
+  );
+$$;
+
+create or replace function public.is_squad_owner(p_squad uuid, p_user uuid)
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (
+    select 1 from public.squads
+    where id = p_squad and owner = p_user
+  );
+$$;
 
 create policy "members see their squads"
   on public.squads for select to authenticated

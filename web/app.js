@@ -393,17 +393,17 @@ async function renderInstanceDetail(id) {
 
     <div class="section-head" style="margin-top:22px"><span class="section-title">All ${modCount}</span></div>
     <div class="mod-toolbar">
-      <input class="inp mod-filter" id="mod-filter" placeholder="Filter all">
+      <span class="field-search">${ico("i-search")}<input class="inp mod-filter" id="mod-filter" placeholder="Filter all"></span>
       <div class="seg" id="mod-state">
         <button class="seg-btn is-on" data-mstate="all">All</button>
         <button class="seg-btn" data-mstate="on">Enabled</button>
         <button class="seg-btn" data-mstate="off">Disabled</button>
       </div>
-      <select class="inp mod-sort" id="mod-sort">
+      <span class="field-sort">${ico("i-sort")}<select class="inp mod-sort" id="mod-sort">
         <option value="added">Date added</option>
         <option value="name">Name</option>
         <option value="size">Size</option>
-      </select>
+      </select></span>
     </div>
     <div class="mods-list" id="mods-list"></div>
     <div class="mods-foot kick" id="mods-foot"></div>
@@ -1882,7 +1882,7 @@ async function renderKeybinds() {
     <div class="kb-head">
       <div class="kb-head-top">
         <h1 class="page-title pix-title">Keybinds</h1>
-        <input class="inp kb-filter" id="kb-filter" placeholder="Filter actions" value="${esc(kbFilter)}">
+        <span class="field-search"><svg class="ico"><use href="#i-search"/></svg><input class="inp kb-filter" id="kb-filter" placeholder="Filter actions" value="${esc(kbFilter)}"></span>
         <button class="gh" id="kb-add">${ico("i-plus")} Add keybind</button>
       </div>
       <div class="kb-head-row">

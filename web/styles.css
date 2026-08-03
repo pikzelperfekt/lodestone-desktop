@@ -25,7 +25,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* ---------- Sidebar (chrome layer: deepslate-0) ---------- */
 .sidebar {
-  width: 248px; flex: 0 0 248px; height: 100%;
+  width: 216px; flex: 0 0 216px; height: 100%;
   background: var(--deepslate-0);
   border-right: 1px solid var(--edge);
   display: flex; flex-direction: column;
@@ -35,7 +35,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* The brand badge is the one intentionally round thing besides the switch:
    a solid lime disc with the compass glyph knocked out of it. */
 .brand-mark {
-  width: 30px; height: 30px; font-size: 17px;
+  width: 26px; height: 26px; font-size: 14px;
   display: flex; align-items: center; justify-content: center;
   color: var(--voxel-ink);
   background: var(--voxel-accent);
@@ -44,19 +44,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   box-shadow: var(--voxel-glow);
 }
 .brand-mark .ico { stroke-width: 2.2; }
-.brand-name { font-family: var(--font-pixel); font-weight: 400; font-size: 14px;
+.brand-name { font-family: var(--font-pixel); font-weight: 400; font-size: 12.5px;
   letter-spacing: .08em; text-transform: uppercase; color: var(--text-primary); }
 
 .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 10px; }
 .nav-item {
-  position: relative; display: flex; align-items: center; gap: 13px;
-  padding: 10px 14px; border-radius: 0; border: none; background: transparent;
+  position: relative; display: flex; align-items: center; gap: 10px;
+  padding: 8px 11px; border-radius: 0; border: none; background: transparent;
   color: var(--voxel-muted); font-family: var(--font-body); font-weight: 400;
-  font-size: 15px; letter-spacing: 0;
+  font-size: 13.5px; letter-spacing: 0;
   cursor: pointer; text-align: left; width: 100%;
   transition: color .12s ease, background-color .12s ease;
 }
-.nav-item .ico { font-size: 19px; width: 22px; stroke-width: 1.7; }
+.nav-item .ico { font-size: 16px; width: 18px; stroke-width: 1.8; }
 .nav-item:hover { color: var(--text-primary); background: var(--voxel-hover); }
 /* Active nav is accent-on-accent-tint. No needle, no left capsule — the Mac
    app dropped both; the tint plus the lime label carries the state. */
@@ -65,18 +65,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* Sidebar group headings (PINNED / SETUP) — pixel kickers. */
 .nav-group { font-family: var(--font-pixel); font-weight: 400; font-size: 10px;
-  letter-spacing: .04em; text-transform: uppercase; color: var(--voxel-muted);
-  opacity: .8; padding: 22px 14px 9px; }
+  letter-spacing: .01em; text-transform: uppercase; color: var(--voxel-muted);
+  padding: 18px 11px 7px; }
 
 /* Pinned instances: a square colour chip + the name. */
-.pin-item { display: flex; align-items: center; gap: 13px; padding: 10px 14px;
+.pin-item { display: flex; align-items: center; gap: 10px; padding: 8px 11px;
   border: none; background: transparent; color: var(--text-secondary);
-  font-family: var(--font-body); font-size: 15px; cursor: pointer; text-align: left; width: 100%; }
+  font-family: var(--font-body); font-size: 13.5px; cursor: pointer; text-align: left; width: 100%; }
 .pin-item:hover { background: var(--voxel-hover); color: var(--text-primary); }
 /* Opening a pinned pack lights the row the same way an active nav row lights,
    because it IS the current destination. */
 .pin-item.is-active { background: var(--voxel-soft); color: var(--text-primary); font-weight: 500; }
-.pin-dot { width: 13px; height: 13px; border-radius: 0; flex: 0 0 auto; margin-left: 4px; }
+.pin-dot { width: 9px; height: 9px; border-radius: 0; flex: 0 0 auto; margin-left: 3px; }
 
 /* The account foot: skin head + name + icon actions. No card, no chevron. */
 .account {
@@ -98,7 +98,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .account-act:hover { color: var(--voxel-accent); background: var(--voxel-hover); }
 
 /* ---------- Content (canvas layer) ---------- */
-.content { flex: 1; height: 100%; overflow-y: auto; padding: 32px 36px 64px;
+.content { flex: 1; height: 100%; overflow-y: auto; padding: 22px 26px 56px;
   background: var(--voxel-bg);
 }
 /* The 16px graph-paper texture + warm corner bloom. It sits ABOVE the content
@@ -462,12 +462,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* Toggle switch */
 /* The switch is Voxel's ONE deliberate exception: the prototype keeps .sw
    round (999px track, 50% knob) even though everything else is square. */
-.switch { position:relative; width:44px; height:26px; flex:0 0 44px; border:none; border-radius: 999px; cursor:pointer;
+.switch { position:relative; width:34px; height:20px; flex:0 0 34px; border:none; border-radius: 999px; cursor:pointer;
   background: var(--deepslate-3); border: 1px solid var(--edge); transition: background .18s ease; padding:0; }
 .switch.on { background: var(--glint-deep); border-color: transparent; }
-.switch .knob { position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius: 50%; background:#fff;
+.switch .knob { position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius: 50%; background:#fff;
   box-shadow:0 2px 5px rgba(0,0,0,.35); transition: transform .18s var(--ease-out); }
-.switch.on .knob { transform: translateX(18px); }
+.switch.on .knob { transform: translateX(14px); }
 
 /* About */
 .about-card { padding:6px 18px; }
@@ -1007,11 +1007,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   box-shadow: var(--voxel-bevel); transition: background .12s ease; }
 .gh:hover { background: var(--voxel-hover); }
 .gh.is-on { border-color: var(--voxel-accent); color: var(--voxel-accent); }
-.gh.ico-btn { width: 44px; padding: 0; flex: none; height: 56px; font-size: 17px; }
+.gh.ico-btn { width: 40px; padding: 0; flex: none; height: 40px; font-size: 15px; }
 .gh-sm { height: 26px; padding: 0 10px; font-size: 11.5px; }
 
 /* ---- The hero. Full-bleed art, scrim, content sitting on top. ---- */
-.vhero { position: relative; margin: -32px -36px 0; padding: 0; min-height: 340px;
+.vhero { position: relative; margin: -22px -26px 0; padding: 0; min-height: 300px;
   display: flex; align-items: flex-end; overflow: hidden; }
 .vhero-art { position: absolute; inset: 0; background-size: cover; background-position: center;
   image-rendering: pixelated; }
@@ -1023,18 +1023,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* Bottom-up scrim so the title stays legible over any screenshot. */
 .vhero-scrim { position: absolute; inset: 0;
   background: linear-gradient(180deg, rgba(27,31,26,.15) 0%, rgba(27,31,26,.72) 58%, var(--voxel-bg) 100%); }
-.vhero-body { position: relative; z-index: 2; width: 100%; padding: 0 36px 26px; }
-.vhero-title { font-family: var(--font-pixel); font-weight: 400; font-size: var(--text-hero);
-  line-height: 1.15; letter-spacing: 0; color: var(--voxel-text); text-transform: uppercase;
-  margin: 10px 0 18px; text-shadow: 0 3px 0 rgba(0,0,0,.45); }
+.vhero-body { position: relative; z-index: 2; width: 100%; padding: 0 26px 22px; }
+.vhero-title { font-family: var(--font-pixel); font-weight: 400; font-size: 33px;
+  line-height: 1.25; letter-spacing: 0; color: var(--voxel-text); text-transform: uppercase;
+  margin: 7px 0 14px; text-shadow: 0 2px 0 rgba(0,0,0,.45); }
 .vhero-row { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
-.vchips { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; }
-.vchip { display: inline-flex; align-items: center; height: 44px; padding: 0 20px;
-  border: 1px solid var(--voxel-line); border-radius: 0; font-size: 14px;
+.vchips { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; align-items: center; }
+.vchip { display: inline-flex; align-items: center; height: 27px; padding: 0 12px;
+  border: 1px solid var(--voxel-line); border-radius: 0; font-size: 11.5px; white-space: nowrap;
   color: var(--voxel-text); background: rgba(22,26,21,.55); backdrop-filter: blur(6px);
   box-shadow: var(--voxel-bevel); }
 .vhero-actions { display: flex; gap: 12px; align-items: stretch; }
-.vhero-actions .play-btn { min-width: 210px; font-size: 17px; }
+.vhero-actions .play-btn { min-width: 190px; font-size: 15px; padding: 0 22px; height: 40px; }
 /* When there's no art the whole hero is the drop target. */
 .vhero.no-art { cursor: pointer; }
 .vhero.no-art:hover .vhero-art-empty { filter: brightness(1.25); }
@@ -1073,7 +1073,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .rcard-time { font-size: 11.5px; color: var(--voxel-accent); flex: none; }
 
 /* Dashed progress bar — 5px on, 2px gap, the Voxel signature. */
-.dashbar { height: 4px; flex: 1; background: var(--voxel-hair); overflow: hidden; }
+.dashbar { height: 3px; flex: 1; background: var(--voxel-hair); overflow: hidden; }
 .dashbar i { display: block; height: 100%; background: var(--voxel-barfill); opacity: .95; }
 
 /* ---- Server rows on the Play screen ---- */
@@ -1132,12 +1132,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .strip-card.has-flair { box-shadow: var(--voxel-bevel), inset 0 0 0 2px color-mix(in srgb, var(--flair) 55%, transparent); }
 .strip-card.has-flair:hover { box-shadow: var(--voxel-bevel), inset 0 0 0 2px var(--voxel-accent); }
 
-.strip-card .inst-art { height: 118px; width: 100%; position: relative;
+.strip-card .inst-art { height: 112px; width: 100%; position: relative;
   background-size: cover; background-position: center; image-rendering: pixelated; }
-.strip-card .inst-body { padding: 12px 13px; display: flex; flex-direction: column; gap: 6px; }
-.strip-card .inst-name { font-size: 15px; font-weight: 500; color: var(--text-primary);
+.strip-card .inst-body { padding: 11px 12px; display: flex; flex-direction: column; gap: 5px; }
+.strip-card .inst-name { font-size: 13.5px; font-weight: 500; color: var(--text-primary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.strip-card .inst-facts { font-size: 11.5px; color: var(--text-tertiary); }
+.strip-card .inst-facts { font-size: 11px; color: var(--text-tertiary); }
 .strip-card .rcard-foot { margin-top: 2px; }
 
 /* Quick-play, revealed on hover in the corner of the artwork. */
@@ -1154,7 +1154,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .strip-card .card-del:hover { color: var(--danger); }
 
 /* The Home rail reuses the very same card. */
-.rail-cell { width: 200px; flex: none; }
+.rail-cell { width: 178px; flex: none; }
 
 .page-count { font-family: var(--font-pixel); font-size: 15px; color: var(--voxel-muted);
   margin-left: 8px; font-weight: 400; }
@@ -1183,7 +1183,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   border-bottom: 1px solid var(--voxel-hair); }
 .gs-row:last-child { border-bottom: 0; }
 .gs-meta { flex: 1; min-width: 0; }
-.gs-label { font-size: 13.5px; font-weight: 600; color: var(--text-primary); }
+.gs-label { font-size: 13px; font-weight: 500; color: var(--text-primary); }
 .gs-desc { font-size: 11.5px; color: var(--voxel-muted); margin-top: 2px; line-height: 1.45; }
 .gs-ctl { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
 .gs-slider { display: flex; align-items: center; gap: 12px; min-width: 260px; }
@@ -1199,12 +1199,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   margin-top: -6px; background: var(--voxel-accent); box-shadow: var(--voxel-bevel); }
 
 /* Segmented control: the active option is accent-outlined, not filled. */
-.seg { display: inline-flex; border: 1px solid var(--voxel-line); border-radius: 0;
-  overflow: hidden; height: 30px; box-shadow: var(--voxel-bevel); }
-.seg-btn { border: 0; background: transparent; color: var(--voxel-muted); cursor: pointer;
-  padding: 0 13px; font: 500 12px var(--font-body); }
-.seg-btn + .seg-btn { border-left: 1px solid var(--voxel-line); }
-.seg-btn.is-on { background: var(--voxel-soft); color: var(--voxel-accent); }
+.seg { display: inline-flex; gap: 8px; height: 32px; }
+.seg-btn { border: 1px solid var(--voxel-line); border-radius: 0; cursor: pointer;
+  background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(0,0,0,.14));
+  color: var(--voxel-muted); padding: 0 16px; font: 500 12.5px var(--font-body);
+  box-shadow: var(--voxel-bevel); }
+.seg-btn:hover { background: var(--voxel-hover); color: var(--text-primary); }
+.seg-btn.is-on { border-color: var(--voxel-accent); color: var(--voxel-accent);
+  background: var(--voxel-soft); }
 
 .skin-wrap { display: flex; gap: 30px; align-items: flex-start; padding: 22px;
   background: var(--voxel-elev); box-shadow: var(--voxel-bevel); }
@@ -1270,8 +1272,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .gs-val.is-set { color: var(--voxel-accent); }
 
 /* ---- Keybinds screen ---- */
-.pix-title { font-family: var(--font-pixel); font-weight: 400; letter-spacing: .04em;
-  text-transform: uppercase; font-size: 22px; }
+.pix-title { font-family: var(--font-pixel); font-weight: 400; letter-spacing: .02em;
+  text-transform: uppercase; font-size: 19px; }
 .kb-head { padding: 0 0 14px; border-bottom: 1px solid var(--voxel-hair); margin-bottom: 4px; }
 .kb-head-top { display: flex; align-items: center; gap: 12px; }
 .kb-head-top .page-title { flex: 1; }
@@ -1294,8 +1296,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .kb-row.is-off { opacity: .45; }
 /* The category column is what makes a mod's binds legible at a glance. */
 .kb-cat { width: 150px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kb-action { flex: 1; font-size: 14px; color: var(--text-primary); }
-.kb-key { width: 150px; flex: none; height: 34px; cursor: pointer;
+.kb-action { flex: 1; font-size: 13.5px; color: var(--text-primary); }
+.kb-key { width: 140px; flex: none; height: 30px; cursor: pointer;
   background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(0,0,0,.14));
   border: 1px solid var(--voxel-line); border-radius: 0; box-shadow: var(--voxel-bevel);
   color: var(--voxel-muted); font: 500 13px var(--font-body); }
@@ -1319,8 +1321,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .host-opt span { font-size: 11.5px; color: var(--voxel-muted); line-height: 1.5; }
 
 /* ---- Instance detail hero ---- */
-.detail-vhero { min-height: 300px; }
-.detail-back { position: absolute; top: 18px; left: 26px; z-index: 4; width: 38px; height: 38px; }
+.detail-vhero { min-height: 268px; }
+.detail-back { position: absolute; top: 16px; left: 22px; z-index: 4; width: 32px; height: 32px; }
 .vchip.health { color: var(--voxel-accent); gap: 7px; }
 .vchip.health .ico { font-size: 14px; }
 .vchip.health.warn { color: var(--warn); }
@@ -1334,19 +1336,77 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .mod-filter { width: 260px; flex: none; height: 32px; }
 .mod-sort { width: 150px; flex: none; height: 32px; margin-left: auto; }
 .mods-list { display: flex; flex-direction: column; }
-.mod-row { display: flex; align-items: center; gap: 14px; padding: 10px 4px;
+.mod-row { display: flex; align-items: center; gap: 14px; padding: 11px 4px;
   border-bottom: 1px solid var(--voxel-hair); }
 .mod-row:hover { background: var(--voxel-hover); }
 .mod-row.is-off { opacity: .45; }
-.mod-ico { width: 38px; height: 38px; flex: none; object-fit: cover; image-rendering: pixelated;
+.mod-ico { width: 34px; height: 34px; flex: none; object-fit: cover; image-rendering: pixelated;
   box-shadow: var(--voxel-recess); background: var(--voxel-side); }
 .mod-ico.ph { display: grid; place-items: center; color: var(--voxel-muted); font-size: 17px; }
 .mod-meta { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
-.mod-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
-.mod-file { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary);
+.mod-title { font-size: 13.5px; font-weight: 600; color: var(--text-primary); }
+.mod-file { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-tertiary);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mod-tag { font-family: var(--font-pixel); font-size: 8.5px; font-style: normal;
   color: var(--voxel-muted); margin-left: 6px; letter-spacing: .04em; }
 .mod-tag.warn { color: var(--warn); }
 .mod-req { font-size: 11px; color: var(--voxel-muted); flex: none; }
 .mods-foot { margin-top: 14px; }
+
+/* ======================================================================
+   FORM CONTROLS — lifted from the prototype's .inp. These were never
+   defined, so every input and select in the app was falling back to the
+   browser's white default, which is what made whole screens look unfinished.
+   ====================================================================== */
+.inp {
+  height: 32px; border-radius: 0; border: 1px solid var(--voxel-line);
+  background: var(--voxel-elev); color: var(--voxel-text);
+  padding: 0 12px; font: 400 13px var(--font-body); outline: none; width: 100%;
+  box-shadow: var(--voxel-bevel);
+}
+.inp::placeholder { color: var(--voxel-muted); }
+.inp:focus-visible, .inp:focus { border-color: var(--voxel-accent); outline: none; }
+
+/* A <select> keeps its native arrow and native popup colours unless we take
+   the appearance off and draw our own caret. */
+select.inp {
+  appearance: none; -webkit-appearance: none; padding-right: 30px; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--voxel-muted) 50%),
+                    linear-gradient(135deg, var(--voxel-muted) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 14px, calc(100% - 11px) 14px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+select.inp option { background: var(--voxel-elev); color: var(--voxel-text); }
+
+textarea.inp, .share-box {
+  height: auto; min-height: 64px; padding: 10px 12px; resize: vertical;
+  border-radius: 0; border: 1px solid var(--voxel-line);
+  background: var(--voxel-elev); color: var(--voxel-text);
+  font: 400 12.5px var(--font-mono); width: 100%; box-shadow: var(--voxel-bevel); outline: none;
+}
+.share-box:focus-visible, .share-box:focus { border-color: var(--voxel-accent); }
+
+/* Search fields carry the magnifier inline, as on Mac. */
+.field-search { position: relative; display: inline-flex; align-items: center; }
+.field-search .ico { position: absolute; left: 11px; font-size: 14px; color: var(--voxel-muted);
+  pointer-events: none; }
+.field-search .inp { padding-left: 32px; }
+
+/* Width overrides need to out-specify .inp{width:100%}, which is declared after
+   these components and would otherwise win on source order — that was blowing
+   the mod toolbar apart and pushing the filter buttons out of the row. */
+.mod-toolbar .inp.mod-filter { width: 250px; flex: 0 0 250px; }
+.mod-toolbar .inp.mod-sort   { width: 150px; flex: 0 0 150px; margin-left: auto; }
+.kb-head-top .inp.kb-filter  { width: 200px; flex: 0 0 200px; }
+.np-grid .inp, .np-field .inp { width: 100%; }
+
+/* Sort select with its own leading icon, matching the mod toolbar's search. */
+.field-sort { position: relative; display: inline-flex; align-items: center; margin-left: auto; }
+.field-sort .ico { position: absolute; left: 11px; font-size: 13px; color: var(--voxel-muted);
+  pointer-events: none; z-index: 1; }
+.field-sort .inp { padding-left: 32px; margin-left: 0; }
+.mod-toolbar .field-sort .inp.mod-sort { margin-left: 0; }
+/* Roomier filter buttons, closer to the Mac spacing. */
+.mod-toolbar .seg-btn { padding: 0 18px; height: 32px; }
+.mod-toolbar .seg { gap: 8px; height: 32px; }

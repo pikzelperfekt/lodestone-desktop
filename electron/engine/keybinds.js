@@ -172,4 +172,4 @@ function resetAll(dataDir, instanceId) {
   return list(dataDir, instanceId);
 }
 
-module.exports = { list, set, reset, resetAll, keyLabel, actionInfo };
+module.exports = { list, set, reset, resetAll, keyLabel, actionInfo, VANILLA, CATEGORY_ORDER };

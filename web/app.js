@@ -985,9 +985,10 @@ async function renderServers() {
   const servers = await API.servers.list();
   el().innerHTML = `
     <div class="page-head">
-      <h1 class="page-title">Servers</h1>
+      <h1 class="page-title">My servers</h1>
+      <span class="page-count">${servers.filter((s) => s.running).length} of ${servers.length} running</span>
       <div class="head-actions">
-        <button class="btn-soft" id="new-server">${ico("i-plus")} New Server</button>
+        <button class="gh" id="new-server">${ico("i-plus")} New Server</button>
       </div>
     </div>
     <div id="new-server-panel"></div>
@@ -1019,19 +1020,29 @@ async function renderServers() {
   }));
 }
 
+// Voxel server panel: colour strip, square status dot, then a row of real
+// stats under pixel kickers. Deliberately no players/uptime/memory-usage
+// columns — those need a live query we don't have here, and inventing them
+// would be a dashboard that lies.
 const serverRow = (s) => `
-  <div class="glass srv-row" data-srvopen="${s.id}">
-    <div class="srv-icon">${ico("i-server")}</div>
-    <div class="hit-meta">
-      <div class="srv-name">${esc(s.name)}</div>
-      <div class="srv-sub">${esc(platLabel(s.platform))} · ${esc(s.mcVersion)}</div>
+  <div class="srv-panel" data-srvopen="${s.id}">
+    <div class="strip" style="background:${esc(s.accent || "#8EC44F")}"></div>
+    <div class="srv-head">
+      <span class="srv-name">${esc(s.name)}</span>
+      <span class="vserver-dot${s.running ? " on" : ""}"></span>
+      <span class="srv-state${s.running ? " on" : ""}">${s.running ? "Running" : "Stopped"}</span>
+      <div class="srv-actions">
+        ${s.running
+          ? `<button class="play-btn srv-play" data-srvstop="${s.id}">Stop</button>`
+          : `<button class="play-btn srv-play" data-srvstart="${s.id}">${ico("i-play")} Start</button>`}
+        <button class="gh ico-sq" data-srvdel="${s.id}" title="Delete server">${ico("i-trash")}</button>
+      </div>
     </div>
-    <span class="pill ${s.running ? "live" : "idle"}">${s.running ? "RUNNING" : "STOPPED"}</span>
-    <div class="srv-actions">
-      ${s.running
-        ? `<button class="btn-soft" data-srvstop="${s.id}">Stop</button>`
-        : `<button class="btn-accent srv-play" data-srvstart="${s.id}">${ico("i-play")} Start</button>`}
-      <button class="btn-ghost world-x" data-srvdel="${s.id}" title="Delete server">${ico("i-trash")}</button>
+    <div class="srv-stats">
+      <div class="srv-stat"><span class="kick">Platform</span><b>${esc(platLabel(s.platform))}</b></div>
+      <div class="srv-stat"><span class="kick">Version</span><b>${esc(s.mcVersion)}</b></div>
+      <div class="srv-stat"><span class="kick">Memory</span><b>${s.ramMB ? Math.round(s.ramMB / 1024 * 10) / 10 + " GB" : "Default"}</b></div>
+      <div class="srv-stat"><span class="kick">Last run</span><b>${esc(s.lastStarted ? relTime(s.lastStarted) : "Never")}</b></div>
     </div>
   </div>`;
 
@@ -1312,7 +1323,7 @@ function bindCommon() {
 function navigate(section) {
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("is-active", b.dataset.section === section));
   if (section === "discover") discoverTarget = null;   // Discover = browse for any instance
-  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, cloud: renderCloud, friends: renderFriends, squads: renderSquads, settings: renderSettings }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
+  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, cloud: renderCloud, friends: renderFriends, squads: renderSquads, settings: renderSettings, game: renderGameSettings, keybinds: renderKeybinds, skins: renderSkins }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
 }
 
 // ---- PINNED sidebar block ----
@@ -1344,6 +1355,254 @@ async function renderPinned() {
     document.querySelectorAll(".nav-item").forEach((n) => n.classList.remove("is-active"));
     renderInstanceDetail(b.dataset.pinOpen);
   });
+}
+
+
+// ---------- SETUP: GAME SETTINGS (global, applied to every instance) ----------
+async function renderGameSettings() {
+  el().innerHTML = `<div class="placeholder">${ico("i-game")}<h2>Loading…</h2></div>`;
+  const { fields, values } = await API.setup.game();
+
+  const control = (f) => {
+    const v = values[f.key];
+    const set = v !== undefined && v !== null;
+    if (f.kind === "toggle") {
+      const on = String(v) === "true";
+      return `<button class="switch ${on ? "on" : ""}" data-gs-toggle="${f.key}" aria-pressed="${on}"><span class="knob"></span></button>`;
+    }
+    if (f.kind === "segmented") {
+      return `<div class="seg">${f.options.map(([val, label]) =>
+        `<button class="seg-btn ${String(v) === val ? "is-on" : ""}" data-gs-seg="${f.key}" data-val="${val}">${esc(label)}</button>`).join("")}</div>`;
+    }
+    const shown = set ? v : f.min;
+    return `<div class="gs-slider">
+      <input class="rng" type="range" min="${f.min}" max="${f.max}" step="${f.step}" value="${shown}" data-gs-range="${f.key}">
+      <span class="gs-val" data-gs-val="${f.key}">${set ? esc(String(shown)) + esc(f.unit || "") : "Game default"}</span>
+    </div>`;
+  };
+
+  const groups = [...new Set(fields.map((f) => f.group))];
+  el().innerHTML = `
+    <div class="page-head">
+      <h1 class="page-title">Game settings</h1>
+      <span class="page-count">Applied to every instance</span>
+      <div class="head-actions"><button class="gh" id="gs-reset">Reset to defaults</button></div>
+    </div>
+    ${groups.map((g) => `
+      <section class="vsec">
+        <div class="vsec-head"><span class="kick">${esc(g)}</span></div>
+        <div class="gs-list">
+          ${fields.filter((f) => f.group === g).map((f) => `
+            <div class="gs-row">
+              <div class="gs-meta">
+                <div class="gs-label">${esc(f.label)}</div>
+                ${f.desc ? `<div class="gs-desc">${esc(f.desc)}</div>` : ""}
+              </div>
+              <div class="gs-ctl">${control(f)}</div>
+            </div>`).join("")}
+        </div>
+      </section>`).join("")}
+    <p class="share-note">Anything you leave untouched keeps whatever the game already has. Settings are written into each instance the next time it launches.</p>`;
+
+  const save = async (patch) => {
+    try { await API.setup.setGame(patch); } catch (e) { toast(e.message); }
+  };
+
+  el().querySelectorAll("[data-gs-toggle]").forEach((b) => b.onclick = async () => {
+    const on = !b.classList.contains("on");
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
+    await save({ [b.dataset.gsToggle]: on });
+  });
+  el().querySelectorAll("[data-gs-seg]").forEach((b) => b.onclick = async () => {
+    const key = b.dataset.gsSeg;
+    el().querySelectorAll(`[data-gs-seg="${key}"]`).forEach((x) => x.classList.remove("is-on"));
+    b.classList.add("is-on");
+    await save({ [key]: b.dataset.val });
+  });
+  el().querySelectorAll("[data-gs-range]").forEach((r) => {
+    const key = r.dataset.gsRange;
+    const field = fields.find((f) => f.key === key);
+    const out = el().querySelector(`[data-gs-val="${key}"]`);
+    r.oninput = () => { if (out) out.textContent = r.value + (field.unit || ""); };
+    r.onchange = () => save({ [key]: r.value });
+  });
+  document.getElementById("gs-reset").onclick = async () => {
+    if (!confirm("Clear every global game setting? Instances keep whatever they already have.")) return;
+    const clear = {}; fields.forEach((f) => (clear[f.key] = null));
+    await save(clear); toast("Cleared."); renderGameSettings();
+  };
+}
+
+// ---------- SETUP: KEYBINDS (global profile layered over every instance) ----------
+async function renderKeybinds() {
+  el().innerHTML = `<div class="placeholder">${ico("i-game")}<h2>Loading…</h2></div>`;
+  const { categories } = await API.setup.keybinds();
+  const bound = categories.reduce((n, c) => n + c.binds.filter((b) => b.value).length, 0);
+
+  el().innerHTML = `
+    <div class="page-head">
+      <h1 class="page-title">Keybinds</h1>
+      <span class="page-count">${bound} set</span>
+      <div class="head-actions"><button class="gh" id="kb-clear">Clear all</button></div>
+    </div>
+    ${categories.map((c) => `
+      <section class="vsec">
+        <div class="vsec-head"><span class="kick">${esc(c.category)}</span></div>
+        <div class="gs-list">
+          ${c.binds.map((b) => `
+            <div class="gs-row">
+              <div class="gs-meta"><div class="gs-label">${esc(b.label)}</div></div>
+              <div class="gs-ctl">
+                <button class="gh kb-key" data-kbg="${esc(b.action)}">${b.value ? esc(b.keyLabel) : "Game default"}</button>
+                ${b.value ? `<button class="gh gh-sm" data-kbg-clear="${esc(b.action)}">Clear</button>` : ""}
+              </div>
+            </div>`).join("")}
+        </div>
+      </section>`).join("")}
+    <p class="share-note">These are applied on top of each instance's own keybinds when it launches. Anything left on "Game default" is never written.</p>`;
+
+  el().querySelectorAll("[data-kbg]").forEach((b) => b.onclick = () => captureGlobalKey(b));
+  el().querySelectorAll("[data-kbg-clear]").forEach((b) => b.onclick = async () => {
+    try { await API.setup.setKeybind({ action: b.dataset.kbgClear, value: null }); renderKeybinds(); }
+    catch (e) { toast(e.message); }
+  });
+  document.getElementById("kb-clear").onclick = async () => {
+    if (!confirm("Clear every global keybind? Instances keep their own.")) return;
+    try { await API.setup.resetKeybinds(); toast("Cleared."); renderKeybinds(); }
+    catch (e) { toast(e.message); }
+  };
+}
+
+// Listen for one real keypress and store Minecraft's own input name for it.
+function captureGlobalKey(btn) {
+  const original = btn.textContent;
+  btn.textContent = "Press a key…";
+  btn.classList.add("is-on");
+  const finish = () => {
+    window.removeEventListener("keydown", onKey, true);
+    window.removeEventListener("mousedown", onMouse, true);
+  };
+  const commit = async (value) => {
+    finish();
+    try { await API.setup.setKeybind({ action: btn.dataset.kbg, value }); renderKeybinds(); }
+    catch (e) { btn.textContent = original; btn.classList.remove("is-on"); toast(e.message); }
+  };
+  const onKey = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.key === "Escape") { finish(); btn.textContent = original; btn.classList.remove("is-on"); return; }
+    const name = mcKeyName(e);
+    if (name) commit(name);
+  };
+  const onMouse = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const map = { 0: "left", 1: "middle", 2: "right" };
+    commit("key.mouse." + (map[e.button] || e.button));
+  };
+  window.addEventListener("keydown", onKey, true);
+  window.addEventListener("mousedown", onMouse, true);
+}
+
+// Browser KeyboardEvent.code -> Minecraft's key.keyboard.* name.
+function mcKeyName(e) {
+  const c = e.code;
+  if (/^Key[A-Z]$/.test(c)) return "key.keyboard." + c.slice(3).toLowerCase();
+  if (/^Digit[0-9]$/.test(c)) return "key.keyboard." + c.slice(5);
+  if (/^F([1-9]|1[0-9]|2[0-5])$/.test(c)) return "key.keyboard." + c.toLowerCase();
+  if (/^Numpad[0-9]$/.test(c)) return "key.keyboard.keypad." + c.slice(6);
+  const named = {
+    Space: "space", Enter: "enter", Escape: "escape", Backspace: "backspace", Tab: "tab",
+    Insert: "insert", Delete: "delete", Home: "home", End: "end",
+    PageUp: "page.up", PageDown: "page.down",
+    ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
+    ShiftLeft: "left.shift", ShiftRight: "right.shift",
+    ControlLeft: "left.control", ControlRight: "right.control",
+    AltLeft: "left.alt", AltRight: "right.alt",
+    CapsLock: "caps.lock", Minus: "minus", Equal: "equal",
+    BracketLeft: "left.bracket", BracketRight: "right.bracket",
+    Semicolon: "semicolon", Quote: "apostrophe", Backquote: "grave.accent",
+    Backslash: "backslash", Comma: "comma", Period: "period", Slash: "slash",
+  };
+  return named[c] ? "key.keyboard." + named[c] : null;
+}
+
+// ---------- SETUP: SKINS ----------
+async function renderSkins() {
+  el().innerHTML = `<div class="placeholder">${ico("i-user")}<h2>Loading…</h2></div>`;
+  const acc = await API.account.get().catch(() => null);
+  if (!acc) {
+    el().innerHTML = `
+      <div class="placeholder">${ico("i-user")}
+        <h2>Sign in to manage your skin</h2>
+        <p>Skins are part of your Microsoft account, so Lodestone needs you signed in.</p>
+      </div>`;
+    return;
+  }
+
+  const uuid = String(acc.uuid || "").replace(/-/g, "");
+  el().innerHTML = `
+    <div class="page-head"><h1 class="page-title">Skins</h1></div>
+    <section class="vsec">
+      <div class="skin-wrap">
+        <div class="skin-render">
+          <img src="https://mc-heads.net/body/${esc(uuid)}/220" alt="Your current skin" class="skin-img">
+        </div>
+        <div class="skin-side">
+          <div class="kick">Signed in as</div>
+          <div class="skin-name">${esc(acc.name)}</div>
+
+          <div class="kick" style="margin-top:18px">Model</div>
+          <div class="seg" id="skin-variant">
+            <button class="seg-btn is-on" data-variant="classic">Classic</button>
+            <button class="seg-btn" data-variant="slim">Slim</button>
+          </div>
+
+          <div class="skin-actions">
+            <button class="play-btn" id="skin-upload">${ico("i-download")} Upload a skin</button>
+            <button class="gh" id="skin-reset">Reset to default</button>
+          </div>
+          <p class="share-note">A skin is a 64x64 PNG. Drop one anywhere on this panel, or click Upload.
+            Changes go straight to your Microsoft account and show up in game.</p>
+        </div>
+      </div>
+    </section>
+    <input type="file" id="skin-file" accept="image/png" hidden>`;
+
+  let variant = "classic";
+  el().querySelectorAll("[data-variant]").forEach((b) => b.onclick = () => {
+    variant = b.dataset.variant;
+    el().querySelectorAll("[data-variant]").forEach((x) => x.classList.toggle("is-on", x === b));
+  });
+
+  const send = async (file) => {
+    if (!file) return;
+    if (!/\.png$/i.test(file.name)) { toast("Skins have to be PNG files."); return; }
+    toast("Uploading skin…");
+    try {
+      await API.setup.skinUpload(await fileToBase64(file), variant);
+      toast("Skin changed. It may take a minute to appear everywhere.");
+      renderSkins();
+    } catch (e) { toast(e.message); }
+  };
+
+  const input = document.getElementById("skin-file");
+  document.getElementById("skin-upload").onclick = () => input.click();
+  input.onchange = () => send(input.files && input.files[0]);
+
+  const panel = el().querySelector(".skin-wrap");
+  panel.addEventListener("dragover", (e) => { e.preventDefault(); e.stopPropagation(); panel.classList.add("drop-on"); });
+  panel.addEventListener("dragleave", () => panel.classList.remove("drop-on"));
+  panel.addEventListener("drop", (e) => {
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f || !/^image\//.test(f.type)) return;
+    e.preventDefault(); e.stopPropagation(); panel.classList.remove("drop-on");
+    send(f);
+  });
+
+  document.getElementById("skin-reset").onclick = async () => {
+    if (!confirm("Reset to the default Steve/Alex skin?")) return;
+    try { await API.setup.skinReset(); toast("Skin reset."); renderSkins(); }
+    catch (e) { toast(e.message); }
+  };
 }
 
 // ---------- Command palette (Ctrl/Cmd-K) ----------

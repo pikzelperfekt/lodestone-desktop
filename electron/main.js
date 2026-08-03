@@ -130,6 +130,15 @@ handle("pack:setMode", (a) => engine.packSetMode(a));
 handle("pack:invite", (a) => engine.packInvite(a));
 handle("pack:members", (a) => engine.packMembers(a));
 handle("pack:leave", (a) => engine.packLeave(a));
+// Global SETUP screens: Game settings, Keybinds profile, Skins.
+handle("setup:game:get", () => engine.gameSettingsGet());
+handle("setup:game:set", (a) => engine.gameSettingsSet(a));
+handle("setup:keybinds:get", () => engine.keybindProfileGet());
+handle("setup:keybinds:set", (a) => engine.keybindProfileSet(a));
+handle("setup:keybinds:reset", () => engine.keybindProfileReset());
+handle("setup:skin:profile", () => engine.skinProfile());
+handle("setup:skin:upload", (a) => engine.skinUpload(a));
+handle("setup:skin:reset", () => engine.skinReset());
 // Friends + Presence (Vertical B — social.js).
 handle("cloud:friends:list", () => engine.friendsList());
 handle("cloud:friends:search", (a) => engine.friendsSearch(a));

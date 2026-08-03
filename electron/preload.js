@@ -161,6 +161,17 @@ contextBridge.exposeInMainWorld("lodestone", {
     import: (opts) => call("packs:import", opts),
     openFolder: (opts) => call("packs:openFolder", opts),
   },
+  // Global SETUP profiles (distinct from the per-instance keybinds below).
+  setup: {
+    gameGet: () => call("setup:game:get"),
+    gameSet: (patch) => call("setup:game:set", patch),
+    keybindsGet: () => call("setup:keybinds:get"),
+    keybindsSet: (opts) => call("setup:keybinds:set", opts),
+    keybindsReset: () => call("setup:keybinds:reset"),
+    skinProfile: () => call("setup:skin:profile"),
+    skinUpload: (dataBase64, variant) => call("setup:skin:upload", { dataBase64, variant }),
+    skinReset: () => call("setup:skin:reset"),
+  },
   keybinds: {
     list: (instanceId) => call("keybinds:list", { instanceId }),
     set: (opts) => call("keybinds:set", opts),

@@ -19,6 +19,7 @@ const social = require("./social"); // Vertical B — Friends + Presence
 const chat = require("./chat");   // Vertical C — Chat + Squads
 const doctor = require("./doctor"); // [Crash Doctor] scan + fixes + mod bisect
 const settings = require("./settings");
+const globalsetup = require("./globalsetup"); // global Game settings + Keybinds + Skins
 const serverEngine = require("./server");
 const maintenance = require("./maintenance");
 const { launch: doLaunch, offlineSession } = require("./launch");
@@ -34,6 +35,7 @@ function init(userDataPath) {
   cloud.init(DATA_DIR);
   social.init(); // Vertical B: presence/friends realtime follow the cloud session
   settings.init(DATA_DIR);
+  globalsetup.init(DATA_DIR);
   // [Cloud Sync — Vertical A] inject the instance store + reconcile path, then
   // open the realtime channel if a session was restored from disk.
   sync.init({
@@ -423,6 +425,10 @@ async function launch(id) {
     const p = install.paths(DATA_DIR);
     const gameDir = p.instanceDir(id); fs.mkdirSync(gameDir, { recursive: true });
 
+    // Stamp the global Game settings + Keybinds profile into this instance's
+    // options.txt before the JVM reads it. Never blocks a launch if it fails.
+    try { globalsetup.applyToInstance(id); } catch { /* cosmetic */ }
+
     emit("launch:state", { id, status: "running" });
     const extraJvm = inst.javaArgs ? String(inst.javaArgs).split(/\s+/).filter(Boolean) : [];
     const startedAt = Date.now(); // [Voxel parity] real playtime, banked on exit
@@ -578,6 +584,15 @@ module.exports = {
   cloudProfile, cloudUpdateProfile, cloudLinkMinecraft, cloudSearchProfiles,
   // [Cloud Sync — Vertical A]
   cloudSyncPush, cloudSyncList, cloudSyncPull, cloudSyncRemove, cloudSyncStatus,
+  // ---- Global SETUP: Game settings / Keybinds / Skins ----
+  gameSettingsGet: () => globalsetup.getGameSettings(),
+  gameSettingsSet: (a) => globalsetup.setGameSettings(a),
+  keybindProfileGet: () => globalsetup.getKeybindProfile(),
+  keybindProfileSet: (a) => globalsetup.setKeybindProfile(a),
+  keybindProfileReset: () => globalsetup.resetKeybindProfile(),
+  skinProfile: async () => { const ses = await auth.currentSession(); return globalsetup.getProfile(ses && ses.accessToken); },
+  skinUpload: async (a) => { const ses = await auth.currentSession(); return globalsetup.uploadSkin({ token: ses && ses.accessToken, dataBase64: a && a.dataBase64, variant: a && a.variant }); },
+  skinReset: async () => { const ses = await auth.currentSession(); return globalsetup.resetSkin(ses && ses.accessToken); },
   // ---- Shared packs (permanent code + live propagation) ----
   packShare: (a) => packsync.createShare(a),
   packJoin: (a) => packsync.joinByCode(a && a.code),

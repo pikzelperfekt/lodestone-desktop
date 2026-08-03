@@ -271,6 +271,41 @@
       async remove(opts) { return bridge ? unwrap(await bridge.worlds.remove(opts)) : true; },
     },
 
+    // Global SETUP profiles: Game settings, Keybinds, Skins.
+    setup: {
+      async game() {
+        if (!bridge) return { fields: [], values: {} };
+        try { return unwrap(await bridge.setup.gameGet()); } catch { return { fields: [], values: {} }; }
+      },
+      async setGame(patch) {
+        if (bridge) return unwrap(await bridge.setup.gameSet(patch));
+        throw new Error("Game settings run in the desktop app.");
+      },
+      async keybinds() {
+        if (!bridge) return {};
+        try { return unwrap(await bridge.setup.keybindsGet()); } catch { return {}; }
+      },
+      async setKeybind(opts) {
+        if (bridge) return unwrap(await bridge.setup.keybindsSet(opts));
+        throw new Error("Keybinds run in the desktop app.");
+      },
+      async resetKeybinds() {
+        if (bridge) return unwrap(await bridge.setup.keybindsReset());
+        throw new Error("Keybinds run in the desktop app.");
+      },
+      async skinProfile() {
+        if (bridge) return unwrap(await bridge.setup.skinProfile());
+        throw new Error("Skins run in the desktop app.");
+      },
+      async skinUpload(dataBase64, variant) {
+        if (bridge) return unwrap(await bridge.setup.skinUpload(dataBase64, variant));
+        throw new Error("Skins run in the desktop app.");
+      },
+      async skinReset() {
+        if (bridge) return unwrap(await bridge.setup.skinReset());
+        throw new Error("Skins run in the desktop app.");
+      },
+    },
     servers: {
       async list() { return bridge ? unwrap(await bridge.servers.list()) : sample.servers.slice(); },
       async create(opts) {

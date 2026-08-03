@@ -79,4 +79,15 @@ create policy presence_delete on public.presence
   for delete to authenticated using (user_id = auth.uid());
 
 -- ---------------------------------------------------------------- realtime --
-alter publication supabase_realtime add table public.presence;
+-- Guarded: `alter publication ... add table` throws if the table is already a
+-- member, which would make re-running this whole file fail on its last line.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'presence'
+  ) then
+    alter publication supabase_realtime add table public.presence;
+  end if;
+end
+$$;

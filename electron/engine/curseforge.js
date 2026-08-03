@@ -289,7 +289,56 @@ async function importZip({ dataDir, filePath, key, createInstance, persist, onLo
   return { ...instance, manualDownloads };
 }
 
+// The project page's data, shaped exactly like the Modrinth one so the UI can
+// render either without branching. CurseForge splits description into its own
+// endpoint, and file release types are numeric (1 release, 2 beta, 3 alpha).
+const CF_RELEASE = { 1: "release", 2: "beta", 3: "alpha" };
+async function project(modId, { loader, mc }, key) {
+  const m = await mod(modId, key);
+  let body = "";
+  try { const d = await cfGet(`mods/${encodeURIComponent(modId)}/description`, {}, key); body = d.data || ""; }
+  catch { /* description is optional; the page still works without it */ }
+
+  // Ask unfiltered so every build is listed, then mark which ones fit — the
+  // same behaviour as the Modrinth page, where "none fit" is said plainly
+  // rather than shown as an empty list.
+  const all = await modFiles(modId, {}, key);
+  const fits = (f) =>
+    (!mc || (f.gameVersions || []).includes(mc)) &&
+    (!loader || loader === "vanilla" || (f.gameVersions || []).some((g) => String(g).toLowerCase() === loader));
+
+  return {
+    id: String(m.id),
+    title: m.name,
+    description: m.summary || "",
+    body: String(body).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 6000),
+    icon: (m.logo && m.logo.thumbnailUrl) || null,
+    downloads: m.downloadCount || 0,
+    categories: (m.categories || []).map((c) => c.name).filter(Boolean),
+    license: null,
+    source: (m.links && m.links.sourceUrl) || null,
+    issues: (m.links && m.links.issuesUrl) || null,
+    gallery: (m.screenshots || []).slice(0, 12).map((g) => ({ url: g.thumbnailUrl || g.url, title: g.title || "" })),
+    versions: all.map((f) => ({
+      id: String(f.id),
+      name: f.displayName,
+      versionNumber: f.displayName || f.fileName,
+      type: CF_RELEASE[f.releaseType] || "release",
+      published: f.fileDate,
+      downloads: f.downloadCount || 0,
+      gameVersions: (f.gameVersions || []).filter((g) => /^\d/.test(String(g))),
+      loaders: (f.gameVersions || []).filter((g) => !/^\d/.test(String(g))),
+      changelog: "",
+      compatible: fits(f),
+      size: f.fileLength || 0,
+    })),
+    compatibleCount: all.filter(fits).length,
+    source_kind: "curseforge",
+  };
+}
+
 module.exports = {
+  project,
   search, installMod, importZip,
   normalizeHit, loaderCode, classId, pickLoader, loaderFromId, sha1Of, pickFile,
 };

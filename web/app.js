@@ -1244,8 +1244,7 @@ async function renderDiscover() {
       // Opening a hit shows the full project rather than installing blind.
       box.querySelectorAll("[data-hit]").forEach((n) => n.addEventListener("click", (e) => {
         if (e.target.closest("[data-add]")) return;
-        if (discoverSource !== "modrinth") return;
-        openProjectSheet(n.dataset.hit, scope);
+        openProjectSheet(n.dataset.hit, scope, discoverSource);
       }));
     } catch (e) { box.innerHTML = `<div class="empty-line">Search failed: ${esc(e.message)}</div>`; }
   };
@@ -1279,15 +1278,19 @@ async function renderDiscover() {
 // The full project: what it is, what it looks like, and every build that fits
 // this instance — so a specific version can be installed rather than whatever
 // "latest" happens to be.
-async function openProjectSheet(projectId, scope) {
+async function openProjectSheet(projectId, scope, source) {
   showModal(`
     <div class="share-card wide-card">
       <div class="share-h">${ico("i-grid")} Loading\u2026</div>
       <div class="share-loading"><span class="spinner"></span> Reading the project\u2026</div>
     </div>`);
+  const isCF = source === "curseforge";
   let p;
-  try { p = await API.project({ projectId, loader: scope.loader, mc: scope.mc }); }
-  catch (e) { hideModal(); toast(e.message); return; }
+  try {
+    p = isCF
+      ? await API.curseforgeProject({ projectId, loader: scope.loader, mc: scope.mc })
+      : await API.project({ projectId, loader: scope.loader, mc: scope.mc });
+  } catch (e) { hideModal(); toast(e.message); return; }
 
   const versions = p.versions.filter((v) => v.compatible).slice(0, 40);
   const shown = versions.length ? versions : p.versions.slice(0, 40);
@@ -1307,6 +1310,7 @@ async function openProjectSheet(projectId, scope) {
         </div>
       </div>
 
+      ${p.body ? `<div class="pj-body">${esc(p.body).slice(0, 1200)}${p.body.length > 1200 ? "\u2026" : ""}</div>` : ""}
       ${p.gallery.length ? `<div class="pj-gallery">${p.gallery.map((g) =>
         `<img src="${esc(g.url)}" alt="${esc(g.title)}" title="${esc(g.title)}" loading="lazy">`).join("")}</div>` : ""}
 
@@ -1319,7 +1323,7 @@ async function openProjectSheet(projectId, scope) {
               <span class="pj-vsub">${esc(v.gameVersions.slice(0, 4).join(", "))}${v.gameVersions.length > 4 ? "\u2026" : ""} \u00b7 ${esc(fmtDate(Date.parse(v.published)))}</span>
             </span>
             ${v.changelog ? `<button class="kb-icon" data-chg="${esc(v.id)}" title="Changelog">${ico("i-pulse")}</button>` : ""}
-            <button class="gh gh-sm" data-install="${esc(v.id)}">Install</button>
+            <button class="gh gh-sm" data-install="${esc(v.id)}"${isCF ? " title=\"CurseForge installs the newest file that fits\"" : ""}>Install</button>
           </div>
           ${v.changelog ? `<div class="pj-changelog" id="chg-${esc(v.id)}" hidden>${esc(v.changelog).slice(0, 4000)}</div>` : ""}`).join("")}
       </div>
@@ -1345,7 +1349,8 @@ async function openProjectSheet(projectId, scope) {
     const original = btn.innerHTML;
     btn.disabled = true; btn.innerHTML = `<span class="spinner"></span>`;
     try {
-      await API.content.install({ instanceId: discoverTarget, projectId: p.id, versionId });
+      if (isCF) await API.content.installCurseforge({ instanceId: discoverTarget, modId: p.id });
+      else await API.content.install({ instanceId: discoverTarget, projectId: p.id, versionId });
       toast(`Added ${p.title}.`); hideModal();
     } catch (e) { btn.disabled = false; btn.innerHTML = original; toast("Couldn't add: " + e.message); }
   };

@@ -50,6 +50,10 @@
       if (bridge) return unwrap(await bridge.modrinthProject(opts));
       throw new Error("Project details run in the desktop app.");
     },
+    async curseforgeProject(opts) {
+      if (bridge) return unwrap(await bridge.curseforgeProject(opts));
+      throw new Error("Project details run in the desktop app.");
+    },
     async search(opts) {
       if (bridge) return unwrap(await bridge.modrinthSearch(opts));
       return { total: 2, offset: 0, categories: ["optimization", "utility"], hits: [

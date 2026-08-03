@@ -312,6 +312,12 @@ async function modrinthProject({ projectId, loader, mc }) {
 // ---- CurseForge search ----
 // Uses the user's own API key (Settings → CurseForge). Returns hits in the same shape
 // as modrinthSearch, tagged source:"curseforge", so the Discover UI renders them the same.
+async function curseforgeProject({ projectId, loader, mc }) {
+  const key = settings.getSettings().curseforgeKey;
+  if (!key) throw new Error("Add your CurseForge API key in Settings to browse CurseForge.");
+  return curseforge.project(projectId, { loader, mc }, key);
+}
+
 async function curseforgeSearch({ query, type, loader, mc }) {
   const key = settings.getSettings().curseforgeKey;
   if (!key) throw new Error("Add your CurseForge API key in Settings to browse CurseForge.");
@@ -703,7 +709,7 @@ module.exports = {
   listInstances, createInstance, deleteInstance, updateInstance,
   listVersions, modrinthSearch, curseforgeSearch,
   installContent, installCurseforgeContent, listContent, removeContent,
-  modrinthProject,
+  modrinthProject, curseforgeProject,
   importModpack,
   exportInstanceCode, exportInstanceMrpack, syncInstanceFromCode, createInstanceFromCode,
   worldList, worldBackups, worldBackup, worldRestore, worldRename, worldRemove,

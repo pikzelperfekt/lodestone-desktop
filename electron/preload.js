@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld("lodestone", {
   versions: (opts) => call("versions:list", opts), // [wave0] opts.channels → snapshots/old versions
   modrinthSearch: (opts) => call("modrinth:search", opts),
   modrinthProject: (opts) => call("modrinth:project", opts),
+  curseforgeProject: (opts) => call("curseforge:project", opts),
   curseforgeSearch: (opts) => call("curseforge:search", opts),
   content: {
     install: (opts) => call("content:install", opts),

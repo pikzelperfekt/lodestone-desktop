@@ -216,6 +216,7 @@ handle("seed:available", () => engine.seedSearchAvailable());
 handle("seed:search", (a) => engine.seedSearch(a));
 handle("seed:map", (a) => engine.seedMap(a));
 handle("modrinth:project", (a) => engine.modrinthProject(a));
+handle("curseforge:project", (a) => engine.curseforgeProject(a));
 handle("worlds:create", (a) => engine.createWorld(a));
 handle("worlds:import", async (a) => {
   let source = a && a.source;

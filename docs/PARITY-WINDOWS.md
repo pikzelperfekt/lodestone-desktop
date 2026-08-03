@@ -10,8 +10,8 @@ one is generated from the Mac source so it cannot drift.
 
 | status | count |
 |---|---|
-| done | 68 |
-| partial | 9 |
+| done | 71 |
+| partial | 6 |
 | missing | 11 |
 | n/a | 1 |
 
@@ -29,10 +29,10 @@ one is generated from the Mac source so it cannot drift.
 | ConfigManagerSheet | done | every editable config |
 | CrashDoctorSheet | done | crash scan + wired fixes |
 | CulpritFinderSheet | done | bisect with library pinning + control round |
-| CurseForgeBrowser | partial | search + install; no project pages yet |
+| CurseForgeBrowser | done | project pages, same shape as Modrinth |
 | CurseForgeCleanup | partial | not surfaced |
-| CurseForgeSearchView | partial | search only |
-| CurseForgeSheets | partial | install flow only |
+| CurseForgeSearchView | done | search + project pages |
+| CurseForgeSheets | done | detail + install |
 | DatapacksSheet | done | packs vertical |
 | DeleteForeverWorldSheet | missing | Forever Worlds not built |
 | DropSupport | done | drag a pack onto the window |

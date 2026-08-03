@@ -288,6 +288,7 @@ async function renderInstanceDetail(id) {
           <button class="btn-accent" data-play="${inst.id}">${ico("i-play")} Play</button>
           <button class="btn-soft" id="detail-add">${ico("i-plus")} Browse mods</button>
           <button class="btn-soft" id="detail-share">${ico("i-bolt")} Share &amp; Sync</button>
+          <button class="btn-soft" id="detail-mixins">${ico("i-pulse")} Mixin conflicts</button>
         </div>
       </div>
     </div>
@@ -336,6 +337,8 @@ async function renderInstanceDetail(id) {
   renderInstanceDoctor(inst);               // [Crash Doctor] fills #doctor-panel (async)
   document.getElementById("detail-add").onclick = () => openDiscoverFor(inst.id);
   document.getElementById("detail-share").onclick = () => openShareModal(inst);
+  const mixBtn = document.getElementById("detail-mixins");
+  if (mixBtn) mixBtn.onclick = () => openMixinSheet(inst);
   el().querySelectorAll("[data-remove]").forEach((b) => b.onclick = async () => {
     b.disabled = true;
     await API.content.remove({ instanceId: id, projectId: b.dataset.remove });
@@ -1372,6 +1375,45 @@ async function renderPinned() {
   });
 }
 
+
+// ---------- Mixin conflicts sheet ----------
+// Finds mods patching the same game method by reading the jars — no launch,
+// no crash required. The static counterpart to Find-the-Culprit bisection.
+async function openMixinSheet(inst) {
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-pulse")} Mixin conflicts</div>
+      <div class="share-loading"><span class="spinner"></span> Reading mod jars…</div>
+    </div>`);
+  let r;
+  try { r = await API.worldTools.scanMixins(inst.id); }
+  catch (e) { hideModal(); toast("Couldn't scan: " + e.message); return; }
+
+  const rows = r.conflicts.map((c) => `
+    <div class="mx-row">
+      <div class="mx-head">
+        <span class="mx-target">${esc(c.targetClass)}.${esc(c.targetMethod)}</span>
+        <span class="mx-sev ${c.severity === "unpredictable" ? "warn" : ""}">${c.severity === "unpredictable" ? "Load-order dependent" : "Likely"}</span>
+      </div>
+      <div class="mx-mods">${c.mods.map((m) => `<span class="mx-mod">${esc(m.mod)} <em>${esc(m.kind)}</em> <b>p${m.priority}</b></span>`).join("")}</div>
+      <div class="mx-why">${esc(c.explanation)}</div>
+    </div>`).join("");
+
+  showModal(`
+    <div class="share-card wide-card">
+      <div class="share-h">${ico("i-pulse")} Mixin conflicts</div>
+      <p class="share-sub">Read ${r.jars} jar${r.jars === 1 ? "" : "s"} in <b>${esc(inst.name)}</b> and found
+        ${r.scanned} exclusive or order-sensitive patch${r.scanned === 1 ? "" : "es"}.
+        ${r.unreadable ? `${r.unreadable} jar${r.unreadable === 1 ? "" : "s"} couldn't be read.` : ""}</p>
+      ${r.conflicts.length ? `<div class="mx-list">${rows}</div>` : `
+        <div class="empty-line">No conflicts found. Nothing is fighting over the same method.</div>`}
+      ${r.cooperativeOverlaps ? `<p class="share-note">${r.cooperativeOverlaps} more method${r.cooperativeOverlaps === 1 ? " is" : "s are"}
+        patched by several mods in ways that usually stack fine, so they're counted rather than listed.</p>` : ""}
+      <p class="share-note">Mixins that are designed to coexist (@Inject and friends) are never reported — listing them buries the real ones.</p>
+      <div class="np-actions"><button class="btn-ghost" id="mx-close">Close</button></div>
+    </div>`);
+  document.getElementById("mx-close").onclick = hideModal;
+}
 
 // ---------- New world sheet ----------
 // Mirrors the Mac NewWorldSheet. Custom spawn point is deliberately absent:

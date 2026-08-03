@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld("lodestone", {
     rename: (opts) => call("worlds:rename", opts),
     remove: (opts) => call("worlds:remove", opts),
     create: (opts) => call("worlds:create", opts),
+    scanMixins: (instanceId) => call("mixins:scan", { instanceId }),
     import: (opts) => call("worlds:import", opts),
   },
   launch: (id) => call("launch", { id }),

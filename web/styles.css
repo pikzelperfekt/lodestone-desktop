@@ -1205,3 +1205,20 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .nw-check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px;
   color: var(--text-secondary); cursor: pointer; }
 .nw-check input { accent-color: var(--voxel-accent); }
+
+/* ---- Mixin conflicts ---- */
+.wide-card { max-width: 780px; }
+.mx-list { display: flex; flex-direction: column; gap: 10px; max-height: 52vh; overflow-y: auto; margin: 6px 0; }
+.mx-row { background: var(--voxel-elev); box-shadow: var(--voxel-bevel); padding: 12px 14px; }
+.mx-head { display: flex; align-items: center; gap: 10px; }
+.mx-target { font-family: var(--font-mono); font-size: 12.5px; color: var(--text-primary); flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mx-sev { font-family: var(--font-pixel); font-size: 9px; text-transform: uppercase;
+  color: var(--voxel-ink); background: var(--voxel-accent); padding: 3px 7px; flex: none; }
+.mx-sev.warn { background: var(--warn); }
+.mx-mods { display: flex; flex-wrap: wrap; gap: 7px; margin: 9px 0 7px; }
+.mx-mod { font-size: 11.5px; color: var(--text-secondary); background: var(--voxel-side);
+  box-shadow: var(--voxel-recess); padding: 4px 8px; }
+.mx-mod em { color: var(--voxel-accent); font-style: normal; }
+.mx-mod b { color: var(--voxel-muted); font-weight: 400; }
+.mx-why { font-size: 12px; color: var(--voxel-muted); line-height: 1.5; }

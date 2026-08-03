@@ -273,6 +273,10 @@
 
     // Global SETUP profiles: Game settings, Keybinds, Skins.
     worldTools: {
+      async scanMixins(instanceId) {
+        if (bridge) return unwrap(await bridge.worlds.scanMixins(instanceId));
+        throw new Error("Mixin scanning runs in the desktop app.");
+      },
       async create(opts) {
         if (bridge) return unwrap(await bridge.worlds.create(opts));
         throw new Error("World creation runs in the desktop app.");

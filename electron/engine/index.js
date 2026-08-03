@@ -11,6 +11,7 @@ const importer = require("./import");
 const share = require("./share");
 const curseforge = require("./curseforge");
 const worlds = require("./worlds");
+const mixins = require("./mixins"); // static mixin conflict detection
 const worldcreate = require("./worldcreate"); // world creation + import (26.1 split format aware)
 const auth = require("./auth");
 const cloud = require("./cloud");
@@ -585,6 +586,21 @@ module.exports = {
   cloudProfile, cloudUpdateProfile, cloudLinkMinecraft, cloudSearchProfiles,
   // [Cloud Sync — Vertical A]
   cloudSyncPush, cloudSyncList, cloudSyncPull, cloudSyncRemove, cloudSyncStatus,
+  // ---- Mixin conflicts: find mods patching the same method, without launching ----
+  scanMixins: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    const modsDir = path.join(install.paths(DATA_DIR).instanceDir(inst.id), "mods");
+    let files = [];
+    try { files = fs.readdirSync(modsDir).filter((f) => f.toLowerCase().endsWith(".jar")); } catch { return { conflicts: [], cooperativeOverlaps: 0, scanned: 0, jars: 0 }; }
+    let all = [];
+    let unreadable = 0;
+    for (const f of files) {
+      const name = f.replace(/\.jar$/i, "").replace(/[-_](fabric|neoforge|forge|mc)?[-_]?\d[\d.+\w-]*$/i, "");
+      try { all = all.concat(mixins.scanJar(path.join(modsDir, f), name)); } catch { unreadable++; }
+    }
+    return { ...mixins.analyze(all), jars: files.length, unreadable };
+  },
   // ---- Worlds: create + import ----
   createWorld: (a) => {
     const inst = readInstances().find((i) => i.id === (a && a.instanceId));

@@ -133,14 +133,20 @@ handle("pack:leave", (a) => engine.packLeave(a));
 // Global SETUP screens: Game settings, Keybinds profile, Skins.
 handle("setup:game:get", () => engine.gameSettingsGet());
 handle("setup:game:set", (a) => engine.gameSettingsSet(a));
+handle("setup:game:apply", (a) => engine.gameSettingsApply(a));
 handle("setup:keybinds:get", () => engine.keybindProfileGet());
 handle("setup:keybinds:set", (a) => engine.keybindProfileSet(a));
 handle("setup:keybinds:reset", () => engine.keybindProfileReset());
+handle("setup:keybinds:disabled", (a) => engine.keybindDisabled(a));
+handle("setup:keybinds:apply", (a) => engine.keybindApply(a));
+handle("setup:keybinds:preset", (a) => engine.keybindPreset(a));
+handle("setup:keybinds:refresh", () => engine.keybindRefresh());
 handle("setup:skin:profile", () => engine.skinProfile());
 handle("setup:skin:upload", (a) => engine.skinUpload(a));
 handle("setup:skin:reset", () => engine.skinReset());
 // Worlds: create a fresh world, or import a folder / .zip of one.
 handle("mixins:scan", (a) => engine.scanMixins(a));
+handle("instances:sizes", () => engine.instanceSizes());
 handle("seed:available", () => engine.seedSearchAvailable());
 handle("seed:search", (a) => engine.seedSearch(a));
 handle("worlds:create", (a) => engine.createWorld(a));

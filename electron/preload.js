@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("lodestone", {
     delete: (id) => call("instances:delete", { id }),
     repair: (id) => call("instance:repair", { id }),
     updateAll: (id) => call("instance:updateAll", { id }),
+    sizes: () => call("instances:sizes"),
   },
   versions: (opts) => call("versions:list", opts), // [wave0] opts.channels → snapshots/old versions
   modrinthSearch: (opts) => call("modrinth:search", opts),
@@ -171,9 +172,14 @@ contextBridge.exposeInMainWorld("lodestone", {
   setup: {
     gameGet: () => call("setup:game:get"),
     gameSet: (patch) => call("setup:game:set", patch),
+    gameApply: (on) => call("setup:game:apply", { on }),
     keybindsGet: () => call("setup:keybinds:get"),
     keybindsSet: (opts) => call("setup:keybinds:set", opts),
     keybindsReset: () => call("setup:keybinds:reset"),
+    keybindsDisabled: (opts) => call("setup:keybinds:disabled", opts),
+    keybindsApply: (on) => call("setup:keybinds:apply", { on }),
+    keybindsPreset: (opts) => call("setup:keybinds:preset", opts),
+    keybindsRefresh: () => call("setup:keybinds:refresh"),
     skinProfile: () => call("setup:skin:profile"),
     skinUpload: (dataBase64, variant) => call("setup:skin:upload", { dataBase64, variant }),
     skinReset: () => call("setup:skin:reset"),

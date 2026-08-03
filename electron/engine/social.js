@@ -4,9 +4,14 @@
 //   1. Friends: request / accept / remove / block over the `friendships` table
 //      (a directional requester -> addressee row; "my friends" = accepted rows
 //      I'm on either side of). People search reuses cloud.searchProfiles.
-//   2. Presence: who's online and what they're doing. This is EPHEMERAL — it
-//      rides Supabase Realtime Presence on a shared channel, not a table. Only
-//      the durable half (profiles.last_seen_at) is persisted, on an interval.
+//   2. Presence: who's online and what they're doing. This is a TABLE with RLS
+//      (`presence`), NOT Realtime Presence on a shared channel. It used to be
+//      the latter, and that leaked: Realtime Presence has no RLS, so every
+//      signed-in user received everyone's activity and linked Minecraft
+//      identity — it only looked private because the renderer filtered the
+//      roster against your friends list before drawing it. Now the database
+//      decides who may read a row and Realtime honours that for
+//      postgres_changes, so a non-friend is never sent the row at all.
 //
 // Live pushes go to the renderer via emit():
 //   - "cloud:friends"  after any change to a friendship I'm in (Realtime on the
@@ -22,15 +27,20 @@ const cloud = require("./cloud");
 // Profile columns friends/requests rows are hydrated with (names + skin source).
 const PROFILE_FIELDS =
   "id, username, display_name, minecraft_uuid, minecraft_name, avatar_url, last_seen_at";
-const PRESENCE_CHANNEL = "lodestone-presence";
 const DEFAULT_ACTIVITY = "In launcher";
 const LAST_SEEN_MS = 60 * 1000;
+// Presence is a heartbeat now rather than a socket the server watches, so
+// "online" means "wrote a row recently". The beat has to be comfortably
+// shorter than the window or a friend flickers offline between writes.
+const PRESENCE_BEAT_MS = 25 * 1000;
+const ONLINE_WINDOW_MS = 75 * 1000;
 
 let emit = () => {};
 let started = false;
 let me = null;               // my user id while a presence session is live
 let myProfile = null;        // cached profile for the presence payload
-let presenceCh = null;       // Realtime Presence channel (ephemeral roster)
+let presenceCh = null;       // Realtime postgres_changes on `presence` (RLS-filtered)
+let presenceTimer = null;    // heartbeat writing my own presence row
 let friendsCh = null;        // Realtime postgres_changes on `friendships`
 let lastSeenTimer = null;    // interval bumping profiles.last_seen_at
 let currentActivity = DEFAULT_ACTIVITY;
@@ -89,74 +99,107 @@ async function start() {
   setupPresence();
   setupFriendsRealtime();
   startLastSeen();
+  startPresenceBeat();
 }
 
 function stop() {
   const c = client();
-  try { if (presenceCh) { presenceCh.untrack().catch(() => {}); if (c) c.removeChannel(presenceCh); } } catch { /* best effort */ }
+  // Mark myself offline on the way out so friends don't wait for the window.
+  goOffline();
+  try { if (presenceCh && c) c.removeChannel(presenceCh); } catch { /* best effort */ }
   try { if (friendsCh && c) c.removeChannel(friendsCh); } catch { /* best effort */ }
   if (lastSeenTimer) clearInterval(lastSeenTimer);
-  presenceCh = null; friendsCh = null; lastSeenTimer = null;
+  if (presenceTimer) clearInterval(presenceTimer);
+  presenceCh = null; friendsCh = null; lastSeenTimer = null; presenceTimer = null;
   started = false; me = null; myProfile = null; currentActivity = DEFAULT_ACTIVITY;
 }
 
-// ---- Presence (ephemeral: Supabase Realtime Presence, keyed on the user id) --
-function presencePayload() {
+// ---- Presence (a table with RLS — see 0004_presence_privacy.sql) -----------
+// My own row. Deliberately carries only what a friend needs to render the row:
+// status, activity and the Minecraft name. The uuid is NOT published here — it
+// was part of the old broadcast payload and nothing in the UI needs it.
+function presenceRow() {
   return {
     user_id: me,
     status: "online",
     activity: currentActivity,
-    username: (myProfile && myProfile.username) || null,
-    display_name: (myProfile && myProfile.display_name) || null,
-    minecraft_uuid: (myProfile && myProfile.minecraft_uuid) || null,
     minecraft_name: (myProfile && myProfile.minecraft_name) || null,
-    online_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
 }
 
+async function writePresence(row) {
+  const c = client();
+  if (!c || !me) return;
+  try { await c.from("presence").upsert(row, { onConflict: "user_id" }); }
+  catch { /* presence is best-effort; never surface it */ }
+}
+
+// Heartbeat. "Online" is "wrote recently", so this has to keep beating while
+// the launcher is open.
+function startPresenceBeat() {
+  writePresence(presenceRow());
+  presenceTimer = setInterval(() => writePresence(presenceRow()), PRESENCE_BEAT_MS);
+  if (presenceTimer.unref) presenceTimer.unref(); // never hold the process open
+}
+
+function goOffline() {
+  if (!me) return;
+  const c = client();
+  if (!c) return;
+  // Fire-and-forget: sign-out shouldn't wait on the network.
+  try {
+    c.from("presence")
+      .update({ status: "offline", updated_at: new Date().toISOString() })
+      .eq("user_id", me)
+      .then(() => {}, () => {});
+  } catch { /* best effort */ }
+}
+
+// Subscribe to the presence table. RLS means Realtime only ever delivers rows
+// for me and my accepted friends, so there is nothing to filter client-side.
 function setupPresence() {
   const c = client();
   if (!c) return;
-  presenceCh = c.channel(PRESENCE_CHANNEL, { config: { presence: { key: me } } });
-  presenceCh
-    .on("presence", { event: "sync" }, () => emitPresence())
-    .on("presence", { event: "join" }, () => emitPresence())
-    .on("presence", { event: "leave" }, () => emitPresence())
-    .subscribe(async (status) => {
-      if (status === "SUBSCRIBED") {
-        try { await presenceCh.track(presencePayload()); } catch { /* keep trying on next sync */ }
-        emitPresence();
-      }
-    });
+  presenceCh = c.channel("lodestone-presence-rows:" + me)
+    .on("postgres_changes", { event: "*", schema: "public", table: "presence" }, () => refreshPresence())
+    .subscribe((status) => { if (status === "SUBSCRIBED") refreshPresence(); });
 }
 
-// Flatten the presence roster to { userId: { status, activity, ... } } and push
-// it. The renderer intersects this with the friends list to light up dots.
-function emitPresence() {
-  if (!presenceCh) return;
-  let state = {};
-  try { state = presenceCh.presenceState() || {}; } catch { state = {}; }
+// Read the rows I'm allowed to see and push the roster. Rows older than the
+// window count as offline — a client that quit without marking itself offline
+// (crash, killed process, lost network) would otherwise look online forever.
+async function refreshPresence() {
+  const c = client();
+  if (!c || !me) return;
+  let rows = [];
+  try {
+    const { data, error } = await c.from("presence").select("*");
+    if (error) return;
+    rows = data || [];
+  } catch { return; }
+
+  const cutoff = Date.now() - ONLINE_WINDOW_MS;
   const online = {};
-  for (const key of Object.keys(state)) {
-    const metas = state[key];
-    const meta = metas && metas.length ? metas[metas.length - 1] : null;
-    if (!meta) continue;
-    const uid = meta.user_id || key;
-    online[uid] = {
-      status: meta.status || "online",
-      activity: meta.activity || DEFAULT_ACTIVITY,
-      minecraft_name: meta.minecraft_name || null,
-      online_at: meta.online_at || null,
+  for (const r of rows) {
+    if (r.status === "offline") continue;
+    const seen = Date.parse(r.updated_at || "") || 0;
+    if (seen < cutoff) continue;
+    online[r.user_id] = {
+      status: r.status || "online",
+      activity: r.activity || DEFAULT_ACTIVITY,
+      minecraft_name: r.minecraft_name || null,
+      online_at: r.updated_at || null,
     };
   }
   emit("cloud:presence", { online });
 }
 
 // Broadcast what I'm doing ("Playing <instance>" from the launch path, or the
-// idle default). Fails soft when there's no live presence channel.
+// idle default). Fails soft when signed out or unconfigured.
 async function setActivity(text) {
   currentActivity = (text && String(text).trim()) || DEFAULT_ACTIVITY;
-  if (presenceCh) { try { await presenceCh.track(presencePayload()); } catch { /* best effort */ } }
+  if (me) await writePresence(presenceRow());
   return currentActivity;
 }
 
@@ -176,7 +219,13 @@ function setupFriendsRealtime() {
   const c = client();
   if (!c) return;
   friendsCh = c.channel("lodestone-friendships:" + me);
-  const bump = () => { listFriends().then((d) => emit("cloud:friends", d)).catch(() => {}); };
+  const bump = () => {
+    listFriends().then((d) => emit("cloud:friends", d)).catch(() => {});
+    // Also re-read presence: accepting a friend makes their EXISTING row
+    // readable to me, and no INSERT/UPDATE fires on it to wake the
+    // subscription. Without this a new friend shows offline until they move.
+    refreshPresence();
+  };
   friendsCh
     // RLS already restricts these rows to ones I'm in; two filters cover both sides.
     .on("postgres_changes", { event: "*", schema: "public", table: "friendships", filter: `requester=eq.${me}` }, bump)

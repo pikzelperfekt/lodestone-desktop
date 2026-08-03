@@ -12,6 +12,8 @@
       { id: "s1", name: "NeoForge", mcVersion: "1.21.1", loader: "neoforge", accent: "#E08A3C", mods: 176, pinned: true, playtimeMs: 31_920_000, lastPlayed: Date.now() - 15 * 60_000 },
       { id: "s2", name: "Vanilla Beans", mcVersion: "1.21.1", loader: "fabric", accent: "#E6467A", mods: 24, pinned: true, playtimeMs: 12_600_000, lastPlayed: Date.now() - 8 * 3600_000 },
       { id: "s3", name: "Vanilla", mcVersion: "1.20.1", loader: "vanilla", accent: "#9B7BE6", mods: 0, playtimeMs: 16_000, lastPlayed: Date.now() - 2 * 86400_000 },
+      { id: "s4", name: "All The Mods 9", mcVersion: "1.21.1", loader: "neoforge", accent: "#5FC9C0", mods: 412, playtimeMs: 268_000_000, lastPlayed: Date.now() - 3 * 86400_000 },
+      { id: "s5", name: "SkyFactory", mcVersion: "1.20.1", loader: "forge", accent: "#E0B34A", mods: 210, playtimeMs: 900_000_000, lastPlayed: Date.now() - 9 * 86400_000 },
     ],
     versions: { releases: ["1.20.4", "1.20.1", "1.19.2", "1.18.2", "1.16.5"], latest: "1.20.4" },
     settings: { defaultRamMB: null, javaPath: "", keepLauncherOpen: true, curseforgeKey: "" },
@@ -61,6 +63,10 @@
     async importModpack() { return bridge ? unwrap(await bridge.importModpack()) : null; },
 
     // Power tools: repair (clear cached game files) + update all Modrinth content.
+    async instanceSizes() {
+      if (!bridge) return { sizes: {}, total: 0 };
+      try { return unwrap(await bridge.instances.sizes()); } catch { return { sizes: {}, total: 0 }; }
+    },
     instance: {
       async repair(id) { return bridge ? unwrap(await bridge.instances.repair(id)) : { cleared: [] }; },
       async updateAll(id) { return bridge ? unwrap(await bridge.instances.updateAll(id)) : { updated: [], upToDate: 0 }; },
@@ -296,16 +302,37 @@
     },
     setup: {
       async game() {
-        if (!bridge) return { fields: [], values: {} };
-        try { return unwrap(await bridge.setup.gameGet()); } catch { return { fields: [], values: {} }; }
+        if (!bridge) return { fields: [], values: {}, applyOnLaunch: true };
+        try { return unwrap(await bridge.setup.gameGet()); } catch { return { fields: [], values: {}, applyOnLaunch: true }; }
+      },
+      async setApplyOnLaunch(on) {
+        if (bridge) return unwrap(await bridge.setup.gameApply(on));
+        throw new Error("Game settings run in the desktop app.");
       },
       async setGame(patch) {
         if (bridge) return unwrap(await bridge.setup.gameSet(patch));
         throw new Error("Game settings run in the desktop app.");
       },
       async keybinds() {
-        if (!bridge) return {};
-        try { return unwrap(await bridge.setup.keybindsGet()); } catch { return {}; }
+        const empty = { rows: [], conflicts: [], presets: [], activeId: null, applyOnLaunch: true, discoveredCount: 0, disabledCount: 0 };
+        if (!bridge) return empty;
+        try { return unwrap(await bridge.setup.keybindsGet()); } catch { return empty; }
+      },
+      async setKeybindDisabled(opts) {
+        if (bridge) return unwrap(await bridge.setup.keybindsDisabled(opts));
+        throw new Error("Keybinds run in the desktop app.");
+      },
+      async setKeybindApply(on) {
+        if (bridge) return unwrap(await bridge.setup.keybindsApply(on));
+        throw new Error("Keybinds run in the desktop app.");
+      },
+      async keybindPreset(opts) {
+        if (bridge) return unwrap(await bridge.setup.keybindsPreset(opts));
+        throw new Error("Keybinds run in the desktop app.");
+      },
+      async refreshKeybinds() {
+        if (bridge) return unwrap(await bridge.setup.keybindsRefresh());
+        throw new Error("Keybinds run in the desktop app.");
       },
       async setKeybind(opts) {
         if (bridge) return unwrap(await bridge.setup.keybindsSet(opts));

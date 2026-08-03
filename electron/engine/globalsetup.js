@@ -29,69 +29,264 @@ function readJSON(file, fallback) {
 }
 function writeJSON(file, value) { fs.writeFileSync(file, JSON.stringify(value, null, 2)); }
 
-// ---- The options.txt keys we expose -----------------------------------------
-// Every one of these is a real vanilla options.txt key. `kind` drives the
-// control the UI renders: slider / toggle / segmented.
+// ---- The settings catalogue --------------------------------------------------
+// Ported 1:1 from the Mac GameSettingsCatalog: same options.txt keys, same
+// names, same categories, same vanilla defaults. `style` only governs how a
+// raw value is DISPLAYED — the stored value is always Minecraft's own form.
 const GAME_FIELDS = [
-  { key: "renderDistance",   group: "Video",    label: "Render distance",  desc: "Chunks loaded around you. The single biggest lever on frame rate.", kind: "slider", min: 2, max: 32, step: 1, unit: " chunks" },
-  { key: "maxFps",           group: "Video",    label: "Max framerate",    desc: "260 means unlimited.",                                              kind: "slider", min: 10, max: 260, step: 5, unit: " fps" },
-  { key: "guiScale",         group: "Video",    label: "GUI scale",        desc: "0 follows your display.",                                            kind: "slider", min: 0, max: 4, step: 1 },
-  { key: "gamma",            group: "Video",    label: "Brightness",       desc: "0 is moody, 1 is bright.",                                           kind: "slider", min: 0, max: 1, step: 0.05 },
-  { key: "graphicsMode",     group: "Video",    label: "Graphics",         desc: "Fabulous costs the most and only matters with shaders off.",         kind: "segmented", options: [["0", "Fast"], ["1", "Fancy"], ["2", "Fabulous"]] },
-  { key: "particles",        group: "Video",    label: "Particles",        desc: "",                                                                   kind: "segmented", options: [["0", "All"], ["1", "Decreased"], ["2", "Minimal"]] },
-  { key: "enableVsync",      group: "Video",    label: "VSync",            desc: "Caps frames to your monitor and removes tearing.",                   kind: "toggle" },
-  { key: "mouseSensitivity", group: "Controls", label: "Sensitivity",      desc: "0.5 is the vanilla default.",                                        kind: "slider", min: 0, max: 1, step: 0.05 },
-  { key: "invertYMouse",     group: "Controls", label: "Invert mouse",     desc: "",                                                                   kind: "toggle" },
-  { key: "autoJump",         group: "Controls", label: "Auto-jump",        desc: "",                                                                   kind: "toggle" },
-  { key: "toggleCrouch",     group: "Controls", label: "Toggle sneak",     desc: "Hold versus toggle.",                                                kind: "toggle" },
-  { key: "toggleSprint",     group: "Controls", label: "Toggle sprint",    desc: "",                                                                   kind: "toggle" },
+  // Video
+  { key: "fov",            label: "Field of View", group: "Video", kind: "slider", min: 0, max: 1,   step: 0.05, style: "fov",         def: "0.5" },
+  { key: "renderDistance", label: "Render Distance", group: "Video", kind: "slider", min: 2, max: 32, step: 1,   style: "integer",     def: "12" },
+  { key: "guiScale",       label: "GUI Scale",     group: "Video", kind: "option", values: ["0", "1", "2", "3", "4"], labels: ["Auto", "1", "2", "3", "4"], def: "0" },
+  { key: "maxFps",         label: "Max Framerate", group: "Video", kind: "slider", min: 10, max: 260, step: 5,   style: "maxFps",      def: "120" },
+  { key: "gamma",          label: "Brightness",    group: "Video", kind: "slider", min: 0, max: 1,   step: 0.05, style: "percent",     def: "0.5" },
+  { key: "bobView",        label: "View Bobbing",  group: "Video", kind: "toggle", def: "true" },
+  { key: "entityShadows",  label: "Entity Shadows", group: "Video", kind: "toggle", def: "true" },
+  { key: "fullscreen",     label: "Fullscreen",    group: "Video", kind: "toggle", def: "false" },
+
+  // Controls
+  { key: "mouseSensitivity", label: "Mouse Sensitivity", group: "Controls", kind: "slider", min: 0, max: 1, step: 0.05, style: "sensitivity", def: "0.5" },
+  { key: "invertYMouse",     label: "Invert Mouse",      group: "Controls", kind: "toggle", def: "false" },
+  { key: "autoJump",         label: "Auto-Jump",         group: "Controls", kind: "toggle", def: "false" },
+
+  // Sound — Minecraft's exact category ids.
+  { key: "soundCategory_master",  label: "Master Volume",        group: "Sound", kind: "slider", min: 0, max: 1, step: 0.05, style: "percent", def: "1.0" },
+  { key: "soundCategory_music",   label: "Music",                group: "Sound", kind: "slider", min: 0, max: 1, step: 0.05, style: "percent", def: "1.0" },
+  { key: "soundCategory_record",  label: "Jukebox / Note Blocks", group: "Sound", kind: "slider", min: 0, max: 1, step: 0.05, style: "percent", def: "1.0" },
+  { key: "soundCategory_weather", label: "Weather",              group: "Sound", kind: "slider", min: 0, max: 1, step: 0.05, style: "percent", def: "1.0" },
+  { key: "soundCategory_block",   label: "Blocks",               group: "Sound", kind: "slider", min: 0, max: 1, step: 0.05, style: "percent", def: "1.0" },
+  { key: "soundCategory_hostile", label: "Hostile Creatures",    group: "Sound", kind: "slider", min: 0, max: 1, step: 0.05, style: "percent", def: "1.0" },
+  { key: "soundCategory_neutral", label: "Friendly Creatures",   group: "Sound", kind: "slider", min: 0, max: 1, step: 0.05, style: "percent", def: "1.0" },
+  { key: "soundCategory_player",  label: "Players",              group: "Sound", kind: "slider", min: 0, max: 1, step: 0.05, style: "percent", def: "1.0" },
+  { key: "soundCategory_ambient", label: "Ambient / Environment", group: "Sound", kind: "slider", min: 0, max: 1, step: 0.05, style: "percent", def: "1.0" },
+  { key: "soundCategory_voice",   label: "Voice / Speech",       group: "Sound", kind: "slider", min: 0, max: 1, step: 0.05, style: "percent", def: "1.0" },
 ];
 
+// Minecraft writes 1.0 / 0.5 / 0.55 / 12 — match that exactly, because the file
+// is round-tripped by the game and a stray 0.550000001 is noise in a diff.
+function storedString(field, v) {
+  if (field.style === "integer" || field.style === "maxFps") return String(Math.round(v));
+  const rounded = Math.round(v * 100) / 100;
+  if (rounded === Math.round(rounded)) return rounded.toFixed(1);
+  if (Math.round(rounded * 10) === rounded * 10) return rounded.toFixed(1);
+  return rounded.toFixed(2);
+}
+
 function getGameSettings() {
-  return { fields: GAME_FIELDS, values: readJSON(settingsFile(), {}) };
+  const stored = readJSON(settingsFile(), {});
+  return {
+    fields: GAME_FIELDS,
+    values: stored.values || {},
+    applyOnLaunch: stored.applyOnLaunch !== false,
+  };
+}
+
+function setApplyOnLaunch(on) {
+  const stored = readJSON(settingsFile(), {});
+  stored.values = stored.values || {};
+  stored.applyOnLaunch = !!on;
+  writeJSON(settingsFile(), stored);
+  return stored.applyOnLaunch;
 }
 
 function setGameSettings(patch) {
-  const current = readJSON(settingsFile(), {});
+  const stored = readJSON(settingsFile(), {});
+  stored.values = stored.values || {};
   for (const [k, v] of Object.entries(patch || {})) {
-    if (!GAME_FIELDS.some((f) => f.key === k)) continue;   // ignore unknown keys
-    if (v === null || v === undefined) delete current[k];  // null clears the override
-    else current[k] = v;
+    const field = GAME_FIELDS.find((f) => f.key === k);
+    if (!field) continue;                                       // ignore unknown keys
+    if (v === null || v === undefined) { delete stored.values[k]; continue; }  // clear the override
+    stored.values[k] = field.kind === "slider" ? storedString(field, Number(v)) : String(v);
   }
-  writeJSON(settingsFile(), current);
-  return current;
+  writeJSON(settingsFile(), stored);
+  return stored.values;
 }
 
-// ---- Global keybind profile -------------------------------------------------
-// The catalogue of vanilla actions the global screen can bind, grouped in the
-// same order the per-instance manager uses so the two screens read alike.
-function keybindCatalogue() {
-  const profile = readJSON(keybindsFile(), {});
-  const groups = new Map();
-  for (const action of Object.keys(keybinds.VANILLA)) {
-    const info = keybinds.actionInfo(action);
-    if (!groups.has(info.category)) groups.set(info.category, []);
-    groups.get(info.category).push({
-      action, label: info.label,
-      value: profile[action] || null,
-      keyLabel: profile[action] ? keybinds.keyLabel(profile[action]) : null,
-    });
+// ---- Keybind library -------------------------------------------------------
+// Ported from the Mac KeybindManager. Three ideas the first pass missed:
+//
+//   1. MOD KEYBINDS ARE DISCOVERED, not hardcoded. Every instance's options.txt
+//      lists its own key_* lines, so scanning the instances you have actually
+//      launched is what surfaces Iris, JourneyMap, TACZ and the rest. A fixed
+//      vanilla table can never know about them.
+//   2. PRESETS. Several named sets of binds, one of them the base.
+//   3. Binds can be DISABLED individually without being forgotten.
+function keybindStore() {
+  const raw = readJSON(keybindsFile(), {});
+  if (!raw.presets) {
+    // Migrate the flat {action: value} shape the first version wrote.
+    return {
+      presets: [{ id: "default", name: "Default", base: true, binds: raw.binds || raw || {}, disabled: [] }],
+      activeId: "default",
+      applyOnLaunch: true,
+      discovered: {},
+    };
   }
-  return keybinds.CATEGORY_ORDER
-    .filter((c) => groups.has(c))
-    .map((c) => ({ category: c, binds: groups.get(c) }));
+  return {
+    presets: raw.presets,
+    activeId: raw.activeId || (raw.presets[0] && raw.presets[0].id) || "default",
+    applyOnLaunch: raw.applyOnLaunch !== false,
+    discovered: raw.discovered || {},
+  };
+}
+function saveKeybindStore(store) { writeJSON(keybindsFile(), store); }
+const activePreset = (store) =>
+  store.presets.find((p) => p.id === store.activeId) || store.presets[0];
+
+// Walk every instance's options.txt and collect the key_* actions it knows
+// about. This is how mod keybinds enter the library at all.
+function discoverBindings(dataDir) {
+  const found = {};
+  let ids = [];
+  try { ids = fs.readdirSync(path.join(dataDir, "instances"), { withFileTypes: true })
+    .filter((e) => e.isDirectory()).map((e) => e.name); } catch { return found; }
+  for (const id of ids) {
+    let doc;
+    try { doc = readOptions(instanceDir(dataDir, id)); } catch { continue; }
+    if (!doc || !doc.exists) continue;
+    for (const part of doc.parts) {
+      const m = /^key_([^:]+):(.*)$/.exec(part.text);
+      if (!m) continue;
+      const action = m[1];
+      if (!found[action]) found[action] = m[2];
+    }
+  }
+  return found;
 }
 
-function getKeybindProfile() { return { profile: readJSON(keybindsFile(), {}), categories: keybindCatalogue() }; }
+function refreshDiscovered(dataDir) {
+  const store = keybindStore();
+  store.discovered = { ...store.discovered, ...discoverBindings(dataDir) };
+  saveKeybindStore(store);
+  return Object.keys(store.discovered).length;
+}
+
+// Group an action id into a category. Vanilla actions use the manager's own
+// table; a mod bind (key.<modid>.<thing>) is grouped under its mod id, which is
+// exactly how the Mac screen reads.
+function categoryFor(action) {
+  const info = keybinds.actionInfo(action);
+  if (keybinds.VANILLA[action]) return info.category;
+  const m = /^key\.([a-z0-9_]+)\./i.exec(action);
+  if (m && m[1] !== "keyboard" && m[1] !== "mouse") return m[1].toUpperCase();
+  return "Mods & Other";
+}
+
+function getKeybindProfile() {
+  const store = keybindStore();
+  const preset = activePreset(store);
+  const actions = new Set([
+    ...Object.keys(keybinds.VANILLA),
+    ...Object.keys(store.discovered || {}),
+    ...Object.keys(preset.binds || {}),
+  ]);
+  const disabled = new Set(preset.disabled || []);
+
+  const rows = [...actions].map((action) => {
+    const value = preset.binds[action] || store.discovered[action] || null;
+    return {
+      action,
+      category: categoryFor(action),
+      label: keybinds.actionInfo(action).label,
+      value,
+      keyLabel: value ? keybinds.keyLabel(value) : null,
+      bound: Object.prototype.hasOwnProperty.call(preset.binds, action),
+      disabled: disabled.has(action),
+    };
+  });
+
+  // Vanilla first (in the manager's category order), then mod groups A-Z, and
+  // alphabetical inside each — a stable order so a row never jumps under you.
+  const order = keybinds.CATEGORY_ORDER;
+  rows.sort((a, b) => {
+    const ai = order.indexOf(a.category), bi = order.indexOf(b.category);
+    const av = ai < 0 ? 999 : ai, bv = bi < 0 ? 999 : bi;
+    if (av !== bv) return av - bv;
+    if (a.category !== b.category) return a.category.localeCompare(b.category);
+    return a.label.localeCompare(b.label);
+  });
+
+  // Two actions on the same key fight in game; surface that rather than let the
+  // player discover it mid-fight.
+  const byKey = {};
+  for (const r of rows) {
+    if (!r.value || r.disabled || /unknown$/.test(r.value)) continue;
+    (byKey[r.value] = byKey[r.value] || []).push(r.action);
+  }
+  const conflicts = Object.entries(byKey)
+    .filter(([, list]) => list.length > 1)
+    .map(([value, actions]) => ({ value, keyLabel: keybinds.keyLabel(value), actions }));
+
+  return {
+    rows, conflicts,
+    presets: store.presets.map((p) => ({ id: p.id, name: p.name, base: !!p.base, count: Object.keys(p.binds || {}).length })),
+    activeId: store.activeId,
+    applyOnLaunch: store.applyOnLaunch,
+    discoveredCount: Object.keys(store.discovered || {}).length,
+    disabledCount: (preset.disabled || []).length,
+  };
+}
+
 function setKeybindProfile({ action, value }) {
   if (!action) throw new Error("Pick an action to rebind.");
-  const current = readJSON(keybindsFile(), {});
-  if (value === null || value === undefined) delete current[action];
-  else current[action] = String(value);
-  writeJSON(keybindsFile(), current);
-  return current;
+  const store = keybindStore();
+  const preset = activePreset(store);
+  if (value === null || value === undefined) delete preset.binds[action];
+  else preset.binds[action] = String(value);
+  saveKeybindStore(store);
+  return getKeybindProfile();
 }
-function resetKeybindProfile() { writeJSON(keybindsFile(), {}); return {}; }
+
+function setKeybindDisabled({ action, disabled }) {
+  const store = keybindStore();
+  const preset = activePreset(store);
+  const set = new Set(preset.disabled || []);
+  if (disabled) set.add(action); else set.delete(action);
+  preset.disabled = [...set];
+  saveKeybindStore(store);
+  return getKeybindProfile();
+}
+
+function setKeybindApply(on) {
+  const store = keybindStore();
+  store.applyOnLaunch = !!on;
+  saveKeybindStore(store);
+  return store.applyOnLaunch;
+}
+
+function keybindPreset({ verb, id, name }) {
+  const store = keybindStore();
+  if (verb === "select") { if (store.presets.some((p) => p.id === id)) store.activeId = id; }
+  else if (verb === "create") {
+    const newId = "p" + Date.now().toString(36);
+    store.presets.push({ id: newId, name: (name || "New preset").trim(), base: false, binds: {}, disabled: [] });
+    store.activeId = newId;
+  } else if (verb === "duplicate") {
+    const src = activePreset(store);
+    const newId = "p" + Date.now().toString(36);
+    store.presets.push({ id: newId, name: `${src.name} copy`, base: false, binds: { ...src.binds }, disabled: [...(src.disabled || [])] });
+    store.activeId = newId;
+  } else if (verb === "rename") {
+    const p = store.presets.find((x) => x.id === (id || store.activeId));
+    if (p && name && name.trim()) p.name = name.trim();
+  } else if (verb === "delete") {
+    if (store.presets.length < 2) throw new Error("Keep at least one preset.");
+    const target = id || store.activeId;
+    if (store.presets.find((p) => p.id === target && p.base)) throw new Error("The base preset can't be deleted.");
+    store.presets = store.presets.filter((p) => p.id !== target);
+    if (store.activeId === target) store.activeId = store.presets[0].id;
+  }
+  saveKeybindStore(store);
+  return getKeybindProfile();
+}
+
+function resetKeybindProfile() {
+  const store = keybindStore();
+  const preset = activePreset(store);
+  preset.binds = {}; preset.disabled = [];
+  saveKeybindStore(store);
+  return getKeybindProfile();
+}
 
 // ---- Apply both to an instance, on the launch path --------------------------
 // Called right before the JVM starts. Values are only written when the profile
@@ -104,18 +299,24 @@ function applyToInstance(instanceId) {
   if (!doc) return;
 
   let touched = 0;
-  const values = readJSON(settingsFile(), {});
+  const stored = readJSON(settingsFile(), {});
+  // The master switch: off means the profile exists but is not enforced.
+  const values = stored.applyOnLaunch === false ? {} : (stored.values || {});
   for (const [k, v] of Object.entries(values)) {
     if (!GAME_FIELDS.some((f) => f.key === k)) continue;
     setOption(doc, k, String(v));
     touched++;
   }
 
-  const binds = readJSON(keybindsFile(), {});
-  for (const [action, value] of Object.entries(binds)) {
-    if (!/^key\./.test(action)) continue;
-    setOption(doc, `key_${action}`, String(value));
-    touched++;
+  const kb = keybindStore();
+  if (kb.applyOnLaunch !== false) {
+    const preset = activePreset(kb);
+    const off = new Set(preset.disabled || []);
+    for (const [action, value] of Object.entries(preset.binds || {})) {
+      if (!/^key\./.test(action) || off.has(action)) continue;
+      setOption(doc, `key_${action}`, String(value));
+      touched++;
+    }
   }
 
   // Nothing configured: leave the file (or its absence) completely alone
@@ -188,6 +389,7 @@ async function resetSkin(token) {
 
 module.exports = {
   init, getGameSettings, setGameSettings,
-  getKeybindProfile, setKeybindProfile, resetKeybindProfile, keybindCatalogue,
+  getKeybindProfile, setKeybindProfile, resetKeybindProfile,
+  setKeybindDisabled, setKeybindApply, keybindPreset, refreshDiscovered,
   applyToInstance, getProfile, uploadSkin, resetSkin, GAME_FIELDS,
 };

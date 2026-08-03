@@ -63,11 +63,36 @@ function artBox(i, cls) {
     : `<div class="art-invite">${ico("i-image")}<span>Drop an image</span><span class="art-browse">or <u>browse files</u></span></div>`;
   return `<div class="imgbox ${cls || ""}" data-art="${i.id}" title="Drop an image, or click to browse">${inner}</div>`;
 }
-// Longest playtime in the list defines a full bar, so the bars compare against
-// each other instead of against an arbitrary constant.
-function playBar(ms, max) {
-  const pct = max > 0 ? Math.max(2, Math.round((Number(ms) || 0) / max * 100)) : 0;
-  return `<div class="dashbar"><i style="width:${pct}%"></i></div>`;
+// Playtime tiers, ported from the Mac PlaytimeTier. The bar fills against the
+// CURRENT TIER, not against the longest-played instance: a pack with 8 hours
+// reads as "most of the way through Played" rather than "a sliver next to your
+// 200-hour one", which is the more useful thing to know at a glance.
+const PLAYTIME_TIERS = [
+  { id: "fresh",     label: "Barely touched", max: 1,    color: "var(--text-tertiary)" },
+  { id: "played",    label: "Played",         max: 10,   color: "#8EC44F" },
+  { id: "invested",  label: "Invested",       max: 50,   color: "#5FC9C0" },
+  { id: "devoted",   label: "Devoted",        max: 200,  color: "#E0B34A" },
+  { id: "legendary", label: "Legendary",      max: null, color: "#E07A4A" },
+];
+function playtimeTier(ms) {
+  const hours = (Number(ms) || 0) / 3600000;
+  let lower = 0;
+  for (const t of PLAYTIME_TIERS) {
+    if (t.max === null || hours < t.max) {
+      const progress = t.max === null
+        ? Math.min(0.98, 0.5 + (hours - lower) / 2000)          // open-ended: keeps creeping
+        : Math.max(0.02, Math.min(1, (hours - lower) / (t.max - lower)));
+      return { ...t, progress, hours, flair: t.id === "devoted" || t.id === "legendary" };
+    }
+    lower = t.max;
+  }
+  return { ...PLAYTIME_TIERS[0], progress: 0, hours, flair: false };
+}
+// Tier colour, tier-relative fill, and the hours beside it in the same colour.
+function playBar(ms) {
+  const t = playtimeTier(ms);
+  return `<div class="dashbar" title="${esc(t.label)} · ${esc(fmtPlaytime(ms))} played">`
+    + `<i style="width:${Math.round(t.progress * 100)}%;background:${t.id === "played" ? "var(--voxel-barfill)" : `repeating-linear-gradient(90deg, ${t.color} 0 5px, transparent 5px 7px)`}"></i></div>`;
 }
 
 // ---------- HOME (Play) ----------
@@ -90,7 +115,6 @@ async function renderHome() {
     return;
   }
 
-  const maxPlay = Math.max(...instances.map((i) => Number(i.playtimeMs) || 0), 1);
   const heroArt = recent.iconPath ? `${fileURL(recent.iconPath)}?v=${recent.iconVersion || 0}` : null;
   const jump = instances.slice(0, 6);
 
@@ -125,18 +149,7 @@ async function renderHome() {
         <button class="gh" data-goto="instances">All instances</button>
       </div>
       <div class="rail">
-        ${jump.map((i) => `
-          <button class="rcard" data-open="${i.id}">
-            ${artBox(i, "rcard-art")}
-            <div class="rcard-body">
-              <div class="rcard-name">${esc(i.name)}</div>
-              <div class="rcard-sub">${esc(relTime(i.lastPlayed))}</div>
-              <div class="rcard-foot">
-                ${playBar(i.playtimeMs, maxPlay)}
-                <span class="rcard-time">${esc(fmtPlaytime(i.playtimeMs))}</span>
-              </div>
-            </div>
-          </button>`).join("")}
+        ${jump.map((i) => `<div class="rail-cell">${instGridCard(i)}</div>`).join("")}
       </div>
     </section>
 
@@ -208,9 +221,6 @@ let creating = false;
 async function renderInstances() {
   el().innerHTML = `<div class="placeholder">${ico("i-stack")}<h2>Loading…</h2></div>`;
   const instances = await API.instances();
-  // Bars compare against the longest-played instance, so they read as a
-  // ranking rather than against some invented ceiling.
-  const maxPlay = Math.max(...instances.map((i) => Number(i.playtimeMs) || 0), 1);
   const totalPlay = instances.reduce((sum, i) => sum + (Number(i.playtimeMs) || 0), 0);
   el().innerHTML = `
     <div class="page-head">
@@ -223,7 +233,7 @@ async function renderInstances() {
     </div>
     <div id="new-panel"></div>
     <div class="grid">
-      ${instances.map((i) => instGridCard(i, maxPlay)).join("") || `<div class="empty-line">No instances yet. Hit <b>New Instance</b>, <b>Import</b> a .mrpack or .lodepack, or drag a pack file anywhere in this window.</div>`}
+      ${instances.map((i) => instGridCard(i)).join("") || `<div class="empty-line">No instances yet. Hit <b>New Instance</b>, <b>Import</b> a .mrpack or .lodepack, or drag a pack file anywhere in this window.</div>`}
     </div>
     ${instances.length ? `<div class="grid-foot kick">${instances.length} instance${instances.length === 1 ? "" : "s"} · ${esc(fmtPlaytime(totalPlay))} played</div>` : ""}`;
   document.getElementById("import-pack").onclick = async () => {
@@ -708,12 +718,17 @@ async function toggleNewPanel() {
   };
 }
 
-// The Voxel instance card: a 4px loader-colour strip, a recessed art well that
-// doubles as a drop target, the name, one facts line, and a dashed playtime
-// bar. The same component the Mac app uses for every instance list.
-const instGridCard = (i, max) => `
-  <div class="strip-card" data-open="${i.id}">
-    <div class="strip" style="background:${esc(i.accent || "#8EC44F")}"></div>
+// The Voxel instance card. Matches the Mac InstanceStripCard: recessed art
+// well that doubles as a drop target, name, one facts line, tiered playtime
+// meter — and a border around the WHOLE card rather than a colour bar across
+// the top. Hover and selection paint that border accent; a devoted-or-above
+// pack keeps a faint tier-coloured edge so the shelf shows which ones you
+// actually live in.
+const instGridCard = (i) => {
+  const t = playtimeTier(i.playtimeMs);
+  const flair = t.flair && Number(i.playtimeMs) > 0;
+  return `
+  <div class="strip-card${flair ? " has-flair" : ""}" data-open="${i.id}"${flair ? ` style="--flair:${t.color}"` : ""}>
     <div class="inst-art imgbox" data-art="${i.id}">
       ${i.iconPath ? "" : `<div class="art-invite">${ico("i-image")}<span>Drop an image</span><span class="art-browse">or <u>browse files</u></span></div>`}
       <button class="card-del" data-del="${i.id}" title="Delete instance">${ico("i-trash")}</button>
@@ -722,14 +737,16 @@ const instGridCard = (i, max) => `
     <div class="inst-body">
       <div class="inst-name">${esc(i.name)}</div>
       <div class="inst-facts">${esc(i.mcVersion)} \u00b7 ${esc(loaderLabel(i.loader))} \u00b7 ${i.mods || 0} mod${i.mods === 1 ? "" : "s"}</div>
-      <div class="rcard-foot">
-        ${playBar(i.playtimeMs, max || 1)}
-        <span class="rcard-time">${esc(fmtPlaytime(i.playtimeMs))}</span>
-      </div>
+      ${Number(i.playtimeMs) > 0 ? `
+        <div class="rcard-foot">
+          ${playBar(i.playtimeMs)}
+          <span class="rcard-time" style="color:${t.id === "fresh" ? "var(--text-tertiary)" : t.color}">${esc(fmtPlaytime(i.playtimeMs))}</span>
+        </div>` : ""}
     </div>
   </div>`;
+};
 
-const instCard = (i) => instGridCard(i, 1);
+const instCard = (i) => instGridCard(i);
 
 // ---------- DISCOVER ----------
 let searchTimer = null;
@@ -1343,6 +1360,7 @@ function bindCommon() {
 
 function navigate(section) {
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("is-active", b.dataset.section === section));
+  document.querySelectorAll(".pin-item").forEach((b) => b.classList.remove("is-active"));
   if (section === "discover") discoverTarget = null;   // Discover = browse for any instance
   ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, cloud: renderCloud, friends: renderFriends, squads: renderSquads, settings: renderSettings, game: renderGameSettings, keybinds: renderKeybinds, skins: renderSkins }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
 }
@@ -1374,6 +1392,7 @@ async function renderPinned() {
     </div>`;
   host.querySelectorAll("[data-pin-open]").forEach((b) => b.onclick = () => {
     document.querySelectorAll(".nav-item").forEach((n) => n.classList.remove("is-active"));
+    host.querySelectorAll(".pin-item").forEach((n) => n.classList.toggle("is-active", n === b));
     renderInstanceDetail(b.dataset.pinOpen);
   });
 }
@@ -1599,25 +1618,46 @@ function openNewWorldSheet(instanceId, inst) {
 }
 
 // ---------- SETUP: GAME SETTINGS (global, applied to every instance) ----------
+// Values are stored exactly as options.txt holds them; `style` only decides how
+// the number is shown. Minecraft's own readouts are the reference — FOV in
+// degrees, sensitivity doubled, 260 fps reading as Unlimited.
+function displaySetting(f, raw) {
+  if (f.kind === "toggle") return raw === "true" ? "On" : "Off";
+  if (f.kind === "option") {
+    const i = f.values.indexOf(String(raw));
+    return i >= 0 ? f.labels[i] : raw;
+  }
+  const v = Number(raw) || 0;
+  switch (f.style) {
+    case "integer":     return String(Math.round(v));
+    case "percent":     return `${Math.round(v * 100)}%`;
+    case "fov":         return `${Math.round(30 + v * 80)}\u00b0`;
+    case "sensitivity": return `${Math.round(v * 200)}%`;
+    case "maxFps":      return v >= 260 ? "Unlimited" : String(Math.round(v));
+    default:            return v.toFixed(2);
+  }
+}
+
 async function renderGameSettings() {
-  el().innerHTML = `<div class="placeholder">${ico("i-game")}<h2>Loading…</h2></div>`;
-  const { fields, values } = await API.setup.game();
+  el().innerHTML = `<div class="placeholder">${ico("i-game")}<h2>Loading\u2026</h2></div>`;
+  const { fields, values, applyOnLaunch } = await API.setup.game();
+  const managed = Object.keys(values || {}).length;
 
   const control = (f) => {
-    const v = values[f.key];
-    const set = v !== undefined && v !== null;
+    const raw = values[f.key];
+    const set = raw !== undefined && raw !== null;
+    const shown = set ? raw : f.def;
     if (f.kind === "toggle") {
-      const on = String(v) === "true";
+      const on = String(shown) === "true";
       return `<button class="switch ${on ? "on" : ""}" data-gs-toggle="${f.key}" aria-pressed="${on}"><span class="knob"></span></button>`;
     }
-    if (f.kind === "segmented") {
-      return `<div class="seg">${f.options.map(([val, label]) =>
-        `<button class="seg-btn ${String(v) === val ? "is-on" : ""}" data-gs-seg="${f.key}" data-val="${val}">${esc(label)}</button>`).join("")}</div>`;
+    if (f.kind === "option") {
+      return `<div class="seg">${f.values.map((val, i) =>
+        `<button class="seg-btn ${String(shown) === val ? "is-on" : ""}" data-gs-seg="${f.key}" data-val="${esc(val)}">${esc(f.labels[i])}</button>`).join("")}</div>`;
     }
-    const shown = set ? v : f.min;
     return `<div class="gs-slider">
       <input class="rng" type="range" min="${f.min}" max="${f.max}" step="${f.step}" value="${shown}" data-gs-range="${f.key}">
-      <span class="gs-val" data-gs-val="${f.key}">${set ? esc(String(shown)) + esc(f.unit || "") : "Game default"}</span>
+      <span class="gs-val${set ? " is-set" : ""}" data-gs-val="${f.key}">${esc(displaySetting(f, shown))}</span>
     </div>`;
   };
 
@@ -1625,8 +1665,13 @@ async function renderGameSettings() {
   el().innerHTML = `
     <div class="page-head">
       <h1 class="page-title">Game settings</h1>
-      <span class="page-count">Applied to every instance</span>
-      <div class="head-actions"><button class="gh" id="gs-reset">Reset to defaults</button></div>
+      <span class="page-count">${managed} managed</span>
+      <div class="head-actions">
+        <label class="apply-switch">Apply on launch
+          <button class="switch ${applyOnLaunch ? "on" : ""}" id="gs-apply" aria-pressed="${applyOnLaunch}"><span class="knob"></span></button>
+        </label>
+        <button class="gh" id="gs-reset">Reset all</button>
+      </div>
     </div>
     ${groups.map((g) => `
       <section class="vsec">
@@ -1634,135 +1679,154 @@ async function renderGameSettings() {
         <div class="gs-list">
           ${fields.filter((f) => f.group === g).map((f) => `
             <div class="gs-row">
-              <div class="gs-meta">
-                <div class="gs-label">${esc(f.label)}</div>
-                ${f.desc ? `<div class="gs-desc">${esc(f.desc)}</div>` : ""}
+              <div class="gs-meta"><div class="gs-label">${esc(f.label)}</div></div>
+              <div class="gs-ctl">${control(f)}
+                ${values[f.key] !== undefined ? `<button class="gh gh-sm" data-gs-clear="${f.key}" title="Use the pack's own value">Clear</button>` : ""}
               </div>
-              <div class="gs-ctl">${control(f)}</div>
             </div>`).join("")}
         </div>
       </section>`).join("")}
-    <p class="share-note">Anything you leave untouched keeps whatever the game already has. Settings are written into each instance the next time it launches.</p>`;
+    <p class="share-note">Only settings you actually change are written. Everything else keeps whatever the modpack or your last session set, and the values land in each instance's options.txt the next time it launches.</p>`;
 
-  const save = async (patch) => {
-    try { await API.setup.setGame(patch); } catch (e) { toast(e.message); }
-  };
+  const save = async (patch) => { try { await API.setup.setGame(patch); } catch (e) { toast(e.message); } };
 
   el().querySelectorAll("[data-gs-toggle]").forEach((b) => b.onclick = async () => {
     const on = !b.classList.contains("on");
     b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
-    await save({ [b.dataset.gsToggle]: on });
+    await save({ [b.dataset.gsToggle]: String(on) });
+    renderGameSettings();
   });
   el().querySelectorAll("[data-gs-seg]").forEach((b) => b.onclick = async () => {
-    const key = b.dataset.gsSeg;
-    el().querySelectorAll(`[data-gs-seg="${key}"]`).forEach((x) => x.classList.remove("is-on"));
-    b.classList.add("is-on");
-    await save({ [key]: b.dataset.val });
+    await save({ [b.dataset.gsSeg]: b.dataset.val });
+    renderGameSettings();
   });
   el().querySelectorAll("[data-gs-range]").forEach((r) => {
-    const key = r.dataset.gsRange;
-    const field = fields.find((f) => f.key === key);
-    const out = el().querySelector(`[data-gs-val="${key}"]`);
-    r.oninput = () => { if (out) out.textContent = r.value + (field.unit || ""); };
-    r.onchange = () => save({ [key]: r.value });
+    const f = fields.find((x) => x.key === r.dataset.gsRange);
+    const out = el().querySelector(`[data-gs-val="${f.key}"]`);
+    r.oninput = () => { if (out) { out.textContent = displaySetting(f, r.value); out.classList.add("is-set"); } };
+    r.onchange = async () => { await save({ [f.key]: r.value }); renderGameSettings(); };
   });
+  el().querySelectorAll("[data-gs-clear]").forEach((b) => b.onclick = async () => {
+    await save({ [b.dataset.gsClear]: null }); renderGameSettings();
+  });
+  document.getElementById("gs-apply").onclick = async (e) => {
+    const on = !e.currentTarget.classList.contains("on");
+    try { await API.setup.setApplyOnLaunch(on); renderGameSettings(); } catch (err) { toast(err.message); }
+  };
   document.getElementById("gs-reset").onclick = async () => {
-    if (!confirm("Clear every global game setting? Instances keep whatever they already have.")) return;
+    if (!confirm("Clear every managed game setting? Instances keep whatever they already have.")) return;
     const clear = {}; fields.forEach((f) => (clear[f.key] = null));
     await save(clear); toast("Cleared."); renderGameSettings();
   };
 }
 
-// ---------- SETUP: KEYBINDS (global profile layered over every instance) ----------
+// ---------- SETUP: KEYBINDS (global library, layered over every instance) ----
+// Mod keybinds appear here because the engine scans the options.txt of every
+// instance you've launched — a fixed vanilla table could never know about
+// Iris, JourneyMap or TACZ.
+let kbFilter = "";
 async function renderKeybinds() {
-  el().innerHTML = `<div class="placeholder">${ico("i-game")}<h2>Loading…</h2></div>`;
-  const { categories } = await API.setup.keybinds();
-  const bound = categories.reduce((n, c) => n + c.binds.filter((b) => b.value).length, 0);
+  el().innerHTML = `<div class="placeholder">${ico("i-keyboard")}<h2>Loading\u2026</h2></div>`;
+  const data = await API.setup.keybinds();
+  const q = kbFilter.trim().toLowerCase();
+  const rows = q
+    ? data.rows.filter((r) => r.label.toLowerCase().includes(q) || r.category.toLowerCase().includes(q) || r.action.toLowerCase().includes(q))
+    : data.rows;
+  const preset = data.presets.find((p) => p.id === data.activeId) || {};
 
   el().innerHTML = `
-    <div class="page-head">
-      <h1 class="page-title">Keybinds</h1>
-      <span class="page-count">${bound} set</span>
-      <div class="head-actions"><button class="gh" id="kb-clear">Clear all</button></div>
-    </div>
-    ${categories.map((c) => `
-      <section class="vsec">
-        <div class="vsec-head"><span class="kick">${esc(c.category)}</span></div>
-        <div class="gs-list">
-          ${c.binds.map((b) => `
-            <div class="gs-row">
-              <div class="gs-meta"><div class="gs-label">${esc(b.label)}</div></div>
-              <div class="gs-ctl">
-                <button class="gh kb-key" data-kbg="${esc(b.action)}">${b.value ? esc(b.keyLabel) : "Game default"}</button>
-                ${b.value ? `<button class="gh gh-sm" data-kbg-clear="${esc(b.action)}">Clear</button>` : ""}
-              </div>
-            </div>`).join("")}
+    <div class="kb-head">
+      <div class="kb-head-top">
+        <h1 class="page-title pix-title">Keybinds</h1>
+        <input class="inp kb-filter" id="kb-filter" placeholder="Filter actions" value="${esc(kbFilter)}">
+        <button class="gh" id="kb-add">${ico("i-plus")} Add keybind</button>
+      </div>
+      <div class="kb-head-row">
+        <div class="kb-preset">
+          <button class="gh kb-preset-btn" id="kb-preset">
+            ${ico("i-stack")}<span>${esc(preset.name || "Default")}</span>
+            ${preset.base ? `<em class="kb-base">BASE</em>` : ""}
+            <span class="kb-caret">\u2304</span>
+          </button>
+          <button class="gh ico-sq" id="kb-preset-more" title="Preset actions">\u22ef</button>
         </div>
-      </section>`).join("")}
-    <p class="share-note">These are applied on top of each instance's own keybinds when it launches. Anything left on "Game default" is never written.</p>`;
+        ${data.conflicts.length ? `<span class="kb-conflict">${ico("i-pulse")} ${data.conflicts.length} share a key</span>` : ""}
+        <div class="kb-head-right">
+          <button class="gh" id="kb-mods">${ico("i-grid")} ${data.disabledCount ? `Mods \u00b7 ${data.disabledCount} off` : "Mods"}</button>
+          <button class="gh ico-sq" id="kb-refresh" title="Pull in every mod's keybinds from instances you've launched">${ico("i-bolt")}</button>
+          <label class="apply-switch">Apply on launch
+            <button class="switch ${data.applyOnLaunch ? "on" : ""}" id="kb-apply" aria-pressed="${data.applyOnLaunch}"><span class="knob"></span></button>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="kb-table">
+      ${rows.length ? rows.map((r) => `
+        <div class="kb-row${r.disabled ? " is-off" : ""}">
+          <span class="kb-cat kick" title="${esc(r.action)}">${esc(r.category)}</span>
+          <span class="kb-action">${esc(r.label)}</span>
+          <button class="kb-key${r.bound ? " is-set" : ""}" data-kbg="${esc(r.action)}">${r.value ? esc(r.keyLabel) : "Not bound"}</button>
+          <button class="kb-icon" data-kb-off="${esc(r.action)}" title="${r.disabled ? "Enable" : "Don't apply this bind"}">${ico("i-slash")}</button>
+          <button class="kb-icon" data-kbg-clear="${esc(r.action)}" title="Clear override">${ico("i-trash")}</button>
+        </div>`).join("")
+        : `<div class="empty-line">Nothing matches "${esc(kbFilter)}".</div>`}
+    </div>
+    <p class="share-note">${data.discoveredCount} action${data.discoveredCount === 1 ? "" : "s"} discovered from your instances.
+      Only the binds you set are written into options.txt on launch; everything else keeps the pack's own value.</p>`;
+
+  const refresh = () => renderKeybinds();
+  const f = document.getElementById("kb-filter");
+  f.oninput = () => { kbFilter = f.value; };
+  f.onchange = refresh;
+  f.onkeydown = (e) => { if (e.key === "Enter") refresh(); };
 
   el().querySelectorAll("[data-kbg]").forEach((b) => b.onclick = () => captureGlobalKey(b));
   el().querySelectorAll("[data-kbg-clear]").forEach((b) => b.onclick = async () => {
-    try { await API.setup.setKeybind({ action: b.dataset.kbgClear, value: null }); renderKeybinds(); }
+    try { await API.setup.setKeybind({ action: b.dataset.kbgClear, value: null }); refresh(); }
     catch (e) { toast(e.message); }
   });
-  document.getElementById("kb-clear").onclick = async () => {
-    if (!confirm("Clear every global keybind? Instances keep their own.")) return;
-    try { await API.setup.resetKeybinds(); toast("Cleared."); renderKeybinds(); }
+  el().querySelectorAll("[data-kb-off]").forEach((b) => b.onclick = async () => {
+    const row = b.closest(".kb-row");
+    try { await API.setup.setKeybindDisabled({ action: b.dataset.kbOff, disabled: !row.classList.contains("is-off") }); refresh(); }
+    catch (e) { toast(e.message); }
+  });
+  document.getElementById("kb-apply").onclick = async (e) => {
+    try { await API.setup.setKeybindApply(!e.currentTarget.classList.contains("on")); refresh(); }
+    catch (err) { toast(err.message); }
+  };
+  document.getElementById("kb-refresh").onclick = async (e) => {
+    e.currentTarget.disabled = true;
+    try { const d = await API.setup.refreshKeybinds(); toast(`${d.discoveredCount} actions known.`); refresh(); }
+    catch (err) { e.currentTarget.disabled = false; toast(err.message); }
+  };
+  document.getElementById("kb-add").onclick = () => {
+    const action = prompt("Action id to bind (e.g. key.mymod.dothing):");
+    if (!action || !action.trim()) return;
+    API.setup.setKeybind({ action: action.trim(), value: "key.keyboard.unknown" }).then(refresh).catch((e) => toast(e.message));
+  };
+  document.getElementById("kb-preset").onclick = async () => {
+    const names = data.presets.map((p, i) => `${i + 1}. ${p.name}${p.base ? " (base)" : ""}`).join("\n");
+    const pick = prompt(`Switch preset:\n${names}\n\nType a number:`);
+    const idx = Number(pick) - 1;
+    if (!Number.isInteger(idx) || !data.presets[idx]) return;
+    try { await API.setup.keybindPreset({ verb: "select", id: data.presets[idx].id }); refresh(); }
     catch (e) { toast(e.message); }
   };
-}
-
-// Listen for one real keypress and store Minecraft's own input name for it.
-function captureGlobalKey(btn) {
-  const original = btn.textContent;
-  btn.textContent = "Press a key…";
-  btn.classList.add("is-on");
-  const finish = () => {
-    window.removeEventListener("keydown", onKey, true);
-    window.removeEventListener("mousedown", onMouse, true);
+  document.getElementById("kb-preset-more").onclick = async () => {
+    const verb = prompt("Preset action: new / duplicate / rename / delete");
+    if (!verb) return;
+    const v = verb.trim().toLowerCase();
+    let name = null;
+    if (v === "new" || v === "rename") { name = prompt("Name:"); if (!name) return; }
+    try { await API.setup.keybindPreset({ verb: v === "new" ? "create" : v, name }); refresh(); }
+    catch (e) { toast(e.message); }
   };
-  const commit = async (value) => {
-    finish();
-    try { await API.setup.setKeybind({ action: btn.dataset.kbg, value }); renderKeybinds(); }
-    catch (e) { btn.textContent = original; btn.classList.remove("is-on"); toast(e.message); }
+  document.getElementById("kb-mods").onclick = () => {
+    const off = data.rows.filter((r) => r.disabled);
+    toast(off.length ? `${off.length} bind${off.length === 1 ? "" : "s"} won't be applied: ${off.slice(0, 3).map((r) => r.label).join(", ")}${off.length > 3 ? "\u2026" : ""}`
+                     : "Every discovered bind is being applied.");
   };
-  const onKey = (e) => {
-    e.preventDefault(); e.stopPropagation();
-    if (e.key === "Escape") { finish(); btn.textContent = original; btn.classList.remove("is-on"); return; }
-    const name = mcKeyName(e);
-    if (name) commit(name);
-  };
-  const onMouse = (e) => {
-    e.preventDefault(); e.stopPropagation();
-    const map = { 0: "left", 1: "middle", 2: "right" };
-    commit("key.mouse." + (map[e.button] || e.button));
-  };
-  window.addEventListener("keydown", onKey, true);
-  window.addEventListener("mousedown", onMouse, true);
-}
-
-// Browser KeyboardEvent.code -> Minecraft's key.keyboard.* name.
-function mcKeyName(e) {
-  const c = e.code;
-  if (/^Key[A-Z]$/.test(c)) return "key.keyboard." + c.slice(3).toLowerCase();
-  if (/^Digit[0-9]$/.test(c)) return "key.keyboard." + c.slice(5);
-  if (/^F([1-9]|1[0-9]|2[0-5])$/.test(c)) return "key.keyboard." + c.toLowerCase();
-  if (/^Numpad[0-9]$/.test(c)) return "key.keyboard.keypad." + c.slice(6);
-  const named = {
-    Space: "space", Enter: "enter", Escape: "escape", Backspace: "backspace", Tab: "tab",
-    Insert: "insert", Delete: "delete", Home: "home", End: "end",
-    PageUp: "page.up", PageDown: "page.down",
-    ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
-    ShiftLeft: "left.shift", ShiftRight: "right.shift",
-    ControlLeft: "left.control", ControlRight: "right.control",
-    AltLeft: "left.alt", AltRight: "right.alt",
-    CapsLock: "caps.lock", Minus: "minus", Equal: "equal",
-    BracketLeft: "left.bracket", BracketRight: "right.bracket",
-    Semicolon: "semicolon", Quote: "apostrophe", Backquote: "grave.accent",
-    Backslash: "backslash", Comma: "comma", Period: "period", Slash: "slash",
-  };
-  return named[c] ? "key.keyboard." + named[c] : null;
 }
 
 // ---------- SETUP: SKINS ----------

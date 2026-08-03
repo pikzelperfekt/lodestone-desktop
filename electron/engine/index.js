@@ -30,6 +30,7 @@ const { launch: doLaunch, offlineSession } = require("./launch");
 let DATA_DIR = null;
 let emit = () => {};
 const running = {}; // instanceId -> child process
+let sizeCache = null;  // { at, value } for instanceSizes()
 
 function init(userDataPath) {
   DATA_DIR = userDataPath || path.join(os.homedir(), ".lodestone");
@@ -587,6 +588,35 @@ module.exports = {
   cloudProfile, cloudUpdateProfile, cloudLinkMinecraft, cloudSearchProfiles,
   // [Cloud Sync — Vertical A]
   cloudSyncPush, cloudSyncList, cloudSyncPull, cloudSyncRemove, cloudSyncStatus,
+  // ---- Disk usage per instance (the Instances page footer) ----
+  // Walking 70+ instance trees is not free, so results are cached for a minute;
+  // the footer is a quiet fact, not something worth stalling a render for.
+  instanceSizes: () => {
+    const now = Date.now();
+    if (sizeCache && now - sizeCache.at < 60_000) return sizeCache.value;
+    const dirSize = (dir) => {
+      let total = 0;
+      let entries = [];
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return 0; }
+      for (const e of entries) {
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) total += dirSize(full);
+        else if (e.isFile()) { try { total += fs.statSync(full).size; } catch { /* vanished mid-walk */ } }
+      }
+      return total;
+    };
+    const p = install.paths(DATA_DIR);
+    const out = {};
+    let total = 0;
+    for (const inst of readInstances()) {
+      const bytes = dirSize(p.instanceDir(inst.id));
+      out[inst.id] = bytes;
+      total += bytes;
+    }
+    const value = { sizes: out, total };
+    sizeCache = { at: now, value };
+    return value;
+  },
   // ---- Seed search (native cubiomes helper; vanilla worldgen only) ----
   seedSearchAvailable: () => seedfinder.available(),
   seedSearch: (a) => {
@@ -641,9 +671,14 @@ module.exports = {
   // ---- Global SETUP: Game settings / Keybinds / Skins ----
   gameSettingsGet: () => globalsetup.getGameSettings(),
   gameSettingsSet: (a) => globalsetup.setGameSettings(a),
+  gameSettingsApply: (a) => globalsetup.setApplyOnLaunch(a && a.on),
   keybindProfileGet: () => globalsetup.getKeybindProfile(),
   keybindProfileSet: (a) => globalsetup.setKeybindProfile(a),
   keybindProfileReset: () => globalsetup.resetKeybindProfile(),
+  keybindDisabled: (a) => globalsetup.setKeybindDisabled(a),
+  keybindApply: (a) => globalsetup.setKeybindApply(a && a.on),
+  keybindPreset: (a) => globalsetup.keybindPreset(a),
+  keybindRefresh: () => { globalsetup.refreshDiscovered(DATA_DIR); return globalsetup.getKeybindProfile(); },
   skinProfile: async () => { const ses = await auth.currentSession(); return globalsetup.getProfile(ses && ses.accessToken); },
   skinUpload: async (a) => { const ses = await auth.currentSession(); return globalsetup.uploadSkin({ token: ses && ses.accessToken, dataBase64: a && a.dataBase64, variant: a && a.variant }); },
   skinReset: async () => { const ses = await auth.currentSession(); return globalsetup.resetSkin(ses && ses.accessToken); },

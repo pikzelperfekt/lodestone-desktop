@@ -1728,3 +1728,5 @@ textarea.inp, .share-box {
 .pe-name { font-size: 13px; color: var(--text-primary); }
 .pe-file { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-tertiary);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fw-live { font-style: normal; font-family: var(--font-pixel); font-size: 9px;
+  color: var(--live); margin-left: 7px; text-transform: uppercase; }

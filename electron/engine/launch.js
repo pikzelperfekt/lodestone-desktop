@@ -85,6 +85,18 @@ function buildArgs(detail, install, session, opts) {
   else if (detail.minecraftArguments) game = detail.minecraftArguments.split(" ").map((s) => resolve(s, subs));
   if (overlay.extraGame && overlay.extraGame.length) game.push(...flatten(overlay.extraGame, subs, features));
 
+  // Quick Play: join a server or open a world straight from launch. 1.20+
+  // understands --quickPlayMultiplayer; older versions only have --server/--port,
+  // so both are emitted rather than assuming the modern one is understood.
+  if (opts.joinServer) {
+    const [host, port] = String(opts.joinServer).split(":");
+    game.push("--quickPlayMultiplayer", String(opts.joinServer));
+    game.push("--server", host);
+    if (port) game.push("--port", String(port));
+  } else if (opts.quickPlayWorld) {
+    game.push("--quickPlaySingleplayer", String(opts.quickPlayWorld));
+  }
+
   const mainClass = overlay.mainClass || detail.mainClass;
   return [...jvm, mainClass, ...game];
 }

@@ -403,6 +403,19 @@
         if (bridge) return unwrap(await bridge.worlds.seedMap(opts));
         throw new Error("Seed maps run in the desktop app.");
       },
+      async foreverCreate(opts) {
+        if (bridge) return unwrap(await bridge.worlds.foreverCreate(opts));
+        throw new Error("Forever Worlds run in the desktop app.");
+      },
+      async foreverList() { if (!bridge) return []; try { return unwrap(await bridge.worlds.foreverList()); } catch { return []; } },
+      async foreverEnter(id) {
+        if (bridge) return unwrap(await bridge.worlds.foreverEnter(id));
+        throw new Error("Forever Worlds run in the desktop app.");
+      },
+      async foreverDelete(id) {
+        if (bridge) return unwrap(await bridge.worlds.foreverDelete(id));
+        throw new Error("Forever Worlds run in the desktop app.");
+      },
       async pregenStart(opts) {
         if (bridge) return unwrap(await bridge.worlds.pregenStart(opts));
         throw new Error("Pregeneration runs in the desktop app.");

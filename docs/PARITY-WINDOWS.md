@@ -10,9 +10,9 @@ one is generated from the Mac source so it cannot drift.
 
 | status | count |
 |---|---|
-| done | 80 |
+| done | 82 |
 | partial | 0 |
-| missing | 9 |
+| missing | 7 |
 | n/a | 1 |
 
 | Mac view | Status | Notes |
@@ -34,7 +34,7 @@ one is generated from the Mac source so it cannot drift.
 | CurseForgeSearchView | done | search + project pages |
 | CurseForgeSheets | done | detail + install |
 | DatapacksSheet | done | packs vertical |
-| DeleteForeverWorldSheet | missing | Forever Worlds not built |
+| DeleteForeverWorldSheet | done | permanent, stated plainly |
 | DropSupport | done | drag a pack onto the window |
 | EditInstanceSheet | done | name/version/RAM/Java/icon/group/notes |
 | FileBrowserTab | done | breadcrumb browser + editor |
@@ -59,7 +59,7 @@ one is generated from the Mac source so it cannot drift.
 | MixinConflictsSheet | done | static scanner |
 | ModpackEditor | done | pick what leaves the machine, export .mrpack |
 | ModpacksView | done | curate contents and export, exclusions restored after |
-| NewForeverWorldSheet | missing | Forever Worlds not built |
+| NewForeverWorldSheet | done | locked settings baked in at creation |
 | NewWorldSheet | done | both save formats |
 | NoteTabView | done | per-instance notes |
 | OnboardingSheet | done | first run only |

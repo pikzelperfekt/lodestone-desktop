@@ -481,7 +481,7 @@ async function signInStart() { return auth.startDeviceCode(); }       // → {us
 async function signInComplete(device) { return auth.completeSignIn(device); }
 
 // ---- Launch (real) ----
-async function launch(id) {
+async function launch(id, opts) {
   const inst = readInstances().find((i) => i.id === id);
   if (!inst) throw new Error("Instance not found.");
   if (running[id]) return { started: true, message: "Already running." };
@@ -536,7 +536,8 @@ async function launch(id) {
     const extraJvm = inst.javaArgs ? String(inst.javaArgs).split(/\s+/).filter(Boolean) : [];
     const startedAt = Date.now(); // [Voxel parity] real playtime, banked on exit
     const child = doLaunch(detail, built, session,
-      { gameDir, assetsRoot: p.assets, librariesDir: p.libraries, ramMB: inst.ramMB || undefined, extraJvm, overlay },
+      { gameDir, assetsRoot: p.assets, librariesDir: p.libraries, ramMB: inst.ramMB || undefined, extraJvm, overlay,
+        joinServer: opts && opts.joinServer, quickPlayWorld: opts && opts.quickPlayWorld },
       (line) => emit("launch:log", { line }),
       (code) => {
         delete running[id];
@@ -1187,6 +1188,91 @@ module.exports = {
       seed: a && a.seed, radius: a && a.radius, step: a && a.step, modsDir,
     });
   },
+  // ---- Forever Worlds ----
+  // A world you commit to: an instance plus a server whose settings are baked
+  // in at creation and never editable afterwards. Entering starts the server in
+  // the background and joins it on localhost, so the world lives server-side
+  // and survives client changes, mod swaps and reinstalls.
+  createForeverWorld: async (a) => {
+    const name = String((a && a.name) || "").trim() || "Forever World";
+    const loader = (a && a.loader) || "vanilla";
+    const inst = createInstance({ name, mcVersion: a.mcVersion, loader });
+
+    const platform = loader === "fabric" ? "fabric" : loader === "vanilla" ? "vanilla" : "paper";
+    const server = await serverEngine.create(DATA_DIR, {
+      name, platform, mcVersion: a.mcVersion,
+    }, { onLog: (line) => emit("launch:log", { line }) });
+
+    // Bake the locked settings in now. They are deliberately not editable
+    // later — that is the whole promise of a Forever World.
+    serverEngine.setProperties(DATA_DIR, server.id, {
+      "level-name": "world",
+      "level-seed": String((a && a.seed) || ""),
+      difficulty: String((a && a.difficulty) || "normal"),
+      hardcore: a && a.hardcore ? "true" : "false",
+      "level-type": String((a && a.levelType) || "minecraft:normal"),
+      "online-mode": "false",     // joined over localhost by its own owner
+      motd: name,
+    });
+
+    const list = readInstances();
+    const rec = list.find((i) => i.id === inst.id);
+    if (rec) { rec.foreverServerId = server.id; rec.isForever = true; writeInstances(list); }
+
+    const servers = serverEngine.list(DATA_DIR);
+    const srec = servers.find((x) => x.id === server.id);
+    return { instance: rec || inst, server: srec || server };
+  },
+
+  listForeverWorlds: () => {
+    const servers = serverEngine.list(DATA_DIR);
+    return readInstances().filter((i) => i.isForever).map((i) => ({
+      instanceId: i.id, name: i.name, mcVersion: i.mcVersion, loader: i.loader,
+      serverId: i.foreverServerId,
+      running: !!(servers.find((s) => s.id === i.foreverServerId) || {}).running,
+      playtimeMs: i.playtimeMs || 0,
+    }));
+  },
+
+  // Start the locked server, wait for it to say it is ready, then launch the
+  // client straight into it. Waiting matters: joining before the server is up
+  // drops the player on a connection-refused screen.
+  enterForeverWorld: (a) => new Promise((resolve, reject) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst || !inst.foreverServerId) { reject(new Error("Not a Forever World.")); return; }
+    const props = serverEngine.properties(DATA_DIR, inst.foreverServerId);
+    const port = Number(props["server-port"]) || 25565;
+
+    let joined = false;
+    const join = async () => {
+      if (joined) return;
+      joined = true;
+      try { resolve(await launch(inst.id, { joinServer: `127.0.0.1:${port}` })); }
+      catch (e) { reject(e); }
+    };
+
+    serverEngine.start(DATA_DIR, inst.foreverServerId, {
+      onLog: (line) => {
+        emit("server:log", { id: inst.foreverServerId, line });
+        if (/\bDone \([\d.]+s\)!/.test(line)) join();
+      },
+      onState: (st) => emit("server:state", st),
+    }).catch(reject);
+
+    // If the server never announces readiness, say so rather than hanging.
+    setTimeout(() => {
+      if (!joined) { joined = true; reject(new Error("The world's server didn't start in time. Check the Servers tab.")); }
+    }, 180_000);
+  }),
+
+  deleteForeverWorld: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst || !inst.isForever) throw new Error("Not a Forever World.");
+    if (inst.foreverServerId) { try { serverEngine.remove(DATA_DIR, inst.foreverServerId); } catch { /* already gone */ } }
+    deleteInstance(inst.id);
+    return { deleted: true };
+  },
+
   // ---- Chunk pregeneration ----
   pregenStatus: () => pregen.status(),
   pregenStop: () => pregen.stop(pregenDeps()),

@@ -253,6 +253,7 @@ async function renderInstances() {
       <div class="head-actions">
         <button class="gh${instSelecting ? " is-on" : ""}" id="select-mode">${ico("i-grid")} ${instSelecting ? "Done" : "Select"}</button>
         <button class="gh" id="new-group">${ico("i-plus")} New group</button>
+        <button class="gh" id="forever-new">${ico("i-globe")} Forever World</button>
         <button class="gh" id="synced-packs">${ico("i-bolt")} Synced</button>
         <button class="gh" id="add-from-code">${ico("i-bolt")} Add from code</button>
         <button class="gh" id="import-pack">${ico("i-download")} Import</button>
@@ -374,6 +375,7 @@ async function renderInstances() {
       btn.disabled = false; btn.innerHTML = original;
     }
   };
+  document.getElementById("forever-new").onclick = () => openForeverSheet();
   document.getElementById("synced-packs").onclick = () => openSyncedSheet();
   document.getElementById("add-from-code").onclick = () => openAddFromCodeModal();
   document.getElementById("new-inst").onclick = () => { creating = !creating; toggleNewPanel(); };
@@ -2361,6 +2363,105 @@ function paintWorldMap(canvas, cells) {
     ctx.fillStyle = biomeColor(c.biome);
     ctx.fillRect((c.x - minX) * scale, (c.z - minZ) * scale, scale, scale);
   }
+}
+
+// ---------- Forever Worlds ----------
+// A world you commit to. Its settings are baked in when it is made and are
+// never editable afterwards, and it lives server-side so it survives mod
+// changes and reinstalls. Deleting one is permanent — that is stated plainly
+// rather than softened, because there is genuinely no undo.
+async function openForeverSheet() {
+  const [worlds, versions] = await Promise.all([
+    API.foreverList(), API.versions().catch(() => ({ releases: [] })),
+  ]);
+  const releases = (versions.releases || []).slice(0, 40);
+
+  showModal(`
+    <div class="share-card wide-card">
+      <div class="share-h">${ico("i-globe")} Forever Worlds</div>
+      <p class="share-sub">A world you settle in. Its seed, difficulty and type are fixed when you make it,
+        and it runs as its own server \u2014 so it outlives mod changes, reinstalls and version bumps.</p>
+
+      ${worlds.length ? `<div class="share-label">YOURS</div>
+        <div class="fb-list">${worlds.map((w) => `
+          <div class="sy-row">
+            <span class="sy-meta">
+              <span class="sy-name">${esc(w.name)}${w.running ? ` <em class="fw-live">live</em>` : ""}</span>
+              <span class="sy-sub">${esc(w.mcVersion)} \u00b7 ${esc(loaderLabel(w.loader))} \u00b7 ${esc(fmtPlaytime(w.playtimeMs))} played</span>
+            </span>
+            <button class="gh gh-sm" data-fwenter="${esc(w.instanceId)}">${ico("i-play")} Enter</button>
+            <button class="kb-icon" data-fwdel="${esc(w.instanceId)}" title="Delete forever">${ico("i-trash")}</button>
+          </div>`).join("")}</div>` : ""}
+
+      <div class="share-label">NEW FOREVER WORLD</div>
+      <div class="np-grid">
+        <label class="np-field"><span>NAME</span><input class="inp" id="fw-name" value="My Forever World"></label>
+        <label class="np-field"><span>VERSION</span>
+          <select class="inp" id="fw-ver">${releases.map((r) => `<option>${esc(r)}</option>`).join("")}</select></label>
+        <label class="np-field"><span>LOADER</span>
+          <select class="inp" id="fw-loader">
+            <option value="vanilla">Vanilla</option>
+            <option value="fabric">Fabric</option>
+            <option value="paper">Paper</option>
+          </select></label>
+      </div>
+      <div class="np-grid">
+        <label class="np-field"><span>SEED</span><input class="inp" id="fw-seed" placeholder="Leave blank for random"></label>
+        <label class="np-field"><span>DIFFICULTY</span>
+          <select class="inp" id="fw-diff">
+            <option value="peaceful">Peaceful</option><option value="easy">Easy</option>
+            <option value="normal" selected>Normal</option><option value="hard">Hard</option>
+          </select></label>
+        <label class="np-field"><span>WORLD TYPE</span>
+          <select class="inp" id="fw-type">
+            <option value="minecraft:normal">Normal</option>
+            <option value="minecraft:flat">Superflat</option>
+            <option value="minecraft:large_biomes">Large Biomes</option>
+            <option value="minecraft:amplified">Amplified</option>
+          </select></label>
+      </div>
+      <label class="nw-check"><input type="checkbox" id="fw-hardcore"> Hardcore \u2014 one life, no respawn</label>
+      <p class="share-note">These settings cannot be changed afterwards. That is the point: a Forever World is
+        meant to be the one you keep, so nothing about it can drift later.</p>
+
+      <div class="np-actions">
+        <button class="btn-ghost" id="fw-close">Close</button>
+        <button class="btn-accent share-btn" id="fw-create">${ico("i-plus")} Create</button>
+      </div>
+    </div>`);
+
+  document.getElementById("fw-close").onclick = hideModal;
+  document.getElementById("fw-create").onclick = async (e) => {
+    const btn = e.currentTarget; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Creating\u2026`;
+    try {
+      await API.foreverCreate({
+        name: document.getElementById("fw-name").value,
+        mcVersion: document.getElementById("fw-ver").value,
+        loader: document.getElementById("fw-loader").value,
+        seed: document.getElementById("fw-seed").value,
+        difficulty: document.getElementById("fw-diff").value,
+        levelType: document.getElementById("fw-type").value,
+        hardcore: document.getElementById("fw-hardcore").checked,
+      });
+      toast("Forever World created."); hideModal(); renderInstances();
+    } catch (err) {
+      btn.disabled = false; btn.innerHTML = `${ico("i-plus")} Create`;
+      toast("Couldn't create: " + err.message);
+    }
+  };
+  document.querySelectorAll("[data-fwenter]").forEach((b) => b.onclick = async () => {
+    b.disabled = true; b.innerHTML = `<span class="spinner"></span> Starting\u2026`;
+    toast("Starting the world's server, then joining\u2026");
+    try { await API.foreverEnter(b.dataset.fwenter); hideModal(); }
+    catch (e) { b.disabled = false; b.innerHTML = `${ico("i-play")} Enter`; toast(e.message); }
+  });
+  document.querySelectorAll("[data-fwdel]").forEach((b) => b.onclick = async () => {
+    const row = b.closest(".sy-row");
+    const name = row ? row.querySelector(".sy-name").textContent.trim() : "this world";
+    if (!confirm(`Delete "${name}" and everything in it — the world save, every backup, its mods and configs?\n\nForever Worlds are built to last. There is no undo.`)) return;
+    try { await API.foreverDelete(b.dataset.fwdel); toast("Deleted."); openForeverSheet(); renderInstances(); }
+    catch (e) { toast(e.message); }
+  });
 }
 
 // ---------- Chunk pregeneration ----------

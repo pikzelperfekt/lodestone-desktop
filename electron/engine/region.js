@@ -124,6 +124,7 @@ function scanDimension({ regionDir, maxRegions = 64 }) {
 
   const counts = new Map();        // biome name -> cells
   const cells = [];                // { x, z, biome } per chunk, chunk coords
+  const structures = new Map();    // structure id -> chunk count
   let chunks = 0;
 
   for (const f of files) {
@@ -162,6 +163,21 @@ function scanDimension({ regionDir, maxRegions = 64 }) {
       let top = null, topN = -1;
       for (const [name, n] of local) if (n > topN) { top = name; topN = n; }
       if (top) cells.push({ x: cx, z: cz, biome: top });
+
+      // Structures the chunk participates in. `starts` holds one entry per
+      // structure; an entry whose id is "INVALID" is a slot the generator
+      // considered and rejected, so it is skipped rather than counted.
+      const st = child(root, "structures");
+      const starts = st ? child(st, "starts") : null;
+      if (starts && starts.tag === T.COMPOUND) {
+        for (const [nameBuf, node] of starts.pairs) {
+          const key = nameBuf.toString("utf8");
+          const idNode = child(node, "id");
+          const id = asString(idNode);
+          if (id === "INVALID") continue;
+          structures.set(key, (structures.get(key) || 0) + 1);
+        }
+      }
     });
   }
 
@@ -170,7 +186,12 @@ function scanDimension({ regionDir, maxRegions = 64 }) {
     .map(([name, n]) => ({ name, cells: n, share: n / total }))
     .sort((a, b) => b.cells - a.cells);
 
-  return { chunks, biomes, cells, regionsScanned: files.length, regionsTotal: files.length };
+  const structureRows = [...structures.entries()]
+    .map(([name, n]) => ({ name, chunks: n }))
+    .sort((a, b) => b.chunks - a.chunks);
+
+  return { chunks, biomes, cells, structures: structureRows,
+           regionsScanned: files.length, regionsTotal: files.length };
 }
 
 module.exports = { scanDimension, eachChunk };

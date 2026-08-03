@@ -29,6 +29,20 @@ function asIntArray(n) {
   return Array.from({ length: len }, (_, i) => n.raw.readInt32BE(4 + i * 4));
 }
 
+const asFloat = (n) => (n && n.tag === T.FLOAT ? n.raw.readFloatBE(0) : null);
+
+// nbt.js keeps a list of scalars as ONE raw slice (only compound/list elements
+// are recursed into), so a Pos list of doubles has to be decoded by hand.
+// Layout: u8 elemTag, i32 count, then count * 8 bytes.
+function doubleList(n) {
+  if (!n || n.tag !== T.LIST || !n.raw) return null;
+  if (n.raw.readUInt8(0) !== T.DOUBLE) return null;
+  const count = n.raw.readInt32BE(1);
+  const out = [];
+  for (let i = 0; i < count && 5 + i * 8 + 8 <= n.raw.length; i++) out.push(n.raw.readDoubleBE(5 + i * 8));
+  return out;
+}
+
 function readGz(file) {
   try { return nbt.parse(zlib.gunzipSync(fs.readFileSync(file))).root; }
   catch { return null; }
@@ -100,8 +114,36 @@ function worldInfo({ instanceDir, folder }) {
   const time = asLong(child(data, "Time"));
   const dayTime = asLong(child(data, "DayTime"));
 
+  // The single-player who owns this save: where they are, how they're doing,
+  // and what they're carrying. Absent on a world that has never been entered.
+  let player = null;
+  const p = child(data, "Player");
+  if (p) {
+    const pos = doubleList(child(p, "Pos"));
+    const inv = child(p, "Inventory");
+    const items = [];
+    if (inv && inv.tag === T.LIST && Array.isArray(inv.items)) {
+      for (const it of inv.items) {
+        const id = asString(child(it, "id"));
+        if (!id) continue;
+        const count = asByte(child(it, "count")) ?? asByte(child(it, "Count")) ?? asInt(child(it, "count")) ?? 1;
+        items.push({ id, count, slot: asByte(child(it, "Slot")) });
+      }
+    }
+    player = {
+      pos: pos && pos.length >= 3
+        ? { x: Math.round(pos[0]), y: Math.round(pos[1]), z: Math.round(pos[2]) } : null,
+      dimension: asString(child(p, "Dimension")),
+      health: asFloat(child(p, "Health")),
+      food: asInt(child(p, "foodLevel")),
+      xpLevel: asInt(child(p, "XpLevel")),
+      inventory: items,
+    };
+  }
+
   return {
     folder,
+    player,
     name: asString(child(data, "LevelName")) || folder,
     dataVersion,
     split,

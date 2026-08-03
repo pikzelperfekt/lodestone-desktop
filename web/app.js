@@ -2136,6 +2136,29 @@ async function renderWorldDetail(instanceId, folder) {
       <div class="empty-line">No terrain generated yet \u2014 this world hasn't been opened.</div>
     </section>`}
 
+    ${w.player ? `
+    <section class="vsec">
+      <div class="vsec-head"><span class="kick">Where you left off</span></div>
+      <div class="wd-player">
+        <div class="wd-pfacts">
+          ${w.player.pos ? `<div class="wd-fact"><span class="kick">Position</span><b>${w.player.pos.x}, ${w.player.pos.y}, ${w.player.pos.z}</b></div>` : ""}
+          ${w.player.dimension ? `<div class="wd-fact"><span class="kick">Dimension</span><b>${esc(biomeLabel(w.player.dimension))}</b></div>` : ""}
+          ${w.player.health !== null ? `<div class="wd-fact"><span class="kick">Health</span><b>${Math.round(w.player.health)} / 20</b></div>` : ""}
+          ${w.player.food !== null ? `<div class="wd-fact"><span class="kick">Food</span><b>${w.player.food} / 20</b></div>` : ""}
+          ${w.player.xpLevel !== null ? `<div class="wd-fact"><span class="kick">XP level</span><b>${w.player.xpLevel}</b></div>` : ""}
+        </div>
+        ${w.player.pos ? `<button class="gh gh-sm" id="wd-copy-pos">${ico("i-link")} Copy coords</button>` : ""}
+      </div>
+      ${w.player.inventory.length ? `
+        <div class="kick wd-carry">Carrying \u00b7 ${w.player.inventory.length} stack${w.player.inventory.length === 1 ? "" : "s"}</div>
+        <div class="wd-inv">
+          ${w.player.inventory.slice(0, 45).map((it) => `
+            <span class="wd-item" title="${esc(it.id)}">
+              ${esc(biomeLabel(it.id))}${it.count > 1 ? `<em>\u00d7${it.count}</em>` : ""}
+            </span>`).join("")}
+        </div>` : `<div class="empty-line">Inventory is empty.</div>`}
+    </section>` : ""}
+
     <section class="vsec">
       <div class="vsec-head"><span class="kick">Explored map</span>
         <button class="gh gh-sm" id="wd-scan">Scan region files</button></div>
@@ -2177,11 +2200,23 @@ async function renderWorldDetail(instanceId, folder) {
                 </div>`).join("")}
               ${scan.biomes.length > 14 ? `<div class="wm-more kick">+${scan.biomes.length - 14} more biomes</div>` : ""}
             </div>
-          </div>`;
+          </div>
+          ${scan.structures && scan.structures.length ? `
+            <div class="vsec-head" style="margin-top:20px"><span class="kick">Structures found</span></div>
+            <div class="wd-structs">
+              ${scan.structures.slice(0, 24).map((st) => `
+                <span class="vchip">${esc(biomeLabel(st.name))} <em class="st-n">${st.chunks}</em></span>`).join("")}
+            </div>` : ""}`;
         paintWorldMap(document.getElementById("wm-canvas"), scan.cells);
       }
     } catch (err) { host.innerHTML = `<div class="empty-line">${esc(err.message)}</div>`; }
     b.disabled = false; b.innerHTML = "Scan region files";
+  };
+
+  const posBtn = document.getElementById("wd-copy-pos");
+  if (posBtn && w.player && w.player.pos) posBtn.onclick = async () => {
+    const c = `${w.player.pos.x} ${w.player.pos.y} ${w.player.pos.z}`;
+    toast(await copyText(c) ? `Copied ${c}.` : "Couldn't copy.");
   };
 
   const seedBtn = document.getElementById("wd-copy-seed");

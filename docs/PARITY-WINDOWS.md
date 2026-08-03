@@ -45,7 +45,7 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 | WorldManagerSheet | partial | list/backup/restore/rename/delete |
 | WorldDetailView | done | facts from level.dat (both save formats) + actions |
 | WorldMapView | done | .mca reader + canvas biome map of generated chunks |
-| WorldStatisticsView | partial | biome breakdown + chunk counts; **no structures/inventory** |
+| WorldStatisticsView | done | biomes, structures, player position/health/XP and inventory |
 | SeedMapView / SeedInfoSheet | missing | biome map from a seed |
 | SeedFinderSheet | done | native cubiomes helper |
 | PregenSheet | missing | chunk pregeneration via Chunky |

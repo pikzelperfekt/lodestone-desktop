@@ -299,6 +299,38 @@ async function renderInstances() {
     };
   }
 
+  // Drag a card onto another to reorder. Scoped to one grid, so a drag can't
+  // silently move an instance between groups — that is what the menu is for.
+  let dragId = null;
+  el().querySelectorAll("[data-drag]").forEach((card) => {
+    card.addEventListener("dragstart", (e) => {
+      dragId = card.dataset.drag;
+      card.classList.add("is-dragging");
+      try { e.dataTransfer.setData("text/plain", dragId); e.dataTransfer.effectAllowed = "move"; } catch { /* older engines */ }
+    });
+    card.addEventListener("dragend", () => { dragId = null; el().querySelectorAll(".is-dragging,.drop-before").forEach((n) => n.classList.remove("is-dragging", "drop-before")); });
+    card.addEventListener("dragover", (e) => {
+      if (!dragId || card.dataset.drag === dragId) return;
+      if (card.closest(".grid") !== el().querySelector(`[data-drag="${dragId}"]`).closest(".grid")) return;
+      e.preventDefault();
+      card.classList.add("drop-before");
+    });
+    card.addEventListener("dragleave", () => card.classList.remove("drop-before"));
+    card.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      card.classList.remove("drop-before");
+      if (!dragId || card.dataset.drag === dragId) return;
+      const grid = card.closest(".grid");
+      const ids = [...grid.querySelectorAll("[data-drag]")].map((n) => n.dataset.drag);
+      const from = ids.indexOf(dragId);
+      const to = ids.indexOf(card.dataset.drag);
+      if (from < 0 || to < 0) return;
+      ids.splice(to, 0, ...ids.splice(from, 1));
+      try { await API.reorderInstances(ids); renderInstances(); }
+      catch (err) { toast(err.message); }
+    });
+  });
+
   // Group controls.
   document.getElementById("new-group").onclick = async () => {
     const name = prompt("Name the group:");
@@ -395,26 +427,87 @@ async function renderScreenshots(id) {
         </button>`).join("")}</div>`
     : `<div class="empty-line">No screenshots yet. Press F2 in game and they'll show up here.</div>`;
   host.querySelectorAll("[data-shot]").forEach((b) => b.onclick = () => {
-    showModal(`<div class="shot-view"><img src="${fileURL(b.dataset.shot)}" alt=""><button class="btn-ghost" id="sv-close">Close</button></div>`);
+    const full = b.dataset.shot;
+    const name = full.split(/[\\/]/).pop();
+    showModal(`
+      <div class="shot-view">
+        <img src="${fileURL(full)}" alt="">
+        <div class="shot-acts">
+          <button class="gh" id="sv-copy">${ico("i-link")} Copy image</button>
+          <button class="gh" id="sv-save">${ico("i-download")} Save as\u2026</button>
+          <button class="gh" id="sv-reveal">Show in folder</button>
+          <button class="gh danger" id="sv-del">${ico("i-trash")} Delete</button>
+          <button class="btn-ghost" id="sv-close">Close</button>
+        </div>
+      </div>`);
     document.getElementById("sv-close").onclick = hideModal;
+    document.getElementById("sv-copy").onclick = async () => {
+      try { await API.shotCopy(full); toast("Copied to the clipboard."); } catch (e) { toast(e.message); }
+    };
+    document.getElementById("sv-save").onclick = async () => {
+      try { const r = await API.shotSave({ path: full, name }); if (r) toast(`Saved to ${r.path}.`); }
+      catch (e) { toast(e.message); }
+    };
+    document.getElementById("sv-reveal").onclick = async () => {
+      try { await API.shotReveal(full); } catch (e) { toast(e.message); }
+    };
+    document.getElementById("sv-del").onclick = async () => {
+      if (!confirm(`Move ${name} to the Recycle Bin?`)) return;
+      try { await API.shotDelete(full); toast("Moved to the Recycle Bin."); hideModal(); renderScreenshots(id); }
+      catch (e) { toast(e.message); }
+    };
   });
   const open = document.getElementById("shots-open");
   if (open) open.onclick = () => API.openPath ? API.openPath(dir) : toast(dir);
 }
 
 // The tail of latest.log, with the levels picked out so errors stand out.
+const logFilter = { level: "all", q: "" };
 async function renderInstanceLog(id) {
   const host = document.getElementById("inst-log");
   if (!host) return;
   const { lines, exists } = await API.instanceLog(id);
-  host.innerHTML = exists && lines.length
-    ? `<pre class="log-view">${lines.map((l) => {
-        const level = /\/(ERROR|FATAL)\]/.test(l) ? "err" : /\/WARN\]/.test(l) ? "warn" : "";
-        return `<span class="log-line ${level}">${esc(l)}</span>`;
-      }).join("\n")}</pre>`
-    : `<div class="empty-line">No log yet. Launch the instance once and its latest.log shows up here.</div>`;
+
+  const levelOf = (l) => (/\/(ERROR|FATAL)\]/.test(l) ? "err" : /\/WARN\]/.test(l) ? "warn" : "info");
+  const counts = { err: 0, warn: 0, info: 0 };
+  for (const l of lines) counts[levelOf(l)]++;
+
+  const q = logFilter.q.trim().toLowerCase();
+  const shown = lines.filter((l) => {
+    if (logFilter.level !== "all" && levelOf(l) !== logFilter.level) return false;
+    return !q || l.toLowerCase().includes(q);
+  });
+
+  host.innerHTML = !exists || !lines.length
+    ? `<div class="empty-line">No log yet. Launch the instance once and its latest.log shows up here.</div>`
+    : `<div class="log-toolbar">
+         <span class="field-search">${ico("i-search")}<input class="inp log-find" id="log-find" placeholder="Find in log" value="${esc(logFilter.q)}"></span>
+         <div class="seg">
+           <button class="seg-btn ${logFilter.level === "all" ? "is-on" : ""}" data-lvl="all">All ${lines.length}</button>
+           <button class="seg-btn ${logFilter.level === "err" ? "is-on" : ""}" data-lvl="err">Errors ${counts.err}</button>
+           <button class="seg-btn ${logFilter.level === "warn" ? "is-on" : ""}" data-lvl="warn">Warnings ${counts.warn}</button>
+         </div>
+         <button class="gh gh-sm" id="log-copy">Copy</button>
+       </div>
+       ${shown.length
+         ? `<pre class="log-view">${shown.map((l) => `<span class="log-line ${levelOf(l) === "info" ? "" : levelOf(l)}">${esc(l)}</span>`).join("\n")}</pre>`
+         : `<div class="empty-line">Nothing matches that filter.</div>`}`;
+
   const rl = document.getElementById("log-reload");
   if (rl) rl.onclick = () => renderInstanceLog(id);
+  const find = document.getElementById("log-find");
+  if (find) {
+    find.oninput = () => { logFilter.q = find.value; };
+    find.onchange = () => renderInstanceLog(id);
+    find.onkeydown = (e) => { if (e.key === "Enter") renderInstanceLog(id); };
+  }
+  host.querySelectorAll("[data-lvl]").forEach((b) => b.onclick = () => {
+    logFilter.level = b.dataset.lvl; renderInstanceLog(id);
+  });
+  const copy = document.getElementById("log-copy");
+  if (copy) copy.onclick = async () => {
+    toast(await copyText(shown.join("\n")) ? `Copied ${shown.length} lines.` : "Couldn't copy.");
+  };
 }
 
 // The mod list: real rows with the project's icon, its jar name, an enable
@@ -1063,7 +1156,7 @@ const instGridCard = (i, compact) => {
     ? relTime(i.lastPlayed)
     : `${esc(i.mcVersion)}${i.loader && i.loader !== "vanilla" ? ` \u00b7 ${esc(loaderLabel(i.loader))}` : ""} \u00b7 ${mods === 0 ? "no mods" : `${mods} mods`}`;
   return `
-  <div class="strip-card${compact ? " is-compact" : ""}${flair ? " has-flair" : ""}${instSelecting && instSelected.has(i.id) ? " is-selected" : ""}" data-open="${i.id}"${flair ? ` style="--flair:${t.color}"` : ""}>
+  <div class="strip-card${compact ? " is-compact" : ""}${flair ? " has-flair" : ""}${instSelecting && instSelected.has(i.id) ? " is-selected" : ""}" data-open="${i.id}"${compact ? "" : ` draggable="true" data-drag="${i.id}"`}${flair ? ` style="--flair:${t.color}"` : ""}>
     ${instSelecting && !compact ? `<span class="sel-mark${instSelected.has(i.id) ? " on" : ""}">${instSelected.has(i.id) ? "\u2713" : ""}</span>` : ""}
     <div class="inst-art imgbox" data-art="${i.id}">
       ${i.iconPath ? "" : `<div class="art-invite">${ico("i-image")}<span>Drop an image</span><span class="art-browse">or <u>browse files</u></span></div>`}

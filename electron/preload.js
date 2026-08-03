@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld("lodestone", {
     wrapped: (opts) => call("stats:wrapped", opts),
     achievements: () => call("stats:achievements"),
     groups: () => call("groups:list"),
+    reorder: (order) => call("instances:reorder", { order }),
     saveGroup: (opts) => call("groups:save", opts),
     deleteGroup: (id) => call("groups:delete", { id }),
     assignGroup: (opts) => call("groups:assign", opts),

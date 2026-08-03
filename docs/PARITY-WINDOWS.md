@@ -16,7 +16,7 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 |---|---|---|
 | RootView | done | sidebar, Play/Instances/Servers/Friends, PINNED, SETUP |
 | HeroHomeView / HomeCards / PlayView | done | hero, chips, Play, Jump back in, Servers |
-| InstancesView | partial | groups + multi-select + bulk actions done; **no arrange/reorder**; drive sections n/a |
+| InstancesView | done | groups, multi-select, bulk actions, drag-to-reorder; drive sections n/a |
 | CommandPalette | done | Ctrl/Cmd-K |
 | SidebarNotifications | done | bell + badge in the account foot, engine-written feed |
 | OnboardingSheet | done | shown once, only when nothing is set up yet |
@@ -27,8 +27,8 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 |---|---|---|
 | Tab bar (All/Worlds/Screenshots/Keybinds/Logs/Tools) | done | fixed set |
 | Mod list + toggles + update | done | icons, filter, state, sort |
-| InstanceScreenshotsTab / ScreenshotViewer | partial | grid + enlarge; **no share, no delete, no reveal** |
-| LogConsole | partial | tail + colouring; **no level filter, no search, no copy** |
+| InstanceScreenshotsTab / ScreenshotViewer | done | grid, enlarge, copy, save-as, reveal, trash |
+| LogConsole | done | tail, level filter with counts, find, copy |
 | InstanceKeybindsTab | partial | global screen only; **no per-instance override tab** |
 | EditInstanceSheet | partial | name/version/RAM/Java; **no icon maker, no group, no notes** |
 | HealthView / PerfInsightsBanner | partial | chip only; **no health screen, no perf insights** |

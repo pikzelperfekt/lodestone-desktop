@@ -157,7 +157,16 @@ function info() {
 const instancesFile = () => path.join(DATA_DIR, "instances.json");
 function readInstances() { try { return JSON.parse(fs.readFileSync(instancesFile(), "utf8")); } catch { return []; } }
 function writeInstances(list) { fs.writeFileSync(instancesFile(), JSON.stringify(list, null, 2)); }
-function listInstances() { return readInstances().sort((a, b) => (b.lastPlayed || b.created) - (a.lastPlayed || a.created)); }
+function listInstances() {
+  // Explicitly ordered instances come first in their chosen order; the rest
+  // fall back to most-recently-played, which is the useful default.
+  return readInstances().sort((a, b) => {
+    const ai = Number.isFinite(a.sortIndex) ? a.sortIndex : Infinity;
+    const bi = Number.isFinite(b.sortIndex) ? b.sortIndex : Infinity;
+    if (ai !== bi) return ai - bi;
+    return (b.lastPlayed || b.created) - (a.lastPlayed || a.created);
+  });
+}
 
 const ACCENTS = { fabric: "#B57BE6", quilt: "#7BC6E6", neoforge: "#E08A3C", forge: "#D4644A", vanilla: "#5EE6A0" };
 
@@ -921,6 +930,18 @@ module.exports = {
   // regrouped without rewriting instances.json, and so a group survives an
   // instance being deleted (it is pruned on read instead).
   listGroups: () => readGroups(),
+  // Manual order. Instances without an explicit order keep sorting by
+  // last-played, so an untouched library behaves exactly as before.
+  reorderInstances: (a) => {
+    const order = Array.isArray(a && a.order) ? a.order : [];
+    const list = readInstances();
+    order.forEach((id, i) => {
+      const inst = list.find((x) => x.id === id);
+      if (inst) inst.sortIndex = i;
+    });
+    writeInstances(list);
+    return listInstances();
+  },
   saveGroup: (a) => {
     const groups = readGroups();
     if (a && a.id) {

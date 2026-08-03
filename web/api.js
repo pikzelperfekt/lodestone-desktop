@@ -139,6 +139,10 @@
       if (!bridge) return { achievements: [], unlocked: 0, total: 0 };
       try { return unwrap(await bridge.instances.achievements()); } catch { return { achievements: [], unlocked: 0, total: 0 }; }
     },
+    async reorderInstances(order) {
+      if (bridge) return unwrap(await bridge.instances.reorder(order));
+      throw new Error("Reordering runs in the desktop app.");
+    },
     async groups() {
       if (!bridge) return [];
       try { return unwrap(await bridge.instances.groups()); } catch { return []; }

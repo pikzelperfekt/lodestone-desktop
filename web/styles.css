@@ -1666,3 +1666,11 @@ textarea.inp, .share-box {
 .pj-changelog { padding: 10px 12px; background: var(--voxel-side); box-shadow: var(--voxel-recess);
   font: 400 11.5px/1.6 var(--font-mono); color: var(--text-secondary); white-space: pre-wrap;
   max-height: 220px; overflow-y: auto; margin-bottom: 8px; }
+
+/* ---- Screenshot viewer actions + log toolbar ---- */
+.shot-acts { display: flex; gap: 9px; flex-wrap: wrap; justify-content: center; }
+.log-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.log-toolbar .inp.log-find { width: 240px; flex: 0 0 240px; }
+.log-toolbar .gh { margin-left: auto; }
+.strip-card.is-dragging { opacity: .45; }
+.strip-card.drop-before { box-shadow: var(--voxel-bevel), inset 3px 0 0 var(--voxel-accent); }

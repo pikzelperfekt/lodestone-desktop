@@ -2,8 +2,9 @@
 // cross-platform stand-in for the Swift sidecar. It exposes a small JSON API over
 // IPC that the web UI (web/) calls, and drives auto-updates via electron-updater
 // (GitHub Releases feed configured in package.json's build.publish).
-const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, dialog, clipboard, nativeImage } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const { autoUpdater } = require("electron-updater");
 const engine = require("./engine");
 
@@ -179,10 +180,34 @@ handle("servers:accessChange", (a) => engine.serverAccessChange(a));
 handle("servers:plugins", (a) => engine.serverPlugins(a));
 handle("servers:pluginToggle", (a) => engine.serverPluginToggle(a));
 handle("groups:list", () => engine.listGroups());
+handle("instances:reorder", (a) => engine.reorderInstances(a));
 handle("groups:save", (a) => engine.saveGroup(a));
 handle("groups:delete", (a) => engine.deleteGroup(a));
 handle("groups:assign", (a) => engine.setInstanceGroup(a));
 handle("shots:list", (a) => engine.listScreenshots(a));
+// Screenshot actions live in main because they need Electron's shell and
+// clipboard, which the engine deliberately has no access to.
+handle("shots:reveal", (a) => { shell.showItemInFolder(a.path); return true; });
+handle("shots:copy", (a) => {
+  const img = nativeImage.createFromPath(a.path);
+  if (img.isEmpty()) throw new Error("Couldn't read that image.");
+  clipboard.writeImage(img);
+  return true;
+});
+handle("shots:delete", async (a) => {
+  // To the Recycle Bin, not gone — a screenshot is the user's own work.
+  await shell.trashItem(a.path);
+  return true;
+});
+handle("shots:save", async (a) => {
+  const res = await dialog.showSaveDialog(win, {
+    defaultPath: a.name || "screenshot.png",
+    filters: [{ name: "PNG image", extensions: ["png"] }],
+  });
+  if (res.canceled || !res.filePath) return null;
+  fs.copyFileSync(a.path, res.filePath);
+  return { path: res.filePath };
+});
 handle("logs:read", (a) => engine.readInstanceLog(a));
 handle("loader:bridge", (a) => engine.loaderBridge(a));
 handle("mods:toggle", (a) => engine.toggleMod(a));
@@ -294,8 +319,8 @@ ipcMain.handle("update:install", () => { autoUpdater.quitAndInstall(); });
 // [Icons + .lodepack — vertical feat/win-icons-lodepack] — additive section.
 // Unified pack import (.mrpack / CurseForge .zip / .lodepack v1+v2), .lodepack
 // export, and per-instance icons (image decode/resize happens here with
-// nativeImage; the engine only ever sees bytes).
-const { nativeImage } = require("electron");
+// nativeImage; the engine only ever sees bytes). nativeImage is imported at
+// the top of this file.
 
 handle("import:pack", async (a) => {
   let filePath = a && a.path;

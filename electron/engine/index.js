@@ -79,6 +79,7 @@ function init(userDataPath) {
   });
   // Open sync + chat realtime if a session was restored from disk at boot.
   startVerticalRealtime();
+  restartBackupTimer();
 }
 
 // ---- App settings (memory / Java override / launcher behavior) ----
@@ -578,6 +579,63 @@ function addPlaytime(id, ms, startedAt) {
     // WHEN you played, so the total is kept and the sessions are kept beside it.
     appendSession({ instanceId: id, startedAt: startedAt || (Date.now() - capped), endedAt: Date.now(), ms: capped });
   } catch { /* playtime is cosmetic; never let it break the exit path */ }
+}
+
+const backupSettingsFile = () => path.join(DATA_DIR, "backup-schedule.json");
+const BACKUP_DEFAULTS = { enabled: false, everyHours: 12, keep: 5, lastRun: 0 };
+function readBackupSettings() {
+  try { return { ...BACKUP_DEFAULTS, ...JSON.parse(fs.readFileSync(backupSettingsFile(), "utf8")) }; }
+  catch { return { ...BACKUP_DEFAULTS }; }
+}
+function writeBackupSettings(v) {
+  try { fs.writeFileSync(backupSettingsFile(), JSON.stringify(v, null, 2)); } catch { /* best effort */ }
+}
+
+let backupTimer = null;
+function restartBackupTimer() {
+  if (backupTimer) { clearInterval(backupTimer); backupTimer = null; }
+  const cfg = readBackupSettings();
+  if (!cfg.enabled) return;
+  // Check hourly rather than sleeping for the whole interval, so a launcher
+  // left open across a missed window still catches up.
+  backupTimer = setInterval(() => runScheduledBackups(false), 60 * 60 * 1000);
+  if (backupTimer.unref) backupTimer.unref();
+}
+
+function runScheduledBackups(force) {
+  const cfg = readBackupSettings();
+  if (!force && !cfg.enabled) return { skipped: "disabled" };
+  if (!force && Date.now() - (cfg.lastRun || 0) < cfg.everyHours * 3600_000) return { skipped: "too soon" };
+
+  const made = [];
+  for (const inst of readInstances()) {
+    // A running instance is writing to its world; zipping it now would produce
+    // an archive that restores broken.
+    if (running[inst.id]) continue;
+    let list = [];
+    try { list = worlds.list(DATA_DIR, inst.id); } catch { continue; }
+    for (const w of list) {
+      try { made.push(worlds.backup(DATA_DIR, inst.id, w.name)); } catch { /* skip this world */ }
+    }
+    // Prune per instance so one busy pack can't evict another's history.
+    try {
+      const keep = cfg.keep;
+      const all = worlds.backups(DATA_DIR, inst.id).sort((a, b) => (b.created || 0) - (a.created || 0));
+      const byWorld = {};
+      for (const b of all) (byWorld[b.world] = byWorld[b.world] || []).push(b);
+      for (const rows of Object.values(byWorld)) {
+        for (const old of rows.slice(keep)) {
+          try { fs.rmSync(old.file, { force: true }); } catch { /* already gone */ }
+        }
+      }
+    } catch { /* pruning is best effort */ }
+  }
+
+  cfg.lastRun = Date.now();
+  writeBackupSettings(cfg);
+  if (made.length) notify({ kind: "info", title: `Backed up ${made.length} world${made.length === 1 ? "" : "s"}`,
+                            body: "Scheduled backup finished. Older copies beyond your keep count were removed." });
+  return { made: made.length };
 }
 
 const notificationsFile = () => path.join(DATA_DIR, "notifications.json");
@@ -1084,6 +1142,28 @@ module.exports = {
       seed: a && a.seed, radius: a && a.radius, step: a && a.step, modsDir,
     });
   },
+  // ---- Scheduled world backups ----
+  // Runs on a timer while the launcher is open, and prunes old zips so this
+  // cannot quietly fill the disk. Never backs up an instance that is running:
+  // zipping a world mid-write produces a corrupt archive that looks fine.
+  backupSettings: () => readBackupSettings(),
+  setBackupSettings: (a) => {
+    const cur = readBackupSettings();
+    if (a.enabled !== undefined) cur.enabled = !!a.enabled;
+    if (a.everyHours !== undefined) {
+      const n = Number(a.everyHours);
+      cur.everyHours = Number.isFinite(n) ? Math.max(1, Math.min(168, Math.round(n))) : 12;
+    }
+    if (a.keep !== undefined) {
+      const n = Number(a.keep);
+      cur.keep = Number.isFinite(n) ? Math.max(1, Math.min(50, Math.round(n))) : 5;
+    }
+    writeBackupSettings(cur);
+    restartBackupTimer();
+    return cur;
+  },
+  runBackupsNow: () => runScheduledBackups(true),
+
   // ---- Instance health ----
   // Everything that can be checked without launching. Each finding names what
   // is wrong and what to do; nothing is reported as a problem unless it is one.

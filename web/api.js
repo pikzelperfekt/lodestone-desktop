@@ -403,6 +403,18 @@
         if (bridge) return unwrap(await bridge.worlds.seedMap(opts));
         throw new Error("Seed maps run in the desktop app.");
       },
+      async backupSettings() {
+        if (!bridge) return { enabled: false, everyHours: 12, keep: 5, lastRun: 0 };
+        try { return unwrap(await bridge.worlds.backupSettings()); } catch { return { enabled: false, everyHours: 12, keep: 5, lastRun: 0 }; }
+      },
+      async setBackupSettings(opts) {
+        if (bridge) return unwrap(await bridge.worlds.setBackupSettings(opts));
+        throw new Error("Backups run in the desktop app.");
+      },
+      async runBackupsNow() {
+        if (bridge) return unwrap(await bridge.worlds.runBackupsNow());
+        throw new Error("Backups run in the desktop app.");
+      },
       async health(instanceId) {
         if (!bridge) return { ok: true, findings: [], mods: 0, disabled: 0, size: 0, ramMB: null };
         try { return unwrap(await bridge.worlds.health(instanceId)); } catch { return { ok: true, findings: [], mods: 0, disabled: 0, size: 0, ramMB: null }; }

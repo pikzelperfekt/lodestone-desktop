@@ -10,8 +10,8 @@ one is generated from the Mac source so it cannot drift.
 
 | status | count |
 |---|---|
-| done | 71 |
-| partial | 6 |
+| done | 72 |
+| partial | 5 |
 | missing | 11 |
 | n/a | 1 |
 
@@ -21,7 +21,7 @@ one is generated from the Mac source so it cannot drift.
 | AchievementsSheet | done | Play history screen |
 | AddWorldSheet | done | folder or .zip import |
 | AppSettingsView | done | preferences |
-| BackupSettingsSheet | partial | manual backups only; no schedule |
+| BackupSettingsSheet | done | interval + keep count, skips running instances, prunes old copies |
 | BrowseView | done | categories, sort, project pages |
 | ClipRecorder | missing | needs screen capture |
 | CloudHostingSheet | missing | needs a hosting provider |

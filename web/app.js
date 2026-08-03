@@ -3203,7 +3203,14 @@ async function renderStorage() {
           </div>`).join("") || `<div class="empty-line">No instances yet.</div>`}
       </div>
     </section>
+    <section class="vsec">
+      <div class="vsec-head"><span class="kick">Scheduled world backups</span>
+        <button class="gh gh-sm" id="bk-now">Back up now</button></div>
+      <div id="bk-panel"></div>
+    </section>
     <p class="share-note">Clearing a cache is safe: the launcher re-downloads what it needs on the next launch. Instances and world backups are never cleared from here.</p>`;
+
+  renderBackupSchedule();
 
   el().querySelectorAll("[data-reclaim]").forEach((b) => b.onclick = async () => {
     const bucket = b.dataset.reclaim;
@@ -3382,6 +3389,61 @@ function captureInstanceKey(id, btn) {
   };
   window.addEventListener("keydown", onKey, true);
   window.addEventListener("mousedown", onMouse, true);
+}
+
+// Scheduled backups. Deliberately skips a running instance: zipping a world
+// mid-write produces an archive that looks fine and restores broken.
+async function renderBackupSchedule() {
+  const host = document.getElementById("bk-panel");
+  if (!host) return;
+  const cfg = await API.worldTools.backupSettings();
+  host.innerHTML = `
+    <div class="gs-list">
+      <div class="gs-row">
+        <div class="gs-meta"><div class="gs-label">Back up worlds automatically</div>
+          <div class="gs-desc">Runs while the launcher is open. Instances that are playing are skipped.</div></div>
+        <div class="gs-ctl"><button class="switch ${cfg.enabled ? "on" : ""}" id="bk-on"><span class="knob"></span></button></div>
+      </div>
+      <div class="gs-row">
+        <div class="gs-meta"><div class="gs-label">How often</div>
+          <div class="gs-desc">${cfg.lastRun ? `Last run ${esc(relTime(cfg.lastRun))}.` : "Not run yet."}</div></div>
+        <div class="gs-ctl"><div class="gs-slider">
+          <input class="rng" type="range" min="1" max="72" step="1" value="${cfg.everyHours}" id="bk-hours">
+          <span class="gs-val is-set" id="bk-hours-val">every ${cfg.everyHours}h</span></div></div>
+      </div>
+      <div class="gs-row">
+        <div class="gs-meta"><div class="gs-label">Copies to keep</div>
+          <div class="gs-desc">Per world. Older ones are removed so this can't fill the disk.</div></div>
+        <div class="gs-ctl"><div class="gs-slider">
+          <input class="rng" type="range" min="1" max="20" step="1" value="${cfg.keep}" id="bk-keep">
+          <span class="gs-val is-set" id="bk-keep-val">${cfg.keep}</span></div></div>
+      </div>
+    </div>`;
+
+  const save = async (patch) => {
+    try { await API.worldTools.setBackupSettings(patch); } catch (e) { toast(e.message); }
+  };
+  document.getElementById("bk-on").onclick = async (e) => {
+    const on = !e.currentTarget.classList.contains("on");
+    e.currentTarget.classList.toggle("on", on);
+    await save({ enabled: on });
+    renderBackupSchedule();
+  };
+  const hours = document.getElementById("bk-hours");
+  hours.oninput = () => { document.getElementById("bk-hours-val").textContent = `every ${hours.value}h`; };
+  hours.onchange = () => save({ everyHours: Number(hours.value) });
+  const keep = document.getElementById("bk-keep");
+  keep.oninput = () => { document.getElementById("bk-keep-val").textContent = keep.value; };
+  keep.onchange = () => save({ keep: Number(keep.value) });
+
+  const now = document.getElementById("bk-now");
+  if (now) now.onclick = async () => {
+    now.disabled = true; now.innerHTML = `<span class="spinner"></span> Backing up\u2026`;
+    try { const r = await API.worldTools.runBackupsNow();
+      toast(r.made ? `Backed up ${r.made} world${r.made === 1 ? "" : "s"}.` : "Nothing to back up right now."); }
+    catch (e) { toast(e.message); }
+    now.disabled = false; now.textContent = "Back up now"; renderBackupSchedule();
+  };
 }
 
 // ---------- Instance file browser ----------

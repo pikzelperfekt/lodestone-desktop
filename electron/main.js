@@ -152,6 +152,9 @@ handle("skins:rename", (a) => engine.skinRename(a));
 handle("skins:apply", (a) => engine.skinApply(a));
 // Worlds: create a fresh world, or import a folder / .zip of one.
 handle("health:check", (a) => engine.instanceHealth(a));
+handle("backups:settings", () => engine.backupSettings());
+handle("backups:setSettings", (a) => engine.setBackupSettings(a));
+handle("backups:runNow", () => engine.runBackupsNow());
 handle("mixins:scan", (a) => engine.scanMixins(a));
 handle("instances:sizes", () => engine.instanceSizes());
 handle("mods:list", (a) => engine.listMods(a));

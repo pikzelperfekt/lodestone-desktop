@@ -631,6 +631,57 @@ module.exports = {
     packsync.publish(inst.id).catch(() => {});
     return true;
   },
+  // ---- Screenshots tab ----
+  listScreenshots: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    const dir = path.join(install.paths(DATA_DIR).instanceDir(inst.id), "screenshots");
+    let files = [];
+    try { files = fs.readdirSync(dir).filter((f) => /\.(png|jpe?g)$/i.test(f)); } catch { return { shots: [], dir }; }
+    const shots = files.map((f) => {
+      const full = path.join(dir, f);
+      let st = null;
+      try { st = fs.statSync(full); } catch { /* vanished */ }
+      return { name: f, path: full, size: st ? st.size : 0, modified: st ? st.mtimeMs : 0 };
+    }).sort((x, y) => y.modified - x.modified);
+    return { shots, dir };
+  },
+
+  // ---- Logs tab ----
+  readInstanceLog: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    const logDir = path.join(install.paths(DATA_DIR).instanceDir(inst.id), "logs");
+    const file = path.join(logDir, "latest.log");
+    let text = "";
+    try {
+      const st = fs.statSync(file);
+      const fd = fs.openSync(file, "r");
+      // Only the tail: a modded latest.log runs to tens of megabytes and the
+      // interesting part is always at the end.
+      const want = Math.min(st.size, 256 * 1024);
+      const buf = Buffer.alloc(want);
+      fs.readSync(fd, buf, 0, want, st.size - want);
+      fs.closeSync(fd);
+      text = buf.toString("utf8");
+      if (st.size > want) text = text.slice(text.indexOf("\n") + 1);
+    } catch { return { lines: [], exists: false, dir: logDir }; }
+    const lines = text.split(/\r?\n/).filter(Boolean).slice(-600);
+    return { lines, exists: true, dir: logDir };
+  },
+
+  // ---- Sinytra Connector: NeoForge packs can run Fabric mods when it's present.
+  loaderBridge: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    if (inst.loader !== "neoforge" && inst.loader !== "forge") return { connector: false };
+    const dir = path.join(install.paths(DATA_DIR).instanceDir(inst.id), "mods");
+    let files = [];
+    try { files = fs.readdirSync(dir); } catch { return { connector: false }; }
+    const hit = files.find((f) => /^(connector|sinytra)[-_.]/i.test(f) && /\.jar$/i.test(f));
+    return { connector: !!hit, jar: hit || null };
+  },
+
   // ---- Disk usage per instance (the Instances page footer) ----
   // Walking 70+ instance trees is not free, so results are cached for a minute;
   // the footer is a quiet fact, not something worth stalling a render for.

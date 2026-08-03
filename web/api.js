@@ -71,6 +71,18 @@
       if (bridge) return unwrap(await bridge.instances.toggleMod(opts));
       throw new Error("Toggling mods runs in the desktop app.");
     },
+    async screenshots(instanceId) {
+      if (!bridge) return { shots: [], dir: "" };
+      try { return unwrap(await bridge.instances.screenshots(instanceId)); } catch { return { shots: [], dir: "" }; }
+    },
+    async instanceLog(instanceId) {
+      if (!bridge) return { lines: [], exists: false, dir: "" };
+      try { return unwrap(await bridge.instances.log(instanceId)); } catch { return { lines: [], exists: false, dir: "" }; }
+    },
+    async loaderBridge(instanceId) {
+      if (!bridge) return { connector: false };
+      try { return unwrap(await bridge.instances.loaderBridge(instanceId)); } catch { return { connector: false }; }
+    },
     async instanceSizes() {
       if (!bridge) return { sizes: {}, total: 0 };
       try { return unwrap(await bridge.instances.sizes()); } catch { return { sizes: {}, total: 0 }; }

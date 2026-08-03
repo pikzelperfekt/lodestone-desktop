@@ -271,6 +271,60 @@ async function renderInstances() {
   }));
 }
 
+// The Fabric-mods banner: a NeoForge pack with Sinytra Connector installed can
+// load Fabric mods, so say so and offer the browse that actually works.
+async function renderLoaderBridge(id) {
+  const host = document.getElementById("loader-bridge");
+  if (!host) return;
+  const b = await API.loaderBridge(id);
+  if (!b.connector) { host.innerHTML = ""; return; }
+  host.innerHTML = `
+    <div class="bridge-banner">
+      <span class="bridge-ico">${ico("i-link")}</span>
+      <span class="bridge-meta">
+        <span class="bridge-title">Fabric mods enabled <em class="bridge-beta">BETA</em></span>
+        <span class="bridge-sub">Sinytra Connector is installed \u2014 browse and add Fabric mods.</span>
+      </span>
+      <button class="gh" id="bridge-browse">${ico("i-search")} Browse Fabric Mods</button>
+    </div>`;
+  document.getElementById("bridge-browse").onclick = () => { discoverTarget = id; renderDiscover(); };
+}
+
+// Screenshots the game wrote into the instance.
+async function renderScreenshots(id) {
+  const host = document.getElementById("shots-grid");
+  if (!host) return;
+  const { shots, dir } = await API.screenshots(id);
+  host.innerHTML = shots.length
+    ? `<div class="shots-grid">${shots.slice(0, 60).map((sh) => `
+        <button class="shot" data-shot="${esc(sh.path)}" title="${esc(sh.name)}">
+          <img src="${fileURL(sh.path)}?v=${Math.round(sh.modified)}" alt="" loading="lazy">
+          <span class="shot-name">${esc(fmtDate(sh.modified))}</span>
+        </button>`).join("")}</div>`
+    : `<div class="empty-line">No screenshots yet. Press F2 in game and they'll show up here.</div>`;
+  host.querySelectorAll("[data-shot]").forEach((b) => b.onclick = () => {
+    showModal(`<div class="shot-view"><img src="${fileURL(b.dataset.shot)}" alt=""><button class="btn-ghost" id="sv-close">Close</button></div>`);
+    document.getElementById("sv-close").onclick = hideModal;
+  });
+  const open = document.getElementById("shots-open");
+  if (open) open.onclick = () => API.openPath ? API.openPath(dir) : toast(dir);
+}
+
+// The tail of latest.log, with the levels picked out so errors stand out.
+async function renderInstanceLog(id) {
+  const host = document.getElementById("inst-log");
+  if (!host) return;
+  const { lines, exists } = await API.instanceLog(id);
+  host.innerHTML = exists && lines.length
+    ? `<pre class="log-view">${lines.map((l) => {
+        const level = /\/(ERROR|FATAL)\]/.test(l) ? "err" : /\/WARN\]/.test(l) ? "warn" : "";
+        return `<span class="log-line ${level}">${esc(l)}</span>`;
+      }).join("\n")}</pre>`
+    : `<div class="empty-line">No log yet. Launch the instance once and its latest.log shows up here.</div>`;
+  const rl = document.getElementById("log-reload");
+  if (rl) rl.onclick = () => renderInstanceLog(id);
+}
+
 // The mod list: real rows with the project's icon, its jar name, an enable
 // switch and a remove button — plus filter / state / sort, matching the Mac.
 const modFilters = {};   // instanceId -> { q, state, sort }
@@ -299,6 +353,7 @@ async function renderModList(id) {
         <span class="mod-file">${esc(m.fileName)}</span>
       </span>
       ${m.requiredBy ? `<span class="mod-req" title="Installed because ${esc(m.requiredBy)} needs it">needs ${esc(m.requiredBy)}</span>` : ""}
+      ${m.projectId && !m.loose ? `<button class="kb-icon mod-upd" data-mupd="${esc(m.projectId)}" title="Check for a newer build">${ico("i-refresh")}</button>` : `<span class="kb-icon"></span>`}
       <button class="switch ${m.enabled ? "on" : ""}" data-mtoggle="${esc(m.fileName)}" aria-pressed="${m.enabled}"><span class="knob"></span></button>
       <button class="kb-icon" data-mdel="${esc(m.projectId || m.fileName)}" title="Remove">${ico("i-trash")}</button>
     </div>`).join("")
@@ -312,6 +367,14 @@ async function renderModList(id) {
     b.classList.toggle("on", on);
     try { await API.toggleMod({ instanceId: id, fileName: b.dataset.mtoggle, enabled: on }); renderModList(id); }
     catch (e) { toast(e.message); renderModList(id); }
+  });
+  host.querySelectorAll("[data-mupd]").forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    try {
+      const r = await API.instance.updateAll(id);
+      toast(r.updated && r.updated.length ? `Updated ${r.updated.length} mod${r.updated.length === 1 ? "" : "s"}.` : "Everything is already up to date.");
+      renderInstanceDetail(id);
+    } catch (e) { b.disabled = false; toast("Couldn't check for updates: " + e.message); }
   });
   host.querySelectorAll("[data-mdel]").forEach((b) => b.onclick = async () => {
     if (!confirm("Remove this mod from the instance?")) return;
@@ -391,7 +454,8 @@ async function renderInstanceDetail(id) {
       <button class="btn-soft" id="detail-seed">${ico("i-globe")} Find a seed</button>
     </div>
 
-    <div class="section-head" style="margin-top:22px"><span class="section-title">All ${modCount}</span></div>
+    <div class="section-head" data-tab="all" data-label="All" data-count="${modCount}"><span class="section-title">All ${modCount}</span></div>
+    <div id="loader-bridge"></div>
     <div class="mod-toolbar">
       <span class="field-search">${ico("i-search")}<input class="inp mod-filter" id="mod-filter" placeholder="Filter all"></span>
       <div class="seg" id="mod-state">
@@ -408,25 +472,36 @@ async function renderInstanceDetail(id) {
     <div class="mods-list" id="mods-list"></div>
     <div class="mods-foot kick" id="mods-foot"></div>
 
+    <div class="section-head" data-tab="screenshots" data-label="Screenshots"><span class="section-title">SCREENSHOTS</span>
+      <button class="gh gh-sm" id="shots-open">${ico("i-download")} Open folder</button></div>
+    <div id="shots-grid"></div>
+
+    <div class="section-head" data-tab="keybinds" data-label="Keybinds"><span class="section-title">KEYBINDS</span></div>
+    <div id="inst-keybinds"></div>
+
+    <div class="section-head" data-tab="logs" data-label="Logs"><span class="section-title">LOGS</span>
+      <button class="gh gh-sm" id="log-reload">Reload</button></div>
+    <div id="inst-log"></div>
+
     <!-- [Cloud Sync — Vertical A] filled async by renderInstanceCloudSync; hidden when the backend isn't set up. -->
     <div id="cloud-sync-panel"></div>
 
     <!-- [Crash Doctor] filled async by renderInstanceDoctor; slim when the last session was clean. -->
     <div id="doctor-panel"></div>
 
-    <div class="section-head" style="margin-top:26px"><span class="section-title">WORLDS</span>
+    <div class="section-head" data-tab="worlds" data-label="Worlds"><span class="section-title">WORLDS</span>
       <button class="gh gh-sm" id="world-import">${ico("i-download")} Add world</button>
       <button class="gh gh-sm" id="world-new">${ico("i-plus")} New world</button></div>
     <div class="worlds-list">
       ${worlds.length ? worlds.map(worldRow).join("") : `<div class="empty-line">No worlds yet. Create one, add an existing one, or play the instance.</div>`}
     </div>
     ${backups.length ? `
-    <div class="section-head" style="margin-top:26px"><span class="section-title">BACKUPS</span></div>
+    <div class="section-head" data-tab="worlds"><span class="section-title">BACKUPS</span></div>
     <div class="worlds-list">
       ${backups.map(backupRow).join("")}
     </div>` : ""}
 
-    <div class="section-head" style="margin-top:26px"><span class="section-title">SETTINGS</span></div>
+    <div class="section-head" data-tab="tools" data-label="Tools"><span class="section-title">SETTINGS</span></div>
     <div class="glass edit-panel">
       <div class="np-grid edit-grid">
         <label>NAME<input id="ed-name" value="${esc(inst.name)}" /></label>
@@ -448,6 +523,9 @@ async function renderInstanceDetail(id) {
   document.getElementById("detail-add").onclick = () => openDiscoverFor(inst.id);
   document.getElementById("detail-share").onclick = () => openShareModal(inst);
   renderModList(id);
+  renderLoaderBridge(id);
+  renderScreenshots(id);
+  renderInstanceLog(id);
 
   const moreBtn = document.getElementById("detail-more");
   if (moreBtn) moreBtn.onclick = () => {
@@ -3497,20 +3575,29 @@ renderInstanceDetail = async function (id) {
   try { tabifyDetail(); } catch (e) { console.error("detail tabs:", e); }
 };
 
-// Fold the detail page's stacked sections into the Mac app's underlined tabs.
-// Runs over the rendered DOM rather than being baked into each section's
-// markup, so sections the other verticals append (packs, shaders, datapacks,
-// keybinds, doctor) get tabbed without any of them knowing about it.
+// Fold the detail page's sections into the Mac app's underlined tab bar.
 //
-// It is fully re-runnable: renderPacksSections refills #packs-root on its own
-// refresh, so this first unwinds any previous tabbing, then regroups. Nested
-// containers are emptied in place rather than deleted, so those re-render
-// targets stay alive and findable.
+// Sections declare where they belong with data-tab / data-label, so several
+// sections can share one tab (Worlds and Backups) and anything a vertical
+// appends without saying (crash doctor, packs, cloud sync) lands in Tools.
+// The order and the names are fixed rather than derived, so the bar reads the
+// same on every instance instead of changing shape with whatever rendered.
+const DETAIL_TABS = [
+  { id: "all",         label: "All" },
+  { id: "worlds",      label: "Worlds" },
+  { id: "screenshots", label: "Screenshots" },
+  { id: "keybinds",    label: "Keybinds" },
+  { id: "logs",        label: "Logs" },
+  { id: "tools",       label: "Tools" },
+];
+let detailTab = "all";
+
 function tabifyDetail() {
   const root = el();
   if (!root) return;
 
-  // 1. Undo any previous pass — move panel contents back out, drop the chrome.
+  // Undo any previous pass so this is safe to re-run after a vertical
+  // re-renders its own section.
   const oldPanels = root.querySelector(".detail-panels");
   if (oldPanels) {
     for (const panel of [...oldPanels.children]) {
@@ -3523,8 +3610,8 @@ function tabifyDetail() {
   const oldTabs = root.querySelector(".detail-tabs");
   if (oldTabs) oldTabs.remove();
 
-  // 2. Lift nested sections to the top level. The container is emptied, not
-  //    removed, because #packs-root is a live re-render target.
+  // Lift nested sections to the top level, emptying containers in place
+  // because #packs-root is a live re-render target.
   for (let pass = 0; pass < 4; pass++) {
     const nested = [...root.children].filter(
       (n) => !n.classList.contains("section-head") && n.querySelector(".section-head"));
@@ -3536,52 +3623,48 @@ function tabifyDetail() {
   const firstHead = kids.findIndex((n) => n.classList.contains("section-head"));
   if (firstHead < 0) return;
 
-  const groups = [];
+  const buckets = new Map(DETAIL_TABS.map((t) => [t.id, { ...t, nodes: [], count: null }]));
   let current = null;
   for (const node of kids.slice(firstHead)) {
     if (node.classList.contains("section-head")) {
-      const titleEl = node.querySelector(".section-title");
-      const title = titleEl ? titleEl.textContent.trim() : "Section";
-      // Keep whatever action the heading carried (Rescan, Import .zip, Open
-      // folder) by moving it into the panel — dropping it loses real controls.
+      const tab = node.dataset.tab || "tools";
+      current = buckets.get(tab) || buckets.get("tools");
+      if (node.dataset.count) current.count = node.dataset.count;
+      // A heading that names its own tab is the tab label; keep any action it
+      // carried (Reload, Open folder) by moving it into the panel.
       const actions = [...node.children].filter((c) => !c.classList.contains("section-title"));
-      current = { title, actions, nodes: [] };
-      groups.push(current);
-      node.remove();
+      if (node.dataset.label) { actions.forEach((a) => current.nodes.push(a)); }
+      else { current.nodes.push(node); }         // a sub-heading stays visible
+      if (node.dataset.label) node.remove();
       continue;
     }
     if (current) current.nodes.push(node);
   }
-  if (groups.length < 2) return;   // a single section needs no tabs
+
+  const live = DETAIL_TABS.map((t) => buckets.get(t.id)).filter((b) => b.nodes.length);
+  if (live.length < 2) return;
+  if (!live.some((b) => b.id === detailTab)) detailTab = live[0].id;
 
   const bar = document.createElement("div");
   bar.className = "detail-tabs";
   const panels = document.createElement("div");
   panels.className = "detail-panels";
 
-  groups.forEach((g, i) => {
+  live.forEach((b) => {
     const panel = document.createElement("div");
     panel.className = "detail-panel";
-    panel.hidden = i !== 0;
-    if (g.actions.length) {
-      const row = document.createElement("div");
-      row.className = "detail-panel-actions";
-      g.actions.forEach((a) => row.appendChild(a));
-      panel.appendChild(row);
-    }
-    g.nodes.forEach((n) => panel.appendChild(n));
+    panel.hidden = b.id !== detailTab;
+    b.nodes.forEach((n) => panel.appendChild(n));
     panels.appendChild(panel);
 
-    // Count rows so a tab can read "Mods 9", but only when the count is
-    // unambiguous — a wrong number is worse than none.
-    const n = panel.querySelectorAll(".mrow, .world-row, .pack-row, .lrow").length;
     const tab = document.createElement("button");
-    tab.className = "detail-tab" + (i === 0 ? " is-on" : "");
-    tab.innerHTML = `${esc(titleCase(g.title))}${n ? ` <span class="detail-tab-n">${n}</span>` : ""}`;
+    tab.className = "detail-tab" + (b.id === detailTab ? " is-on" : "");
+    tab.innerHTML = `${esc(b.label)}${b.count ? ` <span class="detail-tab-n">${esc(b.count)}</span>` : ""}`;
     tab.onclick = () => {
+      detailTab = b.id;
       bar.querySelectorAll(".detail-tab").forEach((t, j) => {
-        t.classList.toggle("is-on", j === i);
-        panels.children[j].hidden = j !== i;
+        t.classList.toggle("is-on", live[j].id === b.id);
+        panels.children[j].hidden = live[j].id !== b.id;
       });
     };
     bar.appendChild(tab);

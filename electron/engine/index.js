@@ -1078,6 +1078,78 @@ module.exports = {
       seed: a && a.seed, radius: a && a.radius, step: a && a.step, modsDir,
     });
   },
+  // ---- Instance health ----
+  // Everything that can be checked without launching. Each finding names what
+  // is wrong and what to do; nothing is reported as a problem unless it is one.
+  instanceHealth: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    const dir = install.paths(DATA_DIR).instanceDir(inst.id);
+    const modsDir = path.join(dir, "mods");
+    const findings = [];
+
+    let jars = [];
+    try { jars = fs.readdirSync(modsDir); } catch { jars = []; }
+    const enabled = jars.filter((f) => /\.jar$/i.test(f));
+    const disabled = jars.filter((f) => /\.jar\.disabled$/i.test(f));
+
+    // Content records whose jar is gone: the pack thinks a mod is installed
+    // and the game will not load it.
+    const onDisk = new Set(enabled);
+    const missing = (inst.content || []).filter((c) => (c.kind || "mod") === "mod" && !onDisk.has(c.fileName)
+      && !disabled.includes(c.fileName + ".disabled"));
+    if (missing.length) {
+      findings.push({ level: "error", title: `${missing.length} mod${missing.length === 1 ? "" : "s"} missing from disk`,
+        detail: missing.slice(0, 5).map((m) => m.title || m.fileName).join(", "),
+        fix: "repair", fixLabel: "Reinstall missing" });
+    }
+
+    // Two jars of the same mod at different versions load both and usually crash.
+    const byBase = {};
+    for (const f of enabled) {
+      const base = f.replace(/\.jar$/i, "").replace(/[-_]?(v)?\d[\d.+\w-]*$/i, "").toLowerCase();
+      if (!base) continue;
+      (byBase[base] = byBase[base] || []).push(f);
+    }
+    const dupes = Object.values(byBase).filter((g) => g.length > 1);
+    if (dupes.length) {
+      findings.push({ level: "error", title: `${dupes.length} mod${dupes.length === 1 ? "" : "s"} installed twice`,
+        detail: dupes.slice(0, 3).map((g) => g.join(" + ")).join("  |  "),
+        fix: null, fixLabel: null });
+    }
+
+    if (disabled.length) {
+      findings.push({ level: "info", title: `${disabled.length} mod${disabled.length === 1 ? "" : "s"} disabled`,
+        detail: "They stay on disk and load again when re-enabled.", fix: null });
+    }
+
+    // A modded instance with no loader will boot vanilla and load nothing.
+    if (enabled.length && inst.loader === "vanilla") {
+      findings.push({ level: "error", title: "Mods present but the loader is Vanilla",
+        detail: "Vanilla Minecraft cannot load mods. Change the loader in Settings.", fix: null });
+    }
+
+    // RAM that is too low for the pack size is the most common silent crash.
+    const ram = inst.ramMB || settings.getSettings().defaultRamMB || 0;
+    if (enabled.length > 120 && ram && ram < 6144) {
+      findings.push({ level: "warn", title: "Memory may be too low for this pack",
+        detail: `${enabled.length} mods with ${(ram / 1024).toFixed(1)} GB allocated. Large packs usually want 6 GB or more.`,
+        fix: null });
+    }
+
+    let sizeBytes = 0;
+    try { sizeBytes = files.dirSize(dir); } catch { sizeBytes = 0; }
+
+    return {
+      ok: !findings.some((f) => f.level === "error"),
+      findings,
+      mods: enabled.length,
+      disabled: disabled.length,
+      size: sizeBytes,
+      ramMB: ram || null,
+    };
+  },
+
   // ---- Mixin conflicts: find mods patching the same method, without launching ----
   scanMixins: (a) => {
     const inst = readInstances().find((i) => i.id === (a && a.instanceId));

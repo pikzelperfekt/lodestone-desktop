@@ -1674,3 +1674,18 @@ textarea.inp, .share-box {
 .log-toolbar .gh { margin-left: auto; }
 .strip-card.is-dragging { opacity: .45; }
 .strip-card.drop-before { box-shadow: var(--voxel-bevel), inset 3px 0 0 var(--voxel-accent); }
+.kb-row.is-clash .kb-key { border-color: color-mix(in srgb, var(--danger) 60%, transparent); color: var(--danger); }
+
+/* ---- Instance health ---- */
+.hl-list { display: flex; flex-direction: column; }
+.hl-row { display: flex; align-items: flex-start; gap: 11px; padding: 11px 4px;
+  border-bottom: 1px solid var(--voxel-hair); }
+.hl-dot { width: 9px; height: 9px; flex: none; margin-top: 5px; background: var(--voxel-muted); }
+.hl-row.error .hl-dot { background: var(--danger); }
+.hl-row.warn .hl-dot { background: var(--warn); }
+.hl-row.info .hl-dot { background: var(--voxel-accent); opacity: .7; }
+.hl-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.hl-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.hl-detail { font-size: 11.5px; color: var(--voxel-muted); line-height: 1.5; }
+.vchip.health.bad { color: var(--danger); }
+.vchip.health.warn { color: var(--warn); }

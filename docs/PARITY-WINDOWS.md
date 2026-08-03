@@ -29,14 +29,14 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 | Mod list + toggles + update | done | icons, filter, state, sort |
 | InstanceScreenshotsTab / ScreenshotViewer | done | grid, enlarge, copy, save-as, reveal, trash |
 | LogConsole | done | tail, level filter with counts, find, copy |
-| InstanceKeybindsTab | partial | global screen only; **no per-instance override tab** |
+| InstanceKeybindsTab | done | this instance's own options.txt binds, with clash marking |
 | EditInstanceSheet | partial | name/version/RAM/Java; **no icon maker, no group, no notes** |
-| HealthView / PerfInsightsBanner | partial | chip only; **no health screen, no perf insights** |
+| HealthView / PerfInsightsBanner | done | real checks drive both the screen and the hero chip |
 | InstanceHistorySheet | done | per-instance sessions from the instance menu |
 | InstanceIconMaker | missing | generate an icon |
 | FileBrowserTab | done | breadcrumb browser + text editor, path-escape guarded |
 | ConfigManagerSheet | done | every editable config, grouped by folder |
-| RepairSheet | partial | menu action; no dedicated sheet |
+| RepairSheet | done | offered inline against the finding that needs it |
 
 ## Worlds
 | Mac view | Status | Notes |

@@ -668,6 +668,10 @@ async function renderInstanceDetail(id) {
       <button class="gh gh-sm" id="log-reload">Reload</button></div>
     <div id="inst-log"></div>
 
+    <div class="section-head" data-tab="tools"><span class="section-title">HEALTH</span>
+      <button class="gh gh-sm" id="health-recheck">Re-check</button></div>
+    <div id="inst-health"></div>
+
     <div class="section-head" data-tab="tools"><span class="section-title">NOTES &amp; LINKS</span></div>
     <div id="inst-notes"></div>
 
@@ -723,6 +727,8 @@ async function renderInstanceDetail(id) {
   renderConfigs(id);
   renderFileBrowser(id);
   renderNotes(id);
+  renderInstanceKeybinds(id);
+  renderInstanceHealth(id);
 
   const moreBtn = document.getElementById("detail-more");
   if (moreBtn) moreBtn.onclick = () => openMenu(moreBtn, [
@@ -3121,6 +3127,136 @@ async function renderNotes(id) {
     try { await API.setNotes({ instanceId: id, links: next }); renderNotes(id); }
     catch (e) { toast(e.message); }
   });
+}
+
+// Everything checkable without launching. The hero chip is driven by this too,
+// so "Healthy" is a real statement rather than decoration.
+async function renderInstanceHealth(id) {
+  const host = document.getElementById("inst-health");
+  if (!host) return;
+  const h = await API.worldTools.health(id);
+
+  const chip = document.getElementById("detail-health");
+  if (chip) {
+    const errs = h.findings.filter((f) => f.level === "error").length;
+    const warns = h.findings.filter((f) => f.level === "warn").length;
+    chip.className = "vchip health" + (errs ? " bad" : warns ? " warn" : "");
+    chip.innerHTML = errs ? `${ico("i-pulse")} ${errs} issue${errs === 1 ? "" : "s"}`
+      : warns ? `${ico("i-pulse")} ${warns} warning${warns === 1 ? "" : "s"}`
+      : `${ico("i-shield")} Healthy`;
+  }
+
+  host.innerHTML = `
+    <div class="srv-stats" style="margin-bottom:14px">
+      <div class="srv-stat"><span class="kick">Mods</span><b>${h.mods}</b></div>
+      ${h.disabled ? `<div class="srv-stat"><span class="kick">Disabled</span><b>${h.disabled}</b></div>` : ""}
+      <div class="srv-stat"><span class="kick">On disk</span><b>${esc(fmtSize(h.size))}</b></div>
+      <div class="srv-stat"><span class="kick">Memory</span><b>${h.ramMB ? (h.ramMB / 1024).toFixed(1) + " GB" : "Default"}</b></div>
+    </div>
+    ${h.findings.length ? `
+      <div class="hl-list">
+        ${h.findings.map((f) => `
+          <div class="hl-row ${esc(f.level)}">
+            <span class="hl-dot"></span>
+            <span class="hl-meta">
+              <span class="hl-title">${esc(f.title)}</span>
+              ${f.detail ? `<span class="hl-detail">${esc(f.detail)}</span>` : ""}
+            </span>
+            ${f.fix === "repair" ? `<button class="gh gh-sm" id="hl-repair">${esc(f.fixLabel || "Fix")}</button>` : ""}
+          </div>`).join("")}
+      </div>`
+      : `<div class="empty-line">Nothing wrong that can be checked without launching.</div>`}`;
+
+  const rc = document.getElementById("health-recheck");
+  if (rc) rc.onclick = () => renderInstanceHealth(id);
+  const rep = document.getElementById("hl-repair");
+  if (rep) rep.onclick = async () => {
+    rep.disabled = true; rep.innerHTML = `<span class="spinner"></span>`;
+    try { const r = await API.instance.repair(id);
+      toast(`Repaired. ${(r.cleared || []).length} cached file(s) cleared; they re-download on next launch.`);
+      renderInstanceHealth(id); }
+    catch (e) { rep.disabled = false; rep.textContent = "Fix"; toast(e.message); }
+  };
+}
+
+// Per-instance keybinds: what is actually in THIS instance's options.txt,
+// which is what the game will use. The global profile layers over these at
+// launch, so both views matter and neither replaces the other.
+async function renderInstanceKeybinds(id) {
+  const host = document.getElementById("inst-keybinds");
+  if (!host) return;
+  let data;
+  try { data = await API.keybinds.list(id); }
+  catch (e) { host.innerHTML = `<div class="empty-line">${esc(e.message)}</div>`; return; }
+
+  if (!data.hasOptions) {
+    host.innerHTML = `<div class="empty-line">No options.txt yet. Launch this instance once and its keybinds appear here.</div>`;
+    return;
+  }
+  const conflicts = data.binds.filter((b) => b.conflict).length;
+  const byCat = {};
+  for (const b of data.binds) (byCat[b.category] = byCat[b.category] || []).push(b);
+  const cats = (data.categories || Object.keys(byCat)).filter((c) => byCat[c]);
+
+  host.innerHTML = `
+    <div class="kb-head-row" style="margin-bottom:12px">
+      <span class="kick">${data.binds.length} bind${data.binds.length === 1 ? "" : "s"} in this instance</span>
+      ${conflicts ? `<span class="kb-conflict">${ico("i-pulse")} ${conflicts} share a key</span>` : ""}
+      <div class="kb-head-right"><button class="gh gh-sm" id="ikb-reset-all">Reset all to default</button></div>
+    </div>
+    ${cats.map((c) => `
+      <div class="vsec-head"><span class="kick">${esc(c)}</span></div>
+      <div class="kb-table">
+        ${byCat[c].map((b) => `
+          <div class="kb-row${b.conflict ? " is-clash" : ""}">
+            <span class="kb-cat kick" title="${esc(b.action)}">${esc(b.action.replace(/^key\./, ""))}</span>
+            <span class="kb-action">${esc(b.label)}</span>
+            <button class="kb-key is-set" data-ikb="${esc(b.action)}">${esc(b.valueLabel)}</button>
+            <button class="kb-icon" data-ikbreset="${esc(b.action)}" title="Reset to the game's default">${ico("i-refresh")}</button>
+          </div>`).join("")}
+      </div>`).join("")}`;
+
+  host.querySelectorAll("[data-ikb]").forEach((b) => b.onclick = () => captureInstanceKey(id, b));
+  host.querySelectorAll("[data-ikbreset]").forEach((b) => b.onclick = async () => {
+    try { await API.keybinds.reset({ instanceId: id, action: b.dataset.ikbreset });
+      toast("Reset. The game restores its default on next launch."); renderInstanceKeybinds(id); }
+    catch (e) { toast(e.message); }
+  });
+  const all = document.getElementById("ikb-reset-all");
+  if (all) all.onclick = async () => {
+    if (!confirm("Reset every keybind in this instance? Minecraft rebuilds them on the next launch.")) return;
+    try { await API.keybinds.resetAll(id); toast("All keybinds reset."); renderInstanceKeybinds(id); }
+    catch (e) { toast(e.message); }
+  };
+}
+
+// Same capture as the global screen, writing to this instance's options.txt.
+function captureInstanceKey(id, btn) {
+  const original = btn.textContent;
+  btn.textContent = "Press a key\u2026";
+  btn.classList.add("is-on");
+  const finish = () => {
+    window.removeEventListener("keydown", onKey, true);
+    window.removeEventListener("mousedown", onMouse, true);
+  };
+  const commit = async (value) => {
+    finish();
+    try { await API.keybinds.set({ instanceId: id, action: btn.dataset.ikb, value }); renderInstanceKeybinds(id); }
+    catch (e) { btn.textContent = original; btn.classList.remove("is-on"); toast(e.message); }
+  };
+  const onKey = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.key === "Escape") { finish(); btn.textContent = original; btn.classList.remove("is-on"); return; }
+    const name = mcKeyName(e);
+    if (name) commit(name);
+  };
+  const onMouse = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const map = { 0: "left", 1: "middle", 2: "right" };
+    commit("key.mouse." + (map[e.button] || e.button));
+  };
+  window.addEventListener("keydown", onKey, true);
+  window.addEventListener("mousedown", onMouse, true);
 }
 
 // ---------- Instance file browser ----------

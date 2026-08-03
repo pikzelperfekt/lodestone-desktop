@@ -1114,3 +1114,21 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .pack-member .ico { font-size: 13px; color: var(--voxel-accent); }
 .muted-line { font-size: 12px; color: var(--voxel-muted); }
 .btn-soft.danger { color: var(--danger); border-color: rgba(224,112,95,.4); }
+
+/* ---- Instance strip card (Instances grid) ---- */
+.strip-card { position: relative; background: var(--voxel-elev); border: 0; border-radius: 0;
+  box-shadow: var(--voxel-bevel); cursor: pointer; overflow: hidden;
+  display: flex; flex-direction: column; transition: box-shadow .16s ease; }
+.strip-card:hover { box-shadow: var(--voxel-bevel), 0 0 0 2px var(--voxel-accent); }
+/* The 4px loader-colour strip that identifies the card at a glance. */
+.strip-card .strip { height: 4px; width: 100%; flex: none; }
+.strip-card .inst-art { height: 128px; width: 100%; position: relative;
+  background-size: cover; background-position: center; image-rendering: pixelated; }
+.strip-card .inst-body { padding: 11px 13px 13px; display: flex; flex-direction: column; gap: 3px; }
+.strip-card .inst-name { font-size: 13.5px; font-weight: 600; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.strip-card .inst-facts { font-size: 11.5px; color: var(--voxel-muted); }
+.strip-card .rcard-foot { margin-top: 8px; }
+.page-count { font-family: var(--font-pixel); font-size: 15px; color: var(--voxel-muted);
+  margin-left: 8px; font-weight: 400; }
+.grid-foot { margin-top: 18px; }

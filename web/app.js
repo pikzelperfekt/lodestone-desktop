@@ -175,14 +175,15 @@ function fileToBase64(file) {
 
 // Wire every .imgbox (and the hero) as a click-to-browse + drag-to-drop art
 // target. Mirrors the Mac PackArtPicker: a chosen image becomes the pack art.
-function bindArtDrops() {
+function bindArtDrops(refresh) {
+  const done = () => (typeof refresh === "function" ? refresh() : renderHome());
   el().querySelectorAll("[data-art]").forEach((node) => {
     const id = node.dataset.art;
     node.addEventListener("click", async (e) => {
       if (e.target.closest("[data-play],[data-del],.play-btn,.gh")) return;
       if (!node.classList.contains("imgbox") && !node.classList.contains("no-art")) return;
       e.stopPropagation();
-      try { if (await API.icons.pick(id)) { toast("Art updated."); renderHome(); } }
+      try { if (await API.icons.pick(id)) { toast("Art updated."); done(); } }
       catch (err) { toast("Couldn't set art: " + err.message); }
     });
     node.addEventListener("dragover", (e) => { e.preventDefault(); e.stopPropagation(); node.classList.add("drop-on"); });
@@ -196,7 +197,7 @@ function bindArtDrops() {
         const b64 = await fileToBase64(file);
         const ext = (file.name.split(".").pop() || "png").toLowerCase();
         await API.icons.set(id, b64, ext);
-        toast("Art updated."); renderHome();
+        toast("Art updated."); done();
       } catch (err) { toast("Couldn't set art: " + err.message); }
     });
   });
@@ -207,9 +208,13 @@ let creating = false;
 async function renderInstances() {
   el().innerHTML = `<div class="placeholder">${ico("i-stack")}<h2>Loading…</h2></div>`;
   const instances = await API.instances();
+  // Bars compare against the longest-played instance, so they read as a
+  // ranking rather than against some invented ceiling.
+  const maxPlay = Math.max(...instances.map((i) => Number(i.playtimeMs) || 0), 1);
+  const totalPlay = instances.reduce((sum, i) => sum + (Number(i.playtimeMs) || 0), 0);
   el().innerHTML = `
     <div class="page-head">
-      <h1 class="page-title">Instances</h1>
+      <h1 class="page-title">Instances <span class="page-count">${instances.length}</span></h1>
       <div class="head-actions">
         <button class="btn-soft" id="add-from-code">${ico("i-bolt")} Add from code</button>
         <button class="btn-soft" id="import-pack">${ico("i-download")} Import</button>
@@ -218,8 +223,9 @@ async function renderInstances() {
     </div>
     <div id="new-panel"></div>
     <div class="grid">
-      ${instances.map(instGridCard).join("") || `<div class="empty-line">No instances yet. Hit <b>New Instance</b>, <b>Import</b> a .mrpack or .lodepack, or drag a pack file anywhere in this window.</div>`}
-    </div>`;
+      ${instances.map((i) => instGridCard(i, maxPlay)).join("") || `<div class="empty-line">No instances yet. Hit <b>New Instance</b>, <b>Import</b> a .mrpack or .lodepack, or drag a pack file anywhere in this window.</div>`}
+    </div>
+    ${instances.length ? `<div class="grid-foot kick">${instances.length} instance${instances.length === 1 ? "" : "s"} · ${esc(fmtPlaytime(totalPlay))} played</div>` : ""}`;
   document.getElementById("import-pack").onclick = async () => {
     const btn = document.getElementById("import-pack");
     const original = btn.innerHTML;
@@ -242,6 +248,7 @@ async function renderInstances() {
   document.getElementById("add-from-code").onclick = () => openAddFromCodeModal();
   document.getElementById("new-inst").onclick = () => { creating = !creating; toggleNewPanel(); };
   if (creating) toggleNewPanel();
+  bindArtDrops(renderInstances);
   bindCommon();
   el().querySelectorAll("[data-del]").forEach((b) => b.onclick = async (e) => {
     e.stopPropagation();
@@ -680,29 +687,28 @@ async function toggleNewPanel() {
   };
 }
 
-const instGridCard = (i) => `
-  <div class="glass inst-card wide" data-open="${i.id}">
-    <div class="inst-art" style="background:${accentFor(i.accent)}33">${ico("i-stack")}
+// The Voxel instance card: a 4px loader-colour strip, a recessed art well that
+// doubles as a drop target, the name, one facts line, and a dashed playtime
+// bar. The same component the Mac app uses for every instance list.
+const instGridCard = (i, max) => `
+  <div class="strip-card" data-open="${i.id}">
+    <div class="strip" style="background:${esc(i.accent || "#8EC44F")}"></div>
+    <div class="inst-art imgbox" data-art="${i.id}">
+      ${i.iconPath ? "" : `<div class="art-invite">${ico("i-image")}<span>Drop an image</span><span class="art-browse">or <u>browse files</u></span></div>`}
       <button class="card-del" data-del="${i.id}" title="Delete instance">${ico("i-trash")}</button>
       <button class="card-play" data-play="${i.id}" title="Play ${esc(i.name)}">${ico("i-play")}</button>
     </div>
     <div class="inst-body">
       <div class="inst-name">${esc(i.name)}</div>
-      <div class="inst-chips"><span class="chip">${loaderLabel(i.loader)}</span><span class="chip mono">${esc(i.mcVersion)}</span>${i.mods ? `<span class="chip">${i.mods} mod${i.mods === 1 ? "" : "s"}</span>` : ""}</div>
-      <div class="inst-stats">${playedLabel(i)}</div>
+      <div class="inst-facts">${esc(i.mcVersion)} \u00b7 ${esc(loaderLabel(i.loader))} \u00b7 ${i.mods || 0} mod${i.mods === 1 ? "" : "s"}</div>
+      <div class="rcard-foot">
+        ${playBar(i.playtimeMs, max || 1)}
+        <span class="rcard-time">${esc(fmtPlaytime(i.playtimeMs))}</span>
+      </div>
     </div>
   </div>`;
 
-const instCard = (i) => `
-  <div class="glass inst-card" data-play="${i.id}" title="Play ${esc(i.name)}">
-    <div class="inst-art" style="background:${accentFor(i.accent)}33">${ico("i-stack")}
-      <span class="card-play sm" aria-hidden="true">${ico("i-play")}</span>
-    </div>
-    <div class="inst-body">
-      <div class="inst-name">${esc(i.name)}</div>
-      <div class="inst-chips"><span class="chip">${loaderLabel(i.loader)}</span><span class="chip mono">${esc(i.mcVersion)}</span></div>
-    </div>
-  </div>`;
+const instCard = (i) => instGridCard(i, 1);
 
 // ---------- DISCOVER ----------
 let searchTimer = null;
@@ -3214,9 +3220,13 @@ function ldiFallbackURI(inst) {
 // ---- Card + hero decoration (runs after every render via the bindCommon wrap) ----
 function ldiApply(artEl, inst) {
   if (!artEl || !inst) return;
-  const url = inst.iconPath ? `${fileURL(inst.iconPath)}?v=${inst.iconVersion || 0}` : ldiFallbackURI(inst);
+  // Voxel: only REAL artwork gets painted. The generated gradient-letter tile
+  // was a Deepslate-era fallback and fights this design badly (glossy blues
+  // and purples against a flat lime-on-moss palette). With no icon the box
+  // stays a recessed well inviting a drop, exactly as on Mac.
+  if (!inst.iconPath) return;
   artEl.classList.add("ld-has-icon");
-  artEl.style.backgroundImage = `url("${url}")`;
+  artEl.style.backgroundImage = `url("${fileURL(inst.iconPath)}?v=${inst.iconVersion || 0}")`;
 }
 
 function ldiDecorate() {

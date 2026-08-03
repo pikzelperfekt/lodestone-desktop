@@ -11,7 +11,10 @@ function toast(msg) {
   clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 4200);
 }
 
-function loaderLabel(l) { return l === "vanilla" ? "Vanilla" : l[0].toUpperCase() + l.slice(1); }
+// Loaders have real capitalisation ("NeoForge", not "Neoforge") — naive
+// first-letter casing gets three of the five wrong.
+const LOADER_NAMES = { vanilla: "Vanilla", fabric: "Fabric", quilt: "Quilt", forge: "Forge", neoforge: "NeoForge" };
+function loaderLabel(l) { return LOADER_NAMES[String(l).toLowerCase()] || (l ? l[0].toUpperCase() + l.slice(1) : "Vanilla"); }
 function subtitle(i) { return i.loader === "vanilla" ? i.mcVersion : `${loaderLabel(i.loader)} ${i.mcVersion}`; }
 // [Design overhaul] "Played …" line for instance cards (lastPlayed is ms or null).
 function playedLabel(i) {
@@ -27,35 +30,176 @@ const accentFor = (hex) => `linear-gradient(135deg, ${hex}, ${hex}aa)`;
 
 function greeting() { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; }
 
-// ---------- HOME ----------
+// ---- Voxel formatting helpers (match the Mac app's strings exactly) ----
+
+// "8h 52m" / "3h 30m" / "16s". Under a minute stays in seconds, because a
+// brand-new instance reading "0m" looks broken next to one reading "8h 52m".
+function fmtPlaytime(ms) {
+  const s = Math.floor((Number(ms) || 0) / 1000);
+  if (s < 60) return `${s}s`;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h ? `${h}h ${m}m` : `${m}m`;
+}
+// "21m ago" / "8h ago" / "2d ago" / "Jul 7" once it stops being recent.
+function relTime(ts) {
+  if (!ts) return "Never played";
+  const diff = Date.now() - ts;
+  if (diff < 60_000) return "just now";
+  const m = Math.floor(diff / 60_000);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  return fmtDate(ts);
+}
+// The recessed image well. Every one is a real drop target: with art it shows
+// the art, without it invites you to drop one (matching Mac's InstanceArtwork).
+function artBox(i, cls) {
+  const url = i.iconPath ? `${fileURL(i.iconPath)}?v=${i.iconVersion || 0}` : null;
+  const inner = url
+    ? `<img src="${url}" alt="" class="art-img">`
+    : `<div class="art-invite">${ico("i-image")}<span>Drop an image</span><span class="art-browse">or <u>browse files</u></span></div>`;
+  return `<div class="imgbox ${cls || ""}" data-art="${i.id}" title="Drop an image, or click to browse">${inner}</div>`;
+}
+// Longest playtime in the list defines a full bar, so the bars compare against
+// each other instead of against an arbitrary constant.
+function playBar(ms, max) {
+  const pct = max > 0 ? Math.max(2, Math.round((Number(ms) || 0) / max * 100)) : 0;
+  return `<div class="dashbar"><i style="width:${pct}%"></i></div>`;
+}
+
+// ---------- HOME (Play) ----------
 async function renderHome() {
   el().innerHTML = `<div class="placeholder">${ico("i-home")}<h2>Loading…</h2></div>`;
-  const [info, instances, acc] = await Promise.all([API.info(), API.instances(), API.account.get().catch(() => null)]);
+  const [instances, servers] = await Promise.all([
+    API.instances(),
+    API.servers.list().catch(() => []),
+  ]);
   const recent = instances[0];
-  const who = acc && acc.name ? `, ${esc(acc.name)}` : "";
+
+  if (!recent) {
+    el().innerHTML = `
+      <div class="placeholder">${ico("i-stack")}
+        <h2>No instances yet</h2>
+        <p>Create one to start playing.</p>
+        <button class="play-btn" data-goto="instances">${ico("i-plus")} New Instance</button>
+      </div>`;
+    bindCommon();
+    return;
+  }
+
+  const maxPlay = Math.max(...instances.map((i) => Number(i.playtimeMs) || 0), 1);
+  const heroArt = recent.iconPath ? `${fileURL(recent.iconPath)}?v=${recent.iconVersion || 0}` : null;
+  const jump = instances.slice(0, 6);
 
   el().innerHTML = `
-    <section class="hero">
-      <div>
-        <div class="hero-greeting">${greeting()}${who}.</div>
-        <div class="hero-sub">${recent ? `Jump back into ${esc(recent.name)} · ${esc(subtitle(recent))}.` : "Create your first instance to start playing."}</div>
+    <section class="vhero${heroArt ? "" : " no-art"}" data-art="${recent.id}">
+      ${heroArt ? `<div class="vhero-art" style="background-image:url('${heroArt}')"></div>`
+                : `<div class="vhero-art vhero-art-empty">
+                     <div class="art-invite">${ico("i-image")}<span>Drop a screenshot</span><span class="art-browse">or <u>browse files</u></span></div>
+                   </div>`}
+      <div class="vhero-scrim"></div>
+      <div class="vhero-body">
+        <div class="kick">Last played · ${esc(relTime(recent.lastPlayed))}</div>
+        <h1 class="vhero-title">${esc(recent.name)}</h1>
+        <div class="vhero-row">
+          <div class="vchips">
+            <span class="vchip">${esc(recent.mcVersion)}</span>
+            <span class="vchip">${esc(loaderLabel(recent.loader))}</span>
+            <span class="vchip">${recent.mods || 0} mod${recent.mods === 1 ? "" : "s"}</span>
+            <span class="vchip">${esc(fmtPlaytime(recent.playtimeMs))} played</span>
+          </div>
+          <div class="vhero-actions">
+            <button class="play-btn" data-play="${recent.id}">${ico("i-play")} Play</button>
+            <button class="gh ico-btn" data-open="${recent.id}" title="Instance settings">${ico("i-sliders")}</button>
+          </div>
+        </div>
       </div>
-      <div class="hero-spacer"></div>
-      ${recent
-        ? `<button class="play-btn" data-play="${recent.id}">${ico("i-play")} Play ${esc(recent.name)}</button>`
-        : `<button class="play-btn" data-goto="instances">${ico("i-plus")} New Instance</button>`}
     </section>
 
-    <div class="engine-chip">${ico("i-server")} Engine: <b>${esc(info.platform)}</b> · ${esc(info.engine)} ${info.electron ? "· Electron " + esc(info.electron) : ""}
-      <span class="engine-path" title="${esc(info.dataDir)}">${esc(info.dataDir)}</span></div>
+    <section class="vsec">
+      <div class="vsec-head">
+        <span class="kick">Jump back in</span>
+        <button class="gh" data-goto="instances">All instances</button>
+      </div>
+      <div class="rail">
+        ${jump.map((i) => `
+          <button class="rcard" data-open="${i.id}">
+            ${artBox(i, "rcard-art")}
+            <div class="rcard-body">
+              <div class="rcard-name">${esc(i.name)}</div>
+              <div class="rcard-sub">${esc(relTime(i.lastPlayed))}</div>
+              <div class="rcard-foot">
+                ${playBar(i.playtimeMs, maxPlay)}
+                <span class="rcard-time">${esc(fmtPlaytime(i.playtimeMs))}</span>
+              </div>
+            </div>
+          </button>`).join("")}
+      </div>
+    </section>
 
-    <section class="section">
-      <div class="section-head"><span class="section-title">RECENT INSTANCES</span>
-        <span class="section-action" data-goto="instances">All</span></div>
-      ${instances.length ? `<div class="scroll-row">${instances.slice(0, 8).map(instCard).join("")}</div>`
-        : `<div class="empty-line">No instances yet. Head to <a data-goto="instances">Instances</a>.</div>`}
-    </section>`;
+    ${servers.length ? `
+    <section class="vsec">
+      <div class="vsec-head"><span class="kick">Servers</span></div>
+      <div class="vserver-list">
+        ${servers.slice(0, 4).map((s) => `
+          <button class="vserver" data-server="${esc(s.id)}">
+            <span class="vserver-ico">${ico("i-server")}</span>
+            <span class="vserver-meta">
+              <span class="vserver-name">${esc(s.name || "Minecraft Server")}</span>
+              <span class="vserver-sub">${esc(s.instanceName || s.mcVersion || "")}</span>
+            </span>
+            <span class="vserver-dot${s.running ? " on" : ""}"></span>
+          </button>`).join("")}
+      </div>
+    </section>` : ""}`;
+
+  el().querySelectorAll("[data-server]").forEach((n) => n.onclick = () => renderServerDetail(n.dataset.server));
+  bindArtDrops();
   bindCommon();
+}
+
+// Base64 a dropped file without spreading it through String.fromCharCode —
+// a multi-megabyte screenshot would pass millions of arguments and overflow
+// the call stack. FileReader hands us the encoding already done.
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = () => reject(new Error("Couldn't read that image."));
+    r.onload = () => resolve(String(r.result).split(",")[1] || "");
+    r.readAsDataURL(file);
+  });
+}
+
+// Wire every .imgbox (and the hero) as a click-to-browse + drag-to-drop art
+// target. Mirrors the Mac PackArtPicker: a chosen image becomes the pack art.
+function bindArtDrops() {
+  el().querySelectorAll("[data-art]").forEach((node) => {
+    const id = node.dataset.art;
+    node.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-play],[data-del],.play-btn,.gh")) return;
+      if (!node.classList.contains("imgbox") && !node.classList.contains("no-art")) return;
+      e.stopPropagation();
+      try { if (await API.icons.pick(id)) { toast("Art updated."); renderHome(); } }
+      catch (err) { toast("Couldn't set art: " + err.message); }
+    });
+    node.addEventListener("dragover", (e) => { e.preventDefault(); e.stopPropagation(); node.classList.add("drop-on"); });
+    node.addEventListener("dragleave", () => node.classList.remove("drop-on"));
+    node.addEventListener("drop", async (e) => {
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!file || !/^image\//.test(file.type)) return;   // let pack files fall through to the window handler
+      e.preventDefault(); e.stopPropagation();
+      node.classList.remove("drop-on");
+      try {
+        const b64 = await fileToBase64(file);
+        const ext = (file.name.split(".").pop() || "png").toLowerCase();
+        await API.icons.set(id, b64, ext);
+        toast("Art updated."); renderHome();
+      } catch (err) { toast("Couldn't set art: " + err.message); }
+    });
+  });
 }
 
 // ---------- INSTANCES ----------
@@ -1083,8 +1227,39 @@ function bindCommon() {
 
 function navigate(section) {
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("is-active", b.dataset.section === section));
-  if (section === "discover") discoverTarget = null;   // sidebar Discover = browse for any instance
+  if (section === "discover") discoverTarget = null;   // Discover = browse for any instance
   ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, cloud: renderCloud, friends: renderFriends, squads: renderSquads, settings: renderSettings }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
+}
+
+// ---- PINNED sidebar block ----
+// Shows instances you've pinned. Until you pin anything it falls back to your
+// three most-played, so the block is useful on day one instead of empty — the
+// same smart-default the Mac sidebar leans on.
+async function renderPinned() {
+  const host = document.getElementById("pinned-block");
+  if (!host) return;
+  let instances = [];
+  try { instances = await API.instances(); } catch { return; }
+  const explicit = instances.filter((i) => i.pinned);
+  const list = (explicit.length ? explicit : [...instances]
+    .sort((a, b) => (Number(b.playtimeMs) || 0) - (Number(a.playtimeMs) || 0))
+    .filter((i) => Number(i.playtimeMs) > 0)
+  ).slice(0, 4);
+
+  if (!list.length) { host.innerHTML = ""; return; }
+  host.innerHTML = `
+    <div class="nav-group">Pinned</div>
+    <div class="nav">
+      ${list.map((i) => `
+        <button class="pin-item" data-pin-open="${i.id}" title="${esc(i.name)}">
+          <span class="pin-dot" style="background:${esc(i.accent || "#8EC44F")}"></span>
+          <span class="pin-name">${esc(i.name)}</span>
+        </button>`).join("")}
+    </div>`;
+  host.querySelectorAll("[data-pin-open]").forEach((b) => b.onclick = () => {
+    document.querySelectorAll(".nav-item").forEach((n) => n.classList.remove("is-active"));
+    renderInstanceDetail(b.dataset.pinOpen);
+  });
 }
 
 // ---------- Command palette (Ctrl/Cmd-K) ----------
@@ -1233,10 +1408,16 @@ async function renderAccount() {
   const node = document.getElementById("account");
   if (acc) {
     node.classList.remove("signin");
+    // Voxel foot: the real skin head + name, then icon-only actions. No card,
+    // no chevron, no "Signed in" subtitle — the Mac pass stripped all three.
+    // There is deliberately no bell: nothing generates notifications yet, and
+    // a bell that never lights up is decoration pretending to be a feature.
     node.innerHTML = `
       <img class="avatar" src="https://mc-heads.net/avatar/${esc(acc.uuid.replace(/-/g, ""))}/64" />
-      <div class="account-meta"><div class="account-name">${esc(acc.name)}</div><div class="account-sub">Signed in</div></div>
-      <button class="account-more" id="acc-out" title="Sign out">⋯</button>`;
+      <div class="account-meta"><div class="account-name">${esc(acc.name)}</div></div>
+      <button class="account-act" id="acc-prefs" title="Preferences">${ico("i-sliders")}</button>
+      <button class="account-act" id="acc-out" title="Sign out">${ico("i-user")}</button>`;
+    document.getElementById("acc-prefs").onclick = () => navigate("settings");
     document.getElementById("acc-out").onclick = async () => { await API.account.signOut(); toast("Signed out."); renderAccount(); };
   } else {
     node.classList.add("signin");
@@ -2271,12 +2452,18 @@ function setupUpdates() {
 
 document.querySelectorAll(".nav-item").forEach((btn) => btn.addEventListener("click", () => navigate(btn.dataset.section)));
 renderAccount();
+renderPinned();
 setupLaunchOverlay();
 setupUpdates();
 setupCloud();
 setupFriends();
 setupCommandPalette();
 navigate("home");
+
+// The pinned block is derived from instance state (pins + playtime), so it has
+// to refresh whenever a session ends or an instance is created/removed rather
+// than only at boot.
+if (window.API && API.on) { try { API.on("launch:state", (s) => { if (s && s.status === "idle") { renderPinned(); } }); } catch { /* non-desktop build */ } }
 
 // ========================================================================
 // [Crash Doctor] — diagnosis cards + the mod bisect flow (instance detail).

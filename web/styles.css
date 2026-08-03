@@ -1,7 +1,7 @@
-/* Lodestone UI shell — "Deepslate & Glint".
- * Layered opaque slate surfaces (depth via surface color, not borders), one
- * compass-glint accent, and the needle motif for navigation + loading.
- * All selectors predate the overhaul; only the skin changed. */
+/* Lodestone UI shell — "Voxel".
+ * The Mac app's look, ported: mossy near-black surfaces, one lime accent,
+ * hard corners everywhere, and a bevel on every control so surfaces read as
+ * extruded blocks. All selectors predate the port; only the skin changed. */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
@@ -16,7 +16,7 @@ svg.ico { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-widt
           stroke-linecap: round; stroke-linejoin: round; display: block; }
 
 ::selection { background: var(--glint-fill-hard); }
-:focus-visible { outline: 2px solid var(--glint); outline-offset: 2px; border-radius: 4px; }
+:focus-visible { outline: 2px solid var(--glint); outline-offset: 2px; border-radius: 0; }
 button { font-family: inherit; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
   outline: 2px solid var(--glint); outline-offset: 1px; }
@@ -31,61 +31,82 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   display: flex; flex-direction: column;
   padding-top: 28px;
 }
-.brand { display: flex; align-items: center; gap: 10px; padding: 0 20px 22px; }
+.brand { display: flex; align-items: center; gap: 11px; padding: 0 20px 20px; }
+/* The brand badge is the one intentionally round thing besides the switch:
+   a solid lime disc with the compass glyph knocked out of it. */
 .brand-mark {
-  width: 30px; height: 30px; font-size: 19px;
+  width: 30px; height: 30px; font-size: 17px;
   display: flex; align-items: center; justify-content: center;
-  color: var(--glint);
-  background: var(--glint-fill);
-  border: 1px solid var(--glint-edge);
-  border-radius: 9px;
+  color: var(--voxel-ink);
+  background: var(--voxel-accent);
+  border: none;
+  border-radius: 50%;
+  box-shadow: var(--voxel-glow);
 }
-.brand-mark .ico { stroke-width: 1.7; }
-.brand-name { font-family: var(--font-display); font-weight: 700; font-size: 17px;
-  letter-spacing: .04em; color: var(--text-primary); }
+.brand-mark .ico { stroke-width: 2.2; }
+.brand-name { font-family: var(--font-pixel); font-weight: 400; font-size: 14px;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--text-primary); }
 
 .nav { display: flex; flex-direction: column; gap: 2px; padding: 0 12px; }
 .nav-item {
-  position: relative; display: flex; align-items: center; gap: 11px;
-  padding: 9px 12px; border-radius: var(--radius-ctl); border: none; background: transparent;
-  color: var(--text-secondary); font-family: var(--font-display); font-weight: 600;
-  font-size: 13px; letter-spacing: .02em;
-  cursor: pointer; text-align: left;
+  position: relative; display: flex; align-items: center; gap: 10px;
+  padding: 8px 11px; border-radius: 0; border: none; background: transparent;
+  color: var(--voxel-muted); font-family: var(--font-body); font-weight: 400;
+  font-size: 13.5px; letter-spacing: 0;
+  cursor: pointer; text-align: left; width: 100%;
   transition: color .12s ease, background-color .12s ease;
 }
 .nav-item .ico { font-size: 16px; width: 20px; stroke-width: 1.8; }
-.nav-item:hover { color: var(--text-primary); background: var(--fill-hover); }
-.nav-item.is-active { color: var(--text-primary); background: var(--glint-fill); }
-.nav-item.is-active > .ico { color: var(--glint); }
+.nav-item:hover { color: var(--text-primary); background: var(--voxel-hover); }
+/* Active nav is accent-on-accent-tint. No needle, no left capsule — the Mac
+   app dropped both; the tint plus the lime label carries the state. */
+.nav-item.is-active { color: var(--voxel-accent); background: var(--voxel-soft); font-weight: 500; }
+.nav-item.is-active > .ico { color: var(--voxel-accent); }
 
-/* The signature: a compass needle settles on the active section. */
-.nav-needle { margin-left: auto; width: 15px; height: 15px; font-size: 15px;
-  color: var(--glint); opacity: 0; }
-.nav-needle .ico { width: 15px; height: 15px; }
-.nav-item.is-active .nav-needle { opacity: 1; animation: needle-swing .55s var(--ease-settle); }
-@keyframes needle-swing { from { transform: rotate(-80deg); } to { transform: rotate(0deg); } }
+/* Sidebar group headings (PINNED / SETUP) — pixel kickers. */
+.nav-group { font-family: var(--font-pixel); font-weight: 400; font-size: 9.5px;
+  letter-spacing: .01em; text-transform: uppercase; color: var(--voxel-muted);
+  padding: 18px 12px 7px; }
 
+/* Pinned instances: a square colour chip + the name. */
+.pin-item { display: flex; align-items: center; gap: 11px; padding: 7px 11px;
+  border: none; background: transparent; color: var(--text-secondary);
+  font-family: var(--font-body); font-size: 13px; cursor: pointer; text-align: left; width: 100%; }
+.pin-item:hover { background: var(--voxel-hover); color: var(--text-primary); }
+.pin-dot { width: 9px; height: 9px; border-radius: 0; flex: 0 0 auto; }
+
+/* The account foot: skin head + name + icon actions. No card, no chevron. */
 .account {
-  margin: auto 12px 14px; padding: 10px;
+  margin: auto 0 0; padding: 14px 16px;
   display: flex; align-items: center; gap: 10px;
-  background: var(--deepslate-2);
-  border: 1px solid var(--edge); border-radius: var(--radius-panel);
-  box-shadow: var(--rim);
+  background: transparent; border: none; border-radius: 0; box-shadow: none;
+  border-top: 1px solid var(--voxel-hair);
 }
-.avatar { width: 28px; height: 28px; border-radius: 6px; image-rendering: pixelated; }
+.avatar { width: 26px; height: 26px; border-radius: 0; image-rendering: pixelated;
+  box-shadow: var(--voxel-bevel); }
 .account-meta { flex: 1; min-width: 0; }
-.account-name { font-family: var(--font-display); font-weight: 600; font-size: 12.5px; color: var(--text-primary); }
+.account-name { font-family: var(--font-body); font-weight: 500; font-size: 13px; color: var(--text-primary); }
 .account-sub { font-size: 10.5px; color: var(--text-tertiary); }
 .account-more { color: var(--text-tertiary); font-weight: 700; }
+/* Icon-only actions beside the name (notifications, preferences). */
+.account-act { width: 26px; height: 26px; display: grid; place-items: center; flex: 0 0 auto;
+  border: none; background: transparent; color: var(--voxel-muted); cursor: pointer;
+  border-radius: 0; font-size: 15px; }
+.account-act:hover { color: var(--voxel-accent); background: var(--voxel-hover); }
 
-/* ---------- Content (canvas layer: deepslate-1) ---------- */
+/* ---------- Content (canvas layer) ---------- */
 .content { flex: 1; height: 100%; overflow-y: auto; padding: 32px 36px 64px;
-  background:
-    radial-gradient(56% 38% at 50% 0%, rgba(139, 147, 248, 0.05), transparent 70%),
-    var(--deepslate-1);
+  background: var(--voxel-bg);
+}
+/* The 16px graph-paper texture + warm corner bloom. It sits ABOVE the content
+   (not behind it) exactly as on Mac, so it grades the whole window including
+   artwork. pointer-events:none keeps it from eating clicks. */
+.app::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 3;
+  background: var(--voxel-tex);
 }
 .content::-webkit-scrollbar { width: 10px; }
-.content::-webkit-scrollbar-thumb { background: var(--deepslate-3); border-radius: 8px; }
+.content::-webkit-scrollbar-thumb { background: var(--deepslate-3); border-radius: 0; }
 .content::-webkit-scrollbar-thumb:hover { background: var(--edge-hard); }
 
 /* Section headers */
@@ -94,7 +115,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .section-title { font-family: var(--font-display); font-weight: 600; font-size: var(--text-xs);
   letter-spacing: .14em; color: var(--text-tertiary); }
 .section-action { margin-left: auto; font-family: var(--font-display); font-weight: 600;
-  font-size: var(--text-sm); color: var(--glint); cursor: pointer; border-radius: 4px; }
+  font-size: var(--text-sm); color: var(--glint); cursor: pointer; border-radius: 0; }
 .section-action:hover { text-decoration: underline; }
 .beta-badge { font-size: 8.5px; font-weight: 700; letter-spacing: .06em; color: var(--on-glint);
   background: var(--warn); padding: 2px 6px; border-radius: var(--radius-pill); }
@@ -107,17 +128,25 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .hero-spacer { flex: 1; }
 
 /* The primary act of the whole app. */
+/* Play keeps a solid accent fill (the only one in the app) but the label is
+   sans, not pixel — pixel here reads as a toy. The vertical gradient is the
+   prototype's own extrusion shading, not decoration. */
 .play-btn {
-  display: inline-flex; align-items: center; gap: 10px;
-  background: var(--accent-gradient); color: var(--on-glint);
-  font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: .02em;
-  border: none; border-radius: var(--radius-panel); padding: 16px 28px; cursor: pointer;
-  box-shadow: 0 10px 30px var(--glint-glow), var(--rim);
-  transition: transform .15s var(--ease-out), box-shadow .15s var(--ease-out), filter .15s ease;
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  background: linear-gradient(180deg,
+      color-mix(in srgb, var(--voxel-accent) 74%, #fff),
+      var(--voxel-accent) 62%,
+      color-mix(in srgb, var(--voxel-accent) 88%, #000));
+  color: var(--voxel-ink);
+  font-family: var(--font-body); font-weight: 600; font-size: 16px; letter-spacing: .01em;
+  border: none; border-radius: 0; padding: 16px 28px; cursor: pointer;
+  box-shadow: var(--voxel-bevel), var(--voxel-glow);
+  transition: filter .12s ease, transform .12s ease;
 }
-.play-btn:hover { filter: brightness(1.07); transform: translateY(-1px);
-  box-shadow: 0 14px 36px var(--glint-glow), var(--rim); }
-.play-btn:active { transform: translateY(0); filter: brightness(.97); }
+.play-btn:hover { filter: brightness(1.08); }
+/* Pressing pushes the block INTO the surface: drop 2px and lose the glow. */
+.play-btn:active { transform: translateY(2px); box-shadow: var(--voxel-bevel); }
+.play-btn:disabled { opacity: .5; cursor: default; box-shadow: none; }
 .play-btn .ico { font-size: 17px; }
 
 /* Cards */
@@ -136,7 +165,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .fw-top .ico { color: var(--glint); font-size: 15px; }
 .fw-name { font-family: var(--font-display); font-weight: 600; font-size: 14px; color: var(--text-primary); }
 .fw-status { display: flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--text-tertiary); }
-.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-tertiary); opacity: .5; }
+.dot { width: 6px; height: 6px; border-radius: 0; background: var(--text-tertiary); opacity: .5; }
 .dot.live { background: var(--live); opacity: 1; }
 .fw-meta { margin-left: auto; }
 .btn-accent {
@@ -174,7 +203,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* Quick-play revealed on hover (always visible to keyboard focus). */
 .card-play { position: absolute; right: 10px; bottom: 10px; width: 36px; height: 36px;
   display: flex; align-items: center; justify-content: center;
-  border: none; border-radius: 50%; cursor: pointer;
+  border: none; border-radius: 0; cursor: pointer;
   background: var(--accent-gradient); color: var(--on-glint);
   box-shadow: 0 6px 18px var(--glint-glow);
   opacity: 0; transform: translateY(4px);
@@ -253,7 +282,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .inst-card.wide { width:auto; }
 .inst-card.wide .inst-art { height: 118px; }
 .inst-art { position:relative; }
-.card-del { position:absolute; top:8px; right:8px; width:26px; height:26px; border:none; border-radius:7px;
+.card-del { position:absolute; top:8px; right:8px; width:26px; height:26px; border:none; border-radius: 0;
   background: rgba(8, 10, 15, .55); color: var(--text-primary); opacity:0; cursor:pointer;
   display:flex; align-items:center; justify-content:center; transition: opacity .15s ease, background-color .12s ease; }
 .inst-card:hover .card-del, .inst-card:focus-within .card-del { opacity:1; }
@@ -275,7 +304,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .seg button.on { background: var(--glint-fill-hard); color: var(--text-primary); }
 .np-actions { display:flex; justify-content:flex-end; gap:10px; margin-top: var(--sp-4); }
 .btn-ghost { background:transparent; border:none; color: var(--text-secondary); font-size:13px; font-weight:500;
-  cursor:pointer; border-radius: 6px; padding: 4px 6px; transition: color .12s ease, background-color .12s ease; }
+  cursor:pointer; border-radius: 0; padding: 4px 6px; transition: color .12s ease, background-color .12s ease; }
 .btn-ghost:hover { color: var(--text-primary); background: var(--fill-hover); }
 .np-create { width:auto; padding:9px 18px; display:inline-flex; align-items:center; gap:6px; }
 
@@ -308,7 +337,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   transition: background-color .12s ease, border-color .12s ease; }
 .signin-btn:hover { background: var(--glint-fill-hard); border-color: var(--glint); }
 .signin-btn .ico { font-size:13px; }
-.account-more { background:transparent; border:none; cursor:pointer; border-radius: 6px; }
+.account-more { background:transparent; border:none; cursor:pointer; border-radius: 0; }
 
 /* Modal */
 .modal-root { position:fixed; inset:0; background: rgba(6, 8, 12, .62); display:flex; align-items:center; justify-content:center; z-index:60; }
@@ -363,7 +392,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   font-family: var(--font-display);
   background: var(--accent-gradient); padding:7px 14px; border-radius: var(--radius-pill); }
 .update-banner .ub-x { border:none; background:transparent; color:var(--text-secondary); cursor:pointer;
-  font-size:16px; line-height:1; padding:2px 4px; border-radius: 4px; }
+  font-size:16px; line-height:1; padding:2px 4px; border-radius: 0; }
 
 /* ---- Discover: add-to-instance ---- */
 .hit-side { display:flex; align-items:center; gap:14px; margin-left:auto; }
@@ -386,7 +415,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .picker-h { font-size: var(--text-xs); letter-spacing:.1em; color:var(--text-tertiary); text-transform:uppercase;
   font-family: var(--font-display); font-weight: 600; padding:8px 10px 6px; }
 .picker-row { display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; text-align:left;
-  border:none; background:transparent; color:var(--text-primary); cursor:pointer; padding:9px 10px; border-radius:8px;
+  border:none; background:transparent; color:var(--text-primary); cursor:pointer; padding:9px 10px; border-radius: 0;
   font-size:13px; font-weight:500; }
 .picker-row:hover { background: var(--deepslate-3); }
 .picker-row .picker-sub { font-size:11.5px; font-weight:400; color:var(--text-secondary); }
@@ -404,7 +433,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .mods-list { display:flex; flex-direction:column; gap:10px; margin-top:12px; }
 .mod-row { display:flex; align-items:center; gap:14px; padding:12px 14px; border-radius: var(--radius-panel); }
 .mod-row .mod-x { margin-left:auto; border:none; background:transparent; cursor:pointer; color:var(--text-secondary);
-  padding:6px; border-radius:8px; }
+  padding:6px; border-radius: 0; }
 .mod-row .mod-x:hover { color: var(--danger); background: var(--deepslate-3); }
 
 /* ---- Settings ---- */
@@ -428,10 +457,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .settings-card .btn-soft { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
 
 /* Toggle switch */
-.switch { position:relative; width:44px; height:26px; flex:0 0 44px; border:none; border-radius: var(--radius-pill); cursor:pointer;
+/* The switch is Voxel's ONE deliberate exception: the prototype keeps .sw
+   round (999px track, 50% knob) even though everything else is square. */
+.switch { position:relative; width:44px; height:26px; flex:0 0 44px; border:none; border-radius: 999px; cursor:pointer;
   background: var(--deepslate-3); border: 1px solid var(--edge); transition: background .18s ease; padding:0; }
 .switch.on { background: var(--glint-deep); border-color: transparent; }
-.switch .knob { position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff;
+.switch .knob { position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius: 50%; background:#fff;
   box-shadow:0 2px 5px rgba(0,0,0,.35); transition: transform .18s var(--ease-out); }
 .switch.on .knob { transform: translateX(18px); }
 
@@ -450,7 +481,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .world-row .hit-icon.ph .ico { font-size:18px; }
 .world-actions { display:flex; align-items:center; gap:8px; margin-left:auto; }
 .world-actions .btn-soft { display:inline-flex; align-items:center; gap:6px; }
-.world-x { border:none; background:transparent; cursor:pointer; color:var(--text-secondary); padding:7px; border-radius:8px; }
+.world-x { border:none; background:transparent; cursor:pointer; color:var(--text-secondary); padding:7px; border-radius: 0; }
 .world-x:hover { color: var(--danger); background: var(--deepslate-3); }
 
 .edit-panel { margin-top:12px; padding: var(--sp-4); display:flex; flex-direction:column; gap:14px; }
@@ -487,7 +518,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   padding:12px 14px; height:300px; overflow-y:auto;
   white-space:pre-wrap; word-break:break-word; margin:0; }
 .console-log::-webkit-scrollbar { width:9px; }
-.console-log::-webkit-scrollbar-thumb { background: var(--deepslate-3); border-radius:8px; }
+.console-log::-webkit-scrollbar-thumb { background: var(--deepslate-3); border-radius: 0; }
 .console-input { display:flex; gap:8px; }
 .console-input input { flex:1; font-family: var(--font-mono); font-size:12.5px; color: var(--text-primary);
   background: var(--deepslate-1); border:1px solid var(--edge); border-radius: var(--radius-ctl); padding:9px 12px; outline:none;
@@ -558,7 +589,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   font-family: var(--font-body); font-size:15px; }
 .cmdk-list { overflow-y:auto; padding:6px; display:flex; flex-direction:column; gap:2px; }
 .cmdk-list::-webkit-scrollbar { width:9px; }
-.cmdk-list::-webkit-scrollbar-thumb { background: var(--deepslate-3); border-radius:8px; }
+.cmdk-list::-webkit-scrollbar-thumb { background: var(--deepslate-3); border-radius: 0; }
 .cmdk-item { display:flex; align-items:center; gap:12px; width:100%; text-align:left; border:none; cursor:pointer;
   background:transparent; color: var(--text-primary); font-family: var(--font-display); font-weight:600; font-size:13px;
   padding:10px 12px; border-radius: var(--radius-ctl); }
@@ -575,7 +606,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .cloud-card { padding: var(--sp-5); }
 .cloud-setup { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: var(--sp-6) var(--sp-5); }
 .cloud-setup .ico { font-size: 30px; color: var(--glint); stroke-width: 1.5;
-  background: var(--glint-fill); border-radius: 50%; padding: 13px; width: 56px; height: 56px; margin-bottom: 6px; }
+  background: var(--glint-fill); border-radius: 0; padding: 13px; width: 56px; height: 56px; margin-bottom: 6px; }
 .cloud-setup h2 { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--text-primary); }
 .cloud-setup p { font-size: 13px; color: var(--text-secondary); line-height: 1.55; max-width: 440px; }
 .cloud-hint { font-size: 12px; color: var(--text-tertiary); }
@@ -685,7 +716,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .friend-handle { font-size: 12px; color: var(--glint); margin-top: 1px; }
 .friend-status { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-tertiary); margin-top: 3px; }
 .friend-status.online { color: var(--text-secondary); }
-.pdot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-tertiary); opacity: .5; flex: 0 0 auto; }
+.pdot { width: 7px; height: 7px; border-radius: 0; background: var(--text-tertiary); opacity: .5; flex: 0 0 auto; }
 .pdot.on { background: var(--live); opacity: 1; box-shadow: 0 0 0 3px rgba(85, 201, 120, .16); }
 
 .friend-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
@@ -707,12 +738,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* Left rail: squad + DM channel lists */
 .chat-side { display: flex; flex-direction: column; overflow-y: auto; padding: 10px 8px; }
 .chat-side::-webkit-scrollbar { width: 8px; }
-.chat-side::-webkit-scrollbar-thumb { background: var(--deepslate-3); border-radius: 8px; }
+.chat-side::-webkit-scrollbar-thumb { background: var(--deepslate-3); border-radius: 0; }
 .chat-side-sec { display: flex; align-items: center; justify-content: space-between; font-family: var(--font-display);
   font-weight: 600; font-size: 10px; letter-spacing: .13em; color: var(--text-tertiary); padding: 10px 8px 6px; }
 .chat-side-sec:first-child { padding-top: 4px; }
 .chat-side-add { background: transparent; border: none; color: var(--text-tertiary); cursor: pointer;
-  display: inline-flex; padding: 2px; border-radius: 6px; }
+  display: inline-flex; padding: 2px; border-radius: 0; }
 .chat-side-add:hover { color: var(--glint); background: var(--fill-hover); }
 .chat-side-add .ico { font-size: 14px; }
 .chat-side-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
@@ -723,15 +754,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   transition: background-color .12s ease; }
 .chat-chan:hover { background: var(--fill-hover); }
 .chat-chan.on { background: var(--glint-fill); }
-.chan-glyph { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 9px; display: flex; align-items: center;
+.chan-glyph { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 0; display: flex; align-items: center;
   justify-content: center; background: var(--glint-fill); color: var(--glint); }
 .chan-glyph .ico { font-size: 16px; }
-.chan-avatar { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 9px; image-rendering: pixelated; }
+.chan-avatar { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 0; image-rendering: pixelated; }
 .chan-meta { flex: 1; min-width: 0; }
 .chan-name { font-family: var(--font-display); font-weight: 600; font-size: 13px; color: var(--text-primary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chan-sub { font-size: 11px; color: var(--text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
-.chan-unread { display: none; flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: var(--glint); }
+.chan-unread { display: none; flex: 0 0 auto; width: 7px; height: 7px; border-radius: 0; background: var(--glint); }
 .chat-chan.has-unread .chan-unread { display: block; }
 
 /* Right pane: the live chat */
@@ -744,7 +775,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-sub2 { font-size: 11.5px; color: var(--text-tertiary); margin-top: 1px; }
 .chat-roster { display: flex; align-items: center; margin-top: 6px; }
-.roster-avatar { width: 22px; height: 22px; border-radius: 6px; image-rendering: pixelated; margin-left: -6px;
+.roster-avatar { width: 22px; height: 22px; border-radius: 0; image-rendering: pixelated; margin-left: -6px;
   border: 1.5px solid var(--deepslate-0); }
 .roster-avatar:first-child { margin-left: 0; }
 .roster-more { font-size: 11px; color: var(--text-tertiary); margin-left: 8px; }
@@ -762,13 +793,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* Message log */
 .chat-log { flex: 1; overflow-y: auto; padding: 12px 16px 16px; display: flex; flex-direction: column; }
 .chat-log::-webkit-scrollbar { width: 9px; }
-.chat-log::-webkit-scrollbar-thumb { background: var(--deepslate-3); border-radius: 8px; }
+.chat-log::-webkit-scrollbar-thumb { background: var(--deepslate-3); border-radius: 0; }
 .chat-loading { display: flex; align-items: center; justify-content: center; flex: 1; }
 .chat-empty-log { display: flex; align-items: center; justify-content: center; flex: 1; color: var(--text-tertiary); font-size: 13px; }
 .chat-msg { display: flex; gap: 10px; align-items: flex-start; margin-top: 13px; }
 .chat-msg.grouped { margin-top: 3px; }
 .chat-msg-gutter { width: 34px; flex: 0 0 34px; }
-.chat-avatar { width: 34px; height: 34px; border-radius: 9px; image-rendering: pixelated; }
+.chat-avatar { width: 34px; height: 34px; border-radius: 0; image-rendering: pixelated; }
 .chat-msg-body { min-width: 0; max-width: 78%; }
 .chat-msg-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; }
 .chat-msg-name { font-family: var(--font-display); font-weight: 600; font-size: 12.5px; color: var(--text-primary); }
@@ -806,7 +837,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .chat-modal-input:focus { border-color: var(--glint); box-shadow: 0 0 0 3px var(--glint-fill); }
 .dm-results { margin-top: 12px; max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
 .dm-results::-webkit-scrollbar { width: 8px; }
-.dm-results::-webkit-scrollbar-thumb { background: var(--deepslate-3); border-radius: 8px; }
+.dm-results::-webkit-scrollbar-thumb { background: var(--deepslate-3); border-radius: 0; }
 .dm-result { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: none; cursor: pointer;
   background: transparent; color: inherit; padding: 8px; border-radius: var(--radius-ctl); }
 .dm-result:hover { background: var(--fill-hover); }
@@ -843,7 +874,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   background: var(--deepslate-0); border: 1px solid var(--edge); border-radius: var(--radius-ctl);
   padding: 10px 12px; margin: 10px 0 0; max-height: 130px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
 .doctor-evidence::-webkit-scrollbar { width: 8px; }
-.doctor-evidence::-webkit-scrollbar-thumb { background: var(--deepslate-3); border-radius: 8px; }
+.doctor-evidence::-webkit-scrollbar-thumb { background: var(--deepslate-3); border-radius: 0; }
 
 .doctor-fix-text { font-size: 12.5px; color: var(--text-secondary); line-height: 1.55; margin-top: 10px; }
 .doctor-fix-text b { color: var(--text-primary); }
@@ -883,14 +914,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .pack-pill.live { background: var(--glint-fill-hard); }
 
 .pack-arrow { width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
-  font-size: 11px; border-radius: 8px; }
+  font-size: 11px; border-radius: 0; }
 .pack-arrow:disabled { opacity: .3; cursor: default; }
 .pack-switch { flex: 0 0 auto; }
 
 .pack-note { margin-top: 10px; font-size: 12px; color: var(--text-tertiary); line-height: 1.5; }
 
 .dp-world { margin-left: 10px; font-family: var(--font-body); font-size: 12.5px; color: var(--text-primary);
-  background: var(--deepslate-1); border: 1px solid var(--edge); border-radius: 9px; padding: 6px 10px; outline: none; }
+  background: var(--deepslate-1); border: 1px solid var(--edge); border-radius: 0; padding: 6px 10px; outline: none; }
 .dp-world:focus { border-color: var(--glint); }
 
 /* Keybinds */
@@ -901,7 +932,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .kb-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .kb-label { flex: 1; min-width: 0; font-size: 13px; color: var(--text-secondary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.kb-key { flex: 0 0 auto; min-width: 96px; max-width: 170px; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+.kb-key { flex: 0 0 auto; min-width: 96px; max-width: 170px; padding: 6px 12px; border-radius: 0; cursor: pointer;
   font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); text-align: center;
   background: var(--deepslate-1); border: 1px solid var(--edge);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -911,7 +942,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .kb-key.conflict { border-color: color-mix(in srgb, var(--danger) 50%, transparent); color: var(--danger); }
 @keyframes kb-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(139, 147, 248, .25); } 50% { box-shadow: 0 0 0 4px rgba(139, 147, 248, .08); } }
 .kb-reset { width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
-  font-size: 14px; border-radius: 8px; }
+  font-size: 14px; border-radius: 0; }
 .kb-reset:hover { color: var(--glint); }
 
 /* ============================================================================
@@ -953,3 +984,107 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .inst-card:hover { transform: none; }
   .play-btn:hover { transform: none; }
 }
+
+/* ======================================================================
+   VOXEL COMPONENTS
+   The pieces the Mac app's Play screen is built from. Values are lifted
+   from the prototype CSS (.rcard 178px, .kick 9.5px, .gh h30/12.5px,
+   .strip 4px, hero-title 44px) so the two apps measure the same.
+   ====================================================================== */
+
+/* Pixel kicker — the little uppercase label above every section. */
+.kick { font-family: var(--font-pixel); font-weight: 400; font-size: 9.5px;
+  letter-spacing: .01em; text-transform: uppercase; color: var(--voxel-muted); }
+
+/* Ghost button: 1px outline on transparent, bevelled, square. */
+.gh { display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  cursor: pointer; background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(0,0,0,.14));
+  color: var(--voxel-text); border: 1px solid var(--voxel-line); border-radius: 0;
+  font: 500 12.5px var(--font-body); padding: 0 13px; height: 30px;
+  box-shadow: var(--voxel-bevel); transition: background .12s ease; }
+.gh:hover { background: var(--voxel-hover); }
+.gh.is-on { border-color: var(--voxel-accent); color: var(--voxel-accent); }
+.gh.ico-btn { width: 44px; padding: 0; flex: none; height: 56px; font-size: 17px; }
+.gh-sm { height: 26px; padding: 0 10px; font-size: 11.5px; }
+
+/* ---- The hero. Full-bleed art, scrim, content sitting on top. ---- */
+.vhero { position: relative; margin: -32px -36px 0; padding: 0; min-height: 340px;
+  display: flex; align-items: flex-end; overflow: hidden; }
+.vhero-art { position: absolute; inset: 0; background-size: cover; background-position: center;
+  image-rendering: pixelated; }
+/* No art yet: a recessed well inviting a screenshot, NOT an accent wash — a
+   large accent-tinted block turns the whole window green and reads as a bug. */
+.vhero-art-empty { display: grid; place-items: center; background: var(--voxel-side);
+  box-shadow: var(--voxel-recess); }
+.vhero-art-empty .art-invite { transform: translateY(-34px); }
+/* Bottom-up scrim so the title stays legible over any screenshot. */
+.vhero-scrim { position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(27,31,26,.15) 0%, rgba(27,31,26,.72) 58%, var(--voxel-bg) 100%); }
+.vhero-body { position: relative; z-index: 2; width: 100%; padding: 0 36px 26px; }
+.vhero-title { font-family: var(--font-pixel); font-weight: 400; font-size: var(--text-hero);
+  line-height: 1.15; letter-spacing: 0; color: var(--voxel-text); text-transform: uppercase;
+  margin: 10px 0 18px; text-shadow: 0 3px 0 rgba(0,0,0,.45); }
+.vhero-row { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+.vchips { display: flex; gap: 10px; flex-wrap: wrap; flex: 1; }
+.vchip { display: inline-flex; align-items: center; height: 44px; padding: 0 20px;
+  border: 1px solid var(--voxel-line); border-radius: 0; font-size: 14px;
+  color: var(--voxel-text); background: rgba(22,26,21,.55); backdrop-filter: blur(6px);
+  box-shadow: var(--voxel-bevel); }
+.vhero-actions { display: flex; gap: 12px; align-items: stretch; }
+.vhero-actions .play-btn { min-width: 210px; font-size: 17px; }
+/* When there's no art the whole hero is the drop target. */
+.vhero.no-art { cursor: pointer; }
+.vhero.no-art:hover .vhero-art-empty { filter: brightness(1.25); }
+.vhero.drop-on .vhero-art-empty { box-shadow: inset 0 0 0 2px var(--voxel-accent); }
+
+/* ---- Sections ---- */
+.vsec { margin-top: 30px; }
+.vsec-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.vsec-head .gh { margin-left: auto; }
+
+/* ---- Recessed image well (the prototype's .imgbox) ---- */
+.imgbox { position: relative; overflow: hidden; background: var(--voxel-side);
+  box-shadow: var(--voxel-recess); display: grid; place-items: center; }
+.imgbox.drop-on { box-shadow: var(--voxel-recess), inset 0 0 0 2px var(--voxel-accent); }
+.art-img { width: 100%; height: 100%; object-fit: cover; display: block; image-rendering: pixelated; }
+.art-invite { display: flex; flex-direction: column; align-items: center; gap: 3px;
+  color: var(--voxel-muted); font-size: 12px; text-align: center; padding: 8px; }
+.art-invite .ico { font-size: 20px; margin-bottom: 3px; opacity: .8; }
+.art-browse { font-size: 11px; opacity: .85; }
+
+/* ---- Jump-back-in rail ---- */
+.rail { display: flex; gap: 14px; overflow-x: auto; overflow-y: hidden; padding: 2px 0 10px; }
+.rail::-webkit-scrollbar { height: 8px; }
+.rail::-webkit-scrollbar-thumb { background: var(--voxel-raised); }
+.rcard { width: 178px; flex: none; border-radius: 0; overflow: hidden;
+  background: var(--voxel-elev); border: 0; padding: 0; cursor: pointer; text-align: left;
+  font-family: var(--font-body); color: var(--voxel-text); box-shadow: var(--voxel-bevel);
+  transition: box-shadow .16s ease; }
+.rcard:hover { box-shadow: var(--voxel-bevel), 0 0 0 2px var(--voxel-accent); }
+.rcard-art { height: 100px; width: 100%; }
+.rcard-body { padding: 10px 12px 12px; }
+.rcard-name { font-size: 13.5px; font-weight: 600; color: var(--voxel-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rcard-sub { font-size: 11.5px; color: var(--voxel-muted); margin-top: 2px; }
+.rcard-foot { display: flex; align-items: center; gap: 9px; margin-top: 10px; }
+.rcard-time { font-size: 11.5px; color: var(--voxel-accent); flex: none; }
+
+/* Dashed progress bar — 5px on, 2px gap, the Voxel signature. */
+.dashbar { height: 4px; flex: 1; background: var(--voxel-hair); overflow: hidden; }
+.dashbar i { display: block; height: 100%; background: var(--voxel-barfill); opacity: .95; }
+
+/* ---- Server rows on the Play screen ---- */
+.vserver-list { display: flex; flex-direction: column; gap: 10px; }
+.vserver { display: flex; align-items: center; gap: 13px; width: 100%; text-align: left;
+  padding: 13px 16px; background: var(--voxel-elev); border: 0; border-radius: 0;
+  box-shadow: var(--voxel-bevel); cursor: pointer; color: var(--voxel-text);
+  font-family: var(--font-body); }
+.vserver:hover { box-shadow: var(--voxel-bevel), 0 0 0 2px var(--voxel-accent); }
+.vserver-ico { color: var(--voxel-accent); font-size: 17px; display: grid; place-items: center; }
+.vserver-meta { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.vserver-name { font-size: 13.5px; font-weight: 600; }
+.vserver-sub { font-size: 11.5px; color: var(--voxel-muted); }
+/* Square status dot — round dots read as iOS, which is the wrong language here. */
+.vserver-dot { width: 9px; height: 9px; border-radius: 0; flex: none;
+  background: var(--voxel-muted); opacity: .45; }
+.vserver-dot.on { background: var(--live); opacity: 1; box-shadow: 0 0 8px var(--live); }

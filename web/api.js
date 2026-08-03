@@ -9,8 +9,9 @@
   const sample = {
     info: { platform: "browser", arch: "—", engine: "sample-data", dataDir: "(browser)" },
     instances: [
-      { id: "s1", name: "Vanilla 1.20.1", mcVersion: "1.20.1", loader: "vanilla", accent: "#5EE6A0", mods: 0, lastPlayed: Date.now() },
-      { id: "s2", name: "Fabric Perf", mcVersion: "1.20.1", loader: "fabric", accent: "#B57BE6", mods: 8, lastPlayed: Date.now() - 5e6 },
+      { id: "s1", name: "NeoForge", mcVersion: "1.21.1", loader: "neoforge", accent: "#E08A3C", mods: 176, pinned: true, playtimeMs: 31_920_000, lastPlayed: Date.now() - 15 * 60_000 },
+      { id: "s2", name: "Vanilla Beans", mcVersion: "1.21.1", loader: "fabric", accent: "#E6467A", mods: 24, pinned: true, playtimeMs: 12_600_000, lastPlayed: Date.now() - 8 * 3600_000 },
+      { id: "s3", name: "Vanilla", mcVersion: "1.20.1", loader: "vanilla", accent: "#9B7BE6", mods: 0, playtimeMs: 16_000, lastPlayed: Date.now() - 2 * 86400_000 },
     ],
     versions: { releases: ["1.20.4", "1.20.1", "1.19.2", "1.18.2", "1.16.5"], latest: "1.20.4" },
     settings: { defaultRamMB: null, javaPath: "", keepLauncherOpen: true, curseforgeKey: "" },

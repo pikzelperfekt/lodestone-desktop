@@ -146,7 +146,7 @@ function deleteInstance(id) {
 // Edit the mutable fields of an instance in place and persist. Only the keys that are
 // supplied are touched; ramMB "" / 0 clears back to the auto default, javaArgs is free
 // text appended to the JVM args at launch.
-function updateInstance({ id, name, ramMB, javaArgs, mcVersion }) {
+function updateInstance({ id, name, ramMB, javaArgs, mcVersion, pinned }) {
   const list = readInstances();
   const inst = list.find((i) => i.id === id);
   if (!inst) throw new Error("Instance not found.");
@@ -154,6 +154,8 @@ function updateInstance({ id, name, ramMB, javaArgs, mcVersion }) {
   if (ramMB !== undefined) { const n = Number(ramMB); inst.ramMB = Number.isFinite(n) && n > 0 ? Math.round(n) : null; }
   if (javaArgs !== undefined) inst.javaArgs = String(javaArgs).trim();
   if (mcVersion !== undefined) { const v = String(mcVersion).trim(); if (v) inst.mcVersion = v; }
+  // [Voxel parity] PINNED sidebar block, same as the Mac app's.
+  if (pinned !== undefined) inst.pinned = !!pinned;
   writeInstances(list);
   return inst;
 }
@@ -402,10 +404,16 @@ async function launch(id) {
 
     emit("launch:state", { id, status: "running" });
     const extraJvm = inst.javaArgs ? String(inst.javaArgs).split(/\s+/).filter(Boolean) : [];
+    const startedAt = Date.now(); // [Voxel parity] real playtime, banked on exit
     const child = doLaunch(detail, built, session,
       { gameDir, assetsRoot: p.assets, librariesDir: p.libraries, ramMB: inst.ramMB || undefined, extraJvm, overlay },
       (line) => emit("launch:log", { line }),
-      (code) => { delete running[id]; emit("launch:state", { id, status: "idle", code }); social.setActivity(null); });
+      (code) => {
+        delete running[id];
+        addPlaytime(id, Date.now() - startedAt);
+        emit("launch:state", { id, status: "idle", code });
+        social.setActivity(null);
+      });
     running[id] = child;
     social.setActivity(`Playing ${inst.name}`); // Vertical B: broadcast presence activity
 
@@ -422,6 +430,25 @@ async function launch(id) {
 }
 function stop(id) { if (running[id]) { running[id].kill(); return true; } return false; }
 function isRunning(id) { return !!running[id]; }
+
+// [Voxel parity] Bank a play session onto the instance's lifetime total.
+// The Mac hero and every instance card show "8h 52m played" and a dashed
+// playtime bar, which needs a real accumulated figure rather than a guess.
+// Sessions under 20s are dropped (a failed launch that exits immediately
+// shouldn't register) and anything over 24h is clamped, since a machine that
+// slept mid-session reports a wall-clock delta that never actually happened.
+function addPlaytime(id, ms) {
+  const delta = Number(ms);
+  if (!Number.isFinite(delta) || delta < 20_000) return;
+  const capped = Math.min(delta, 24 * 60 * 60 * 1000);
+  try {
+    const list = readInstances();
+    const idx = list.findIndex((x) => x.id === id);
+    if (idx < 0) return;
+    list[idx].playtimeMs = (Number(list[idx].playtimeMs) || 0) + capped;
+    writeInstances(list);
+  } catch { /* playtime is cosmetic; never let it break the exit path */ }
+}
 
 // ---- Power tools (repair + bulk content update) ----
 // Repair drops the shared cached game files for the instance's MC version; the next

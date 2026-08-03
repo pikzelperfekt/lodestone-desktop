@@ -737,6 +737,8 @@ async function renderInstanceDetail(id) {
     { label: "Share & Sync", icon: "i-bolt", run: () => openShareModal(inst) },
     { label: "Mixin conflicts", icon: "i-pulse", run: () => openMixinSheet(inst) },
     { label: "Find a seed", icon: "i-globe", run: () => openSeedSheet(inst) },
+    { label: "Edit as a modpack\u2026", icon: "i-stack", run: () => openPackEditor(inst) },
+    { label: "CurseForge cleanup\u2026", icon: "i-pulse", run: () => openCFCleanup(inst) },
     { label: "Make an icon\u2026", icon: "i-image", run: () => openIconMaker(inst) },
     { label: "Session history", icon: "i-pulse", run: () => openHistorySheet(inst) },
     { label: "Move to group\u2026", icon: "i-stack", run: async () => {
@@ -2358,6 +2360,113 @@ function paintWorldMap(canvas, cells) {
     ctx.fillStyle = biomeColor(c.biome);
     ctx.fillRect((c.x - minX) * scale, (c.z - minZ) * scale, scale, scale);
   }
+}
+
+// ---------- Modpack editor ----------
+// Curate what actually goes into an exported pack. Mods you exclude stay
+// installed locally — this only decides what leaves the machine, which is the
+// difference between a pack you can share and one you have to explain.
+async function openPackEditor(inst) {
+  const data = await API.listMods(inst.id);
+  const excluded = new Set();
+  const render = () => {
+    const included = data.mods.filter((m) => !excluded.has(m.fileName));
+    showModal(`
+      <div class="share-card wide-card">
+        <div class="share-h">${ico("i-stack")} Edit as a modpack</div>
+        <p class="share-sub">Choose what goes into the exported pack. Unticking a mod leaves it installed here
+          \u2014 it just won't be in the file you share.</p>
+        <div class="np-grid">
+          <label class="np-field"><span>PACK NAME</span><input class="inp" id="pe-name" value="${esc(inst.name)}"></label>
+          <label class="np-field"><span>VERSION</span><input class="inp" id="pe-ver" value="1.0.0"></label>
+        </div>
+        <div class="share-label">CONTENTS \u00b7 ${included.length} of ${data.mods.length}</div>
+        <div class="pe-list">
+          ${data.mods.map((m) => `
+            <label class="pe-row${excluded.has(m.fileName) ? " is-off" : ""}">
+              <input type="checkbox" data-pe="${esc(m.fileName)}" ${excluded.has(m.fileName) ? "" : "checked"}>
+              <span class="pe-meta">
+                <span class="pe-name">${esc(m.title)}</span>
+                <span class="pe-file">${esc(m.fileName)}</span>
+              </span>
+              ${m.projectId ? "" : `<em class="mod-tag warn">manual \u2014 won't resolve</em>`}
+            </label>`).join("") || `<div class="empty-line">No mods to include.</div>`}
+        </div>
+        <p class="share-note">Mods added by hand have no project id, so they can't be re-downloaded from a pack file.
+          They are bundled as files where the format allows and flagged here so nothing goes missing silently.</p>
+        <div class="np-actions">
+          <button class="btn-ghost" id="pe-close">Close</button>
+          <button class="gh" id="pe-none">Untick all</button>
+          <button class="gh" id="pe-all">Tick all</button>
+          <button class="btn-accent share-btn" id="pe-export">${ico("i-download")} Export .mrpack</button>
+        </div>
+      </div>`);
+
+    document.getElementById("pe-close").onclick = hideModal;
+    document.querySelectorAll("[data-pe]").forEach((c) => c.onchange = () => {
+      if (c.checked) excluded.delete(c.dataset.pe); else excluded.add(c.dataset.pe);
+      render();
+    });
+    document.getElementById("pe-all").onclick = () => { excluded.clear(); render(); };
+    document.getElementById("pe-none").onclick = () => { data.mods.forEach((m) => excluded.add(m.fileName)); render(); };
+    document.getElementById("pe-export").onclick = async (e) => {
+      const btn = e.currentTarget; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Exporting\u2026`;
+      const name = document.getElementById("pe-name").value.trim() || inst.name;
+      try {
+        // Exclusions are applied by temporarily disabling those jars, so the
+        // existing exporter needs no special knowledge of this screen.
+        for (const f of excluded) await API.toggleMod({ instanceId: inst.id, fileName: f, enabled: false });
+        const res = await API.share.mrpack(inst.id, name);
+        for (const f of excluded) await API.toggleMod({ instanceId: inst.id, fileName: f, enabled: true });
+        if (res) toast(`Exported ${res.files} mod${res.files === 1 ? "" : "s"} to ${res.path}${res.skipped ? ` (${res.skipped} skipped)` : ""}.`);
+        hideModal();
+      } catch (err) {
+        // Put anything we disabled back, whatever happened.
+        for (const f of excluded) { try { await API.toggleMod({ instanceId: inst.id, fileName: f, enabled: true }); } catch { /* best effort */ } }
+        btn.disabled = false; btn.innerHTML = `${ico("i-download")} Export .mrpack`;
+        toast("Couldn't export: " + err.message);
+      }
+    };
+  };
+  render();
+}
+
+// ---------- CurseForge cleanup ----------
+async function openCFCleanup(inst) {
+  const a = await API.worldTools.cfAudit(inst.id);
+  const broken = a.tracked.filter((t) => t.issue);
+  showModal(`
+    <div class="share-card wide-card">
+      <div class="share-h">${ico("i-pulse")} CurseForge cleanup</div>
+      <p class="share-sub">Records that can no longer be acted on, and jars nothing claims.
+        Nothing here is deleted automatically.</p>
+      ${!a.hasKey ? `<div class="empty-line">No CurseForge API key set, so CurseForge content can't be re-resolved. Add one in Settings.</div>` : ""}
+      <div class="share-label">CURSEFORGE RECORDS \u00b7 ${a.tracked.length}</div>
+      ${a.tracked.length ? `<div class="fb-list">${a.tracked.map((t) => `
+        <div class="sy-row">
+          <span class="sy-meta">
+            <span class="sy-name">${esc(t.title)}</span>
+            <span class="sy-sub">${esc(t.fileName)}${t.issue ? ` \u00b7 ${esc(t.issue)}` : ""}</span>
+          </span>
+          ${t.issue ? `<button class="kb-icon" data-cfdrop="${esc(t.projectId)}" title="Forget this record">${ico("i-trash")}</button>` : `<span class="kick">ok</span>`}
+        </div>`).join("")}</div>` : `<div class="empty-line">No CurseForge content in this instance.</div>`}
+
+      <div class="share-label">UNTRACKED JARS \u00b7 ${a.orphans.length}</div>
+      ${a.orphans.length ? `<div class="fb-list">${a.orphans.map((o) => `
+        <div class="sy-row"><span class="sy-meta">
+          <span class="sy-name">${esc(o.fileName)}</span>
+          <span class="sy-sub">${esc(o.issue)} \u2014 it still loads, it just won't be in exports or syncs</span>
+        </span></div>`).join("")}</div>` : `<div class="empty-line">Every jar is accounted for.</div>`}
+
+      <div class="np-actions"><button class="btn-ghost" id="cf-close">Close</button></div>
+    </div>`);
+  document.getElementById("cf-close").onclick = hideModal;
+  document.querySelectorAll("[data-cfdrop]").forEach((b) => b.onclick = async () => {
+    if (!confirm("Forget this record? The jar on disk is not touched.")) return;
+    try { await API.content.remove({ instanceId: inst.id, projectId: b.dataset.cfdrop });
+      toast("Record cleared."); openCFCleanup(inst); }
+    catch (e) { toast(e.message); }
+  });
 }
 
 // ---------- Icon maker ----------

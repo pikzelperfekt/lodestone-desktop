@@ -1716,3 +1716,15 @@ textarea.inp, .share-box {
 .sy-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .sy-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
 .sy-sub { font-size: 11px; color: var(--voxel-muted); }
+
+/* ---- Modpack editor ---- */
+.pe-list { display: flex; flex-direction: column; max-height: 40vh; overflow-y: auto; margin: 4px 0; }
+.pe-row { display: flex; align-items: center; gap: 11px; padding: 9px 4px; cursor: pointer;
+  border-bottom: 1px solid var(--voxel-hair); }
+.pe-row:hover { background: var(--voxel-hover); }
+.pe-row.is-off { opacity: .45; }
+.pe-row input { accent-color: var(--voxel-accent); }
+.pe-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pe-name { font-size: 13px; color: var(--text-primary); }
+.pe-file { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-tertiary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

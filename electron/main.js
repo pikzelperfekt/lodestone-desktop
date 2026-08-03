@@ -152,6 +152,7 @@ handle("skins:rename", (a) => engine.skinRename(a));
 handle("skins:apply", (a) => engine.skinApply(a));
 // Worlds: create a fresh world, or import a folder / .zip of one.
 handle("health:check", (a) => engine.instanceHealth(a));
+handle("cf:audit", (a) => engine.curseforgeAudit(a));
 handle("backups:settings", () => engine.backupSettings());
 handle("backups:setSettings", (a) => engine.setBackupSettings(a));
 handle("backups:runNow", () => engine.runBackupsNow());

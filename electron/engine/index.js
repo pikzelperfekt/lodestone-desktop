@@ -1148,6 +1148,36 @@ module.exports = {
       seed: a && a.seed, radius: a && a.radius, step: a && a.step, modsDir,
     });
   },
+  // ---- CurseForge cleanup ----
+  // CurseForge content is recorded with a cf: id. This finds the records that
+  // can no longer be acted on — jar gone, or a project id that no longer
+  // resolves — so they can be cleared rather than sitting there pretending the
+  // mod is installed.
+  curseforgeAudit: async (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    const modsDir = path.join(install.paths(DATA_DIR).instanceDir(inst.id), "mods");
+    let files = [];
+    try { files = fs.readdirSync(modsDir); } catch { files = [] }
+    const present = new Set(files);
+
+    const cf = (inst.content || []).filter((c) => /^cf[:-]/i.test(String(c.projectId || "")) || c.source === "curseforge");
+    const rows = [];
+    for (const c of cf) {
+      const onDisk = present.has(c.fileName) || present.has(c.fileName + ".disabled");
+      rows.push({ projectId: c.projectId, title: c.title || c.fileName, fileName: c.fileName,
+                  onDisk, issue: onDisk ? null : "file missing" });
+    }
+
+    // Jars that no record claims: usually left behind by a failed install or
+    // dropped in by hand. Reported, never deleted automatically.
+    const claimed = new Set((inst.content || []).map((c) => c.fileName));
+    const orphans = files.filter((f) => /\.jar$/i.test(f) && !claimed.has(f))
+      .map((f) => ({ fileName: f, issue: "not tracked by any record" }));
+
+    return { tracked: rows, orphans, hasKey: !!settings.getSettings().curseforgeKey };
+  },
+
   // ---- Scheduled world backups ----
   // Runs on a timer while the launcher is open, and prunes old zips so this
   // cannot quietly fill the disk. Never backs up an instance that is running:

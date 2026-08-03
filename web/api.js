@@ -403,6 +403,10 @@
         if (bridge) return unwrap(await bridge.worlds.seedMap(opts));
         throw new Error("Seed maps run in the desktop app.");
       },
+      async cfAudit(instanceId) {
+        if (!bridge) return { tracked: [], orphans: [], hasKey: false };
+        try { return unwrap(await bridge.worlds.cfAudit(instanceId)); } catch { return { tracked: [], orphans: [], hasKey: false }; }
+      },
       async backupSettings() {
         if (!bridge) return { enabled: false, everyHours: 12, keep: 5, lastRun: 0 };
         try { return unwrap(await bridge.worlds.backupSettings()); } catch { return { enabled: false, everyHours: 12, keep: 5, lastRun: 0 }; }

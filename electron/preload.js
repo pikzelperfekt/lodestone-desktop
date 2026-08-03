@@ -75,6 +75,7 @@ contextBridge.exposeInMainWorld("lodestone", {
     scan: (opts) => call("worlds:scan", opts),
     scanMixins: (instanceId) => call("mixins:scan", { instanceId }),
     health: (instanceId) => call("health:check", { instanceId }),
+    cfAudit: (instanceId) => call("cf:audit", { instanceId }),
     backupSettings: () => call("backups:settings"),
     setBackupSettings: (opts) => call("backups:setSettings", opts),
     runBackupsNow: () => call("backups:runNow"),

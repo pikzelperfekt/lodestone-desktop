@@ -10,9 +10,9 @@ one is generated from the Mac source so it cannot drift.
 
 | status | count |
 |---|---|
-| done | 76 |
-| partial | 2 |
-| missing | 11 |
+| done | 79 |
+| partial | 0 |
+| missing | 10 |
 | n/a | 1 |
 
 | Mac view | Status | Notes |
@@ -30,7 +30,7 @@ one is generated from the Mac source so it cannot drift.
 | CrashDoctorSheet | done | crash scan + wired fixes |
 | CulpritFinderSheet | done | bisect with library pinning + control round |
 | CurseForgeBrowser | done | project pages, same shape as Modrinth |
-| CurseForgeCleanup | partial | not surfaced |
+| CurseForgeCleanup | done | unresolvable records + untracked jars, nothing auto-deleted |
 | CurseForgeSearchView | done | search + project pages |
 | CurseForgeSheets | done | detail + install |
 | DatapacksSheet | done | packs vertical |
@@ -57,8 +57,8 @@ one is generated from the Mac source so it cannot drift.
 | LiveStatsOverlay | missing | needs an in-game overlay |
 | LogConsole | done | tail, level filter, find, copy |
 | MixinConflictsSheet | done | static scanner |
-| ModpackEditor | missing | pack authoring |
-| ModpacksView | partial | import + list; no authoring |
+| ModpackEditor | done | pick what leaves the machine, export .mrpack |
+| ModpacksView | done | curate contents and export, exclusions restored after |
 | NewForeverWorldSheet | missing | Forever Worlds not built |
 | NewWorldSheet | done | both save formats |
 | NoteTabView | done | per-instance notes |

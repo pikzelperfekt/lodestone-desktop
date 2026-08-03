@@ -403,6 +403,13 @@
         if (bridge) return unwrap(await bridge.worlds.seedMap(opts));
         throw new Error("Seed maps run in the desktop app.");
       },
+      async pregenStart(opts) {
+        if (bridge) return unwrap(await bridge.worlds.pregenStart(opts));
+        throw new Error("Pregeneration runs in the desktop app.");
+      },
+      async pregenStop() { if (!bridge) return { running: false }; try { return unwrap(await bridge.worlds.pregenStop()); } catch { return { running: false }; } },
+      async pregenStatus() { if (!bridge) return { running: false }; try { return unwrap(await bridge.worlds.pregenStatus()); } catch { return { running: false }; } },
+      async pregenResult() { if (!bridge) return null; try { return unwrap(await bridge.worlds.pregenResult()); } catch { return null; } },
       async cfAudit(instanceId) {
         if (!bridge) return { tracked: [], orphans: [], hasKey: false };
         try { return unwrap(await bridge.worlds.cfAudit(instanceId)); } catch { return { tracked: [], orphans: [], hasKey: false }; }

@@ -10,9 +10,9 @@ one is generated from the Mac source so it cannot drift.
 
 | status | count |
 |---|---|
-| done | 79 |
+| done | 80 |
 | partial | 0 |
-| missing | 10 |
+| missing | 9 |
 | n/a | 1 |
 
 | Mac view | Status | Notes |
@@ -69,7 +69,7 @@ one is generated from the Mac source so it cannot drift.
 | PlaytimeHeatmapView | done | year heatmap |
 | PluginWebView | missing | needs a plugin runtime |
 | PluginsView | missing | needs a plugin runtime |
-| PregenSheet | missing | needs headless server + Chunky |
+| PregenSheet | done | headless server on the pack's own loader, driven through Chunky |
 | ProfileSheet | done | account + profile |
 | PublishSheet | missing | needs a publish target |
 | RepairSheet | done | offered against the finding |

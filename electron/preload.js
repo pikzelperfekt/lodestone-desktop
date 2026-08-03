@@ -76,6 +76,10 @@ contextBridge.exposeInMainWorld("lodestone", {
     scanMixins: (instanceId) => call("mixins:scan", { instanceId }),
     health: (instanceId) => call("health:check", { instanceId }),
     cfAudit: (instanceId) => call("cf:audit", { instanceId }),
+    pregenStart: (opts) => call("pregen:start", opts),
+    pregenStop: () => call("pregen:stop"),
+    pregenStatus: () => call("pregen:status"),
+    pregenResult: () => call("pregen:result"),
     backupSettings: () => call("backups:settings"),
     setBackupSettings: (opts) => call("backups:setSettings", opts),
     runBackupsNow: () => call("backups:runNow"),
@@ -191,7 +195,7 @@ contextBridge.exposeInMainWorld("lodestone", {
     const allowed = ["launch:progress", "launch:log", "launch:state", "update:state", "content:log", "server:log", "server:state",
       "cloud:auth", "cloud:friends", "cloud:presence", "cloud:message", "cloud:sync",
       "pack:shared", "pack:joined", "pack:published", "pack:applied", "pack:left", "pack:error",
-      "seed:progress", "notify", "lan:found"];
+      "seed:progress", "notify", "lan:found", "pregen:log", "pregen:state"];
     if (!allowed.includes(channel)) return () => {};
     const handler = (_e, payload) => fn(payload);
     ipcRenderer.on(channel, handler);

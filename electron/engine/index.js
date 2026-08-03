@@ -28,6 +28,7 @@ const doctor = require("./doctor"); // [Crash Doctor] scan + fixes + mod bisect
 const settings = require("./settings");
 const globalsetup = require("./globalsetup"); // global Game settings + Keybinds + Skins
 const serverEngine = require("./server");
+const pregen = require("./pregen"); // chunk pregeneration via a headless server + Chunky
 const maintenance = require("./maintenance");
 const { launch: doLaunch, offlineSession } = require("./launch");
 
@@ -644,6 +645,44 @@ function runScheduledBackups(force) {
   return { made: made.length };
 }
 
+// Everything pregen.js needs from the rest of the engine, in one place so it
+// stays free of this file's wiring.
+function pregenDeps() {
+  return {
+    getInstance: (id) => readInstances().find((i) => i.id === id),
+    createServer: (opts, cb) => serverEngine.create(DATA_DIR, opts, cb),
+    startServer: (id, cb) => serverEngine.start(DATA_DIR, id, cb),
+    stopServer: (id) => serverEngine.stop(id),
+    command: (id, cmd) => serverEngine.command(id, cmd),
+    serverDir: (id) => path.join(DATA_DIR, "servers", id),
+    installServerMod: (o) => installServerMod(o),
+  };
+}
+
+// Download one Modrinth project's newest matching file straight into a
+// server's mods (or plugins, for Paper) folder. Servers are not instances, so
+// the instance content path does not apply.
+async function installServerMod({ serverId, project, loader, mc }) {
+  const UA = "Lodestone/1.0 (github.com/pikzelperfekt/lodestone-desktop)";
+  const loaderFacet = loader === "paper" ? "paper" : loader;
+  const url = new URL(`https://api.modrinth.com/v2/project/${encodeURIComponent(project)}/version`);
+  url.searchParams.set("loaders", JSON.stringify([loaderFacet]));
+  if (mc) url.searchParams.set("game_versions", JSON.stringify([mc]));
+  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!res.ok) throw new Error(`Modrinth ${res.status}`);
+  const versions = await res.json();
+  const pick = versions[0];
+  const file = pick && (pick.files || []).find((f) => f.primary) || (pick && pick.files && pick.files[0]);
+  if (!file) throw new Error(`No ${project} build for ${loaderFacet} ${mc}.`);
+
+  const dir = path.join(DATA_DIR, "servers", serverId, loader === "paper" ? "plugins" : "mods");
+  fs.mkdirSync(dir, { recursive: true });
+  const bin = await fetch(file.url, { headers: { "User-Agent": UA } });
+  if (!bin.ok) throw new Error(`Download failed (${bin.status}).`);
+  fs.writeFileSync(path.join(dir, file.filename), Buffer.from(await bin.arrayBuffer()));
+  return { file: file.filename };
+}
+
 const notificationsFile = () => path.join(DATA_DIR, "notifications.json");
 function readNotifications() {
   try { const j = JSON.parse(fs.readFileSync(notificationsFile(), "utf8")); return Array.isArray(j) ? j : []; }
@@ -1148,6 +1187,19 @@ module.exports = {
       seed: a && a.seed, radius: a && a.radius, step: a && a.step, modsDir,
     });
   },
+  // ---- Chunk pregeneration ----
+  pregenStatus: () => pregen.status(),
+  pregenStop: () => pregen.stop(pregenDeps()),
+  pregenResult: () => pregen.result(pregenDeps()),
+  pregenStart: (a) => pregen.start({
+    instanceId: a && a.instanceId,
+    radius: a && a.radius,
+    world: (a && a.world) || "world",
+    deps: pregenDeps(),
+    onLog: (line) => emit("pregen:log", { line }),
+    onState: (st) => emit("pregen:state", st),
+  }),
+
   // ---- CurseForge cleanup ----
   // CurseForge content is recorded with a cf: id. This finds the records that
   // can no longer be acted on — jar gone, or a project id that no longer

@@ -737,6 +737,7 @@ async function renderInstanceDetail(id) {
     { label: "Share & Sync", icon: "i-bolt", run: () => openShareModal(inst) },
     { label: "Mixin conflicts", icon: "i-pulse", run: () => openMixinSheet(inst) },
     { label: "Find a seed", icon: "i-globe", run: () => openSeedSheet(inst) },
+    { label: "Pregenerate chunks\u2026", icon: "i-globe", run: () => openPregenSheet(inst) },
     { label: "Edit as a modpack\u2026", icon: "i-stack", run: () => openPackEditor(inst) },
     { label: "CurseForge cleanup\u2026", icon: "i-pulse", run: () => openCFCleanup(inst) },
     { label: "Make an icon\u2026", icon: "i-image", run: () => openIconMaker(inst) },
@@ -2360,6 +2361,77 @@ function paintWorldMap(canvas, cells) {
     ctx.fillStyle = biomeColor(c.biome);
     ctx.fillRect((c.x - minX) * scale, (c.z - minZ) * scale, scale, scale);
   }
+}
+
+// ---------- Chunk pregeneration ----------
+// Generating terrain ahead of time removes the stutter of exploring a fresh
+// world. It runs a headless server on THIS pack's loader and mods, so modded
+// worldgen is what actually generates — vanilla terrain would be regenerated
+// by the game anyway and the work wasted.
+async function openPregenSheet(inst) {
+  let off = null;
+  const paint = (st, log) => {
+    const running = st && st.running;
+    showModal(`
+      <div class="share-card">
+        <div class="share-h">${ico("i-globe")} Pregenerate chunks</div>
+        <p class="share-sub">Builds terrain for <b>${esc(inst.name)}</b> ahead of time so exploring doesn't stutter.
+          It starts a temporary server on this pack's own loader, which is the only way modded terrain generates correctly.</p>
+
+        ${running ? `
+          <div class="srv-stats">
+            <div class="srv-stat"><span class="kick">State</span><b class="ok">${esc(st.state)}</b></div>
+            <div class="srv-stat"><span class="kick">Progress</span><b>${(st.percent || 0).toFixed(1)}%</b></div>
+            ${st.eta ? `<div class="srv-stat"><span class="kick">ETA</span><b>${esc(st.eta)}</b></div>` : ""}
+          </div>
+          <div class="dashbar" style="margin:12px 0"><i style="width:${Math.max(1, st.percent || 0)}%"></i></div>
+          <pre class="log-view" style="max-height:180px">${esc((log || []).slice(-14).join("\n"))}</pre>`
+        : `
+          <label class="np-field"><span>RADIUS (BLOCKS)</span>
+            <select class="inp" id="pg-radius">
+              <option value="1000">1,000 — a small starter area</option>
+              <option value="2000" selected>2,000 — a typical survival world</option>
+              <option value="5000">5,000 — large, takes a while</option>
+              <option value="10000">10,000 — very large, expect hours</option>
+            </select></label>
+          <p class="share-note">The first run downloads a server jar and Chunky, so it needs a connection.
+            Terrain is generated into a temporary server world and left on disk for you to copy or host from.</p>`}
+
+        <div class="np-actions">
+          <button class="btn-ghost" id="pg-close">Close</button>
+          ${running
+            ? `<button class="gh danger" id="pg-stop">Stop</button>`
+            : `<button class="btn-accent share-btn" id="pg-start">${ico("i-play")} Start</button>`}
+        </div>
+      </div>`);
+
+    document.getElementById("pg-close").onclick = () => { if (off) off(); hideModal(); };
+    const stop = document.getElementById("pg-stop");
+    if (stop) stop.onclick = async () => {
+      try { const r = await API.worldTools.pregenStop(); toast("Stopped."); paint(r, log); }
+      catch (e) { toast(e.message); }
+    };
+    const start = document.getElementById("pg-start");
+    if (start) start.onclick = async (e) => {
+      const btn = e.currentTarget; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Preparing\u2026`;
+      const radius = Number(document.getElementById("pg-radius").value);
+      try {
+        const r = await API.worldTools.pregenStart({ instanceId: inst.id, radius });
+        paint(r, []);
+      } catch (err) {
+        btn.disabled = false; btn.innerHTML = `${ico("i-play")} Start`;
+        toast("Couldn't start: " + err.message);
+      }
+    };
+  };
+
+  const lines = [];
+  if (API.on) {
+    const offLog = API.on("pregen:log", (p) => { if (p && p.line) { lines.push(p.line); if (lines.length > 200) lines.shift(); } });
+    const offState = API.on("pregen:state", (st) => paint(st, lines));
+    off = () => { try { offLog(); offState(); } catch { /* already gone */ } };
+  }
+  paint(await API.worldTools.pregenStatus(), lines);
 }
 
 // ---------- Modpack editor ----------

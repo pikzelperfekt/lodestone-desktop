@@ -3046,7 +3046,104 @@ const _renderInstanceDetailCore = renderInstanceDetail;
 renderInstanceDetail = async function (id) {
   await _renderInstanceDetailCore(id);
   try { await renderPacksSections(id); } catch (e) { console.error("packs sections:", e); }
+  try { tabifyDetail(); } catch (e) { console.error("detail tabs:", e); }
 };
+
+// Fold the detail page's stacked sections into the Mac app's underlined tabs.
+// Runs over the rendered DOM rather than being baked into each section's
+// markup, so sections the other verticals append (packs, shaders, datapacks,
+// keybinds, doctor) get tabbed without any of them knowing about it.
+//
+// It is fully re-runnable: renderPacksSections refills #packs-root on its own
+// refresh, so this first unwinds any previous tabbing, then regroups. Nested
+// containers are emptied in place rather than deleted, so those re-render
+// targets stay alive and findable.
+function tabifyDetail() {
+  const root = el();
+  if (!root) return;
+
+  // 1. Undo any previous pass — move panel contents back out, drop the chrome.
+  const oldPanels = root.querySelector(".detail-panels");
+  if (oldPanels) {
+    for (const panel of [...oldPanels.children]) {
+      const actions = panel.querySelector(".detail-panel-actions");
+      if (actions) { while (actions.firstChild) root.appendChild(actions.firstChild); actions.remove(); }
+      while (panel.firstChild) root.appendChild(panel.firstChild);
+    }
+    oldPanels.remove();
+  }
+  const oldTabs = root.querySelector(".detail-tabs");
+  if (oldTabs) oldTabs.remove();
+
+  // 2. Lift nested sections to the top level. The container is emptied, not
+  //    removed, because #packs-root is a live re-render target.
+  for (let pass = 0; pass < 4; pass++) {
+    const nested = [...root.children].filter(
+      (n) => !n.classList.contains("section-head") && n.querySelector(".section-head"));
+    if (!nested.length) break;
+    for (const box of nested) while (box.firstChild) root.insertBefore(box.firstChild, box);
+  }
+
+  const kids = [...root.children];
+  const firstHead = kids.findIndex((n) => n.classList.contains("section-head"));
+  if (firstHead < 0) return;
+
+  const groups = [];
+  let current = null;
+  for (const node of kids.slice(firstHead)) {
+    if (node.classList.contains("section-head")) {
+      const titleEl = node.querySelector(".section-title");
+      const title = titleEl ? titleEl.textContent.trim() : "Section";
+      // Keep whatever action the heading carried (Rescan, Import .zip, Open
+      // folder) by moving it into the panel — dropping it loses real controls.
+      const actions = [...node.children].filter((c) => !c.classList.contains("section-title"));
+      current = { title, actions, nodes: [] };
+      groups.push(current);
+      node.remove();
+      continue;
+    }
+    if (current) current.nodes.push(node);
+  }
+  if (groups.length < 2) return;   // a single section needs no tabs
+
+  const bar = document.createElement("div");
+  bar.className = "detail-tabs";
+  const panels = document.createElement("div");
+  panels.className = "detail-panels";
+
+  groups.forEach((g, i) => {
+    const panel = document.createElement("div");
+    panel.className = "detail-panel";
+    panel.hidden = i !== 0;
+    if (g.actions.length) {
+      const row = document.createElement("div");
+      row.className = "detail-panel-actions";
+      g.actions.forEach((a) => row.appendChild(a));
+      panel.appendChild(row);
+    }
+    g.nodes.forEach((n) => panel.appendChild(n));
+    panels.appendChild(panel);
+
+    // Count rows so a tab can read "Mods 9", but only when the count is
+    // unambiguous — a wrong number is worse than none.
+    const n = panel.querySelectorAll(".mrow, .world-row, .pack-row, .lrow").length;
+    const tab = document.createElement("button");
+    tab.className = "detail-tab" + (i === 0 ? " is-on" : "");
+    tab.innerHTML = `${esc(titleCase(g.title))}${n ? ` <span class="detail-tab-n">${n}</span>` : ""}`;
+    tab.onclick = () => {
+      bar.querySelectorAll(".detail-tab").forEach((t, j) => {
+        t.classList.toggle("is-on", j === i);
+        panels.children[j].hidden = j !== i;
+      });
+    };
+    bar.appendChild(tab);
+  });
+
+  root.appendChild(bar);
+  root.appendChild(panels);
+}
+
+const titleCase = (s) => String(s).charAt(0) + String(s).slice(1).toLowerCase();
 
 const packTitle = (p) => p.fileName.replace(/\.zip$/i, "");
 function packSubline(p) {
@@ -3219,7 +3316,7 @@ async function renderPacksSections(id) {
 function bindPacksEvents(id, state) {
   const root = document.getElementById("packs-root");
   if (!root) return;
-  const refresh = () => renderPacksSections(id);
+  const refresh = () => renderPacksSections(id).then(() => { try { tabifyDetail(); } catch { /* tabs are cosmetic */ } });
 
   // Enable / disable a resource pack.
   root.querySelectorAll("[data-rp-toggle]").forEach((b) => b.onclick = async () => {

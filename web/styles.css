@@ -1188,3 +1188,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .skin-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .skin-name { font-size: 19px; font-weight: 600; color: var(--text-primary); }
 .skin-actions { display: flex; gap: 11px; margin-top: 20px; align-items: center; }
+
+/* ---- Instance detail: underlined count tabs (Mac parity) ---- */
+.detail-tabs { display: flex; gap: 22px; margin: 26px 0 0; padding: 0 2px 0;
+  border-bottom: 1px solid var(--voxel-hair); flex-wrap: wrap; }
+.detail-tab { border: 0; background: none; cursor: pointer; padding: 0 0 10px;
+  font: 400 13.5px var(--font-body); color: var(--voxel-muted); }
+.detail-tab:hover { color: var(--text-primary); }
+.detail-tab.is-on { color: var(--voxel-accent); box-shadow: inset 0 -2px 0 var(--voxel-accent); }
+.detail-tab-n { font-family: var(--font-pixel); font-size: 11px; margin-left: 5px; opacity: .85; }
+.detail-panels { margin-top: 18px; }
+.detail-panel-actions { display: flex; justify-content: flex-end; gap: 9px; margin-bottom: 12px; }

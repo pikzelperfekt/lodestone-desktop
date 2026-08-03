@@ -1570,3 +1570,36 @@ textarea.inp, .share-box {
 .wd-item em { font-style: normal; color: var(--voxel-accent); font-size: 10.5px; }
 .wd-structs { display: flex; flex-wrap: wrap; gap: 8px; }
 .wd-structs .st-n { font-style: normal; color: var(--voxel-accent); margin-left: 6px; font-size: 10.5px; }
+
+/* ---- Play history: heatmap, wrapped, achievements ---- */
+.hm-grid { display: flex; gap: 3px; overflow-x: auto; padding-bottom: 6px; }
+.hm-week { display: flex; flex-direction: column; gap: 3px; }
+.hm-cell { width: 11px; height: 11px; flex: none; background: var(--voxel-side);
+  box-shadow: inset 0 0 0 1px var(--voxel-hair); }
+.hm-cell.l1 { background: color-mix(in srgb, var(--voxel-accent) 28%, var(--voxel-side)); }
+.hm-cell.l2 { background: color-mix(in srgb, var(--voxel-accent) 50%, var(--voxel-side)); }
+.hm-cell.l3 { background: color-mix(in srgb, var(--voxel-accent) 74%, var(--voxel-side)); }
+.hm-cell.l4 { background: var(--voxel-accent); }
+.hm-legend { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.wr-top { margin: 18px 0 8px; }
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.ach { display: flex; gap: 11px; padding: 12px 13px; background: var(--voxel-elev);
+  box-shadow: var(--voxel-bevel); opacity: .6; }
+.ach.got { opacity: 1; box-shadow: var(--voxel-bevel), inset 0 0 0 1px color-mix(in srgb, var(--voxel-accent) 45%, transparent); }
+.ach-mark { width: 22px; height: 22px; flex: none; display: grid; place-items: center;
+  background: var(--voxel-side); box-shadow: var(--voxel-recess); color: var(--voxel-ink); font-weight: 700; font-size: 12px; }
+.ach.got .ach-mark { background: var(--voxel-accent); }
+.ach-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.ach-desc { font-size: 11.5px; color: var(--voxel-muted); margin-top: 2px; line-height: 1.45; }
+.ach-bar { height: 3px; background: var(--voxel-hair); margin-top: 8px; }
+.ach-bar i { display: block; height: 100%; background: var(--voxel-accent); opacity: .75; }
+
+/* ---- Session history ---- */
+.hist-list { display: flex; flex-direction: column; max-height: 52vh; overflow-y: auto; }
+.hist-row { display: flex; align-items: center; gap: 12px; padding: 8px 2px;
+  border-bottom: 1px solid var(--voxel-hair); font-size: 12.5px; }
+.hist-when { width: 120px; flex: none; color: var(--text-secondary); }
+.hist-time { width: 62px; flex: none; color: var(--voxel-muted); font-size: 11.5px; }
+.hist-bar { flex: 1; height: 4px; background: var(--voxel-hair); }
+.hist-bar i { display: block; height: 100%; background: var(--voxel-barfill); }
+.hist-len { width: 74px; text-align: right; flex: none; color: var(--voxel-accent); }

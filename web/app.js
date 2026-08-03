@@ -632,6 +632,7 @@ async function renderInstanceDetail(id) {
     { label: "Share & Sync", icon: "i-bolt", run: () => openShareModal(inst) },
     { label: "Mixin conflicts", icon: "i-pulse", run: () => openMixinSheet(inst) },
     { label: "Find a seed", icon: "i-globe", run: () => openSeedSheet(inst) },
+    { label: "Session history", icon: "i-pulse", run: () => openHistorySheet(inst) },
     { label: "Move to group\u2026", icon: "i-stack", run: async () => {
         const groups = await API.groups();
         const current = groups.find((g) => g.instanceIds.includes(inst.id));
@@ -1855,7 +1856,7 @@ function navigate(section) {
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("is-active", b.dataset.section === section));
   document.querySelectorAll(".pin-item").forEach((b) => b.classList.remove("is-active"));
   if (section === "discover") discoverTarget = null;   // Discover = browse for any instance
-  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, cloud: renderCloud, friends: renderFriends, squads: renderSquads, settings: renderSettings, game: renderGameSettings, keybinds: renderKeybinds, skins: renderSkins, storage: renderStorage }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
+  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, cloud: renderCloud, friends: renderFriends, squads: renderSquads, settings: renderSettings, game: renderGameSettings, keybinds: renderKeybinds, skins: renderSkins, storage: renderStorage, stats: renderStats }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
 }
 
 // ---- PINNED sidebar block ----
@@ -2564,6 +2565,104 @@ async function renderKeybinds() {
       },
     })), { width: 280, alignRight: true });
   };
+}
+
+// ---------- Stats: heatmap, wrapped, achievements, history ----------
+// All four read the same session log. A day with no session has no entry and
+// is drawn empty — nothing here is interpolated or estimated.
+async function renderStats() {
+  el().innerHTML = `<div class="placeholder">${ico("i-pulse")}<h2>Loading\u2026</h2></div>`;
+  const [heat, wrapped, ach] = await Promise.all([
+    API.heatmap({ days: 365 }), API.wrapped({}), API.achievements(),
+  ]);
+
+  // 53 weeks x 7 days, most recent week last, like a contribution graph.
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const cells = [];
+  for (let i = 364; i >= 0; i--) {
+    const d = new Date(today.getTime() - i * 86400000);
+    const key = d.toISOString().slice(0, 10);
+    const ms = heat.byDay[key] || 0;
+    const level = !ms ? 0 : Math.min(4, Math.ceil(ms / (heat.max || 1) * 4));
+    cells.push({ key, ms, level, dow: d.getDay() });
+  }
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+
+  el().innerHTML = `
+    <div class="page-head">
+      <h1 class="page-title">Play history</h1>
+      <span class="page-count">${ach.unlocked} of ${ach.total} achievements</span>
+    </div>
+
+    <section class="vsec">
+      <div class="vsec-head"><span class="kick">Last year</span>
+        <span class="hm-legend"><span class="kick">less</span>
+          ${[0,1,2,3,4].map((l) => `<span class="hm-cell l${l}"></span>`).join("")}
+          <span class="kick">more</span></span></div>
+      <div class="hm-grid">
+        ${weeks.map((w) => `<div class="hm-week">${w.map((c) =>
+          `<span class="hm-cell l${c.level}" title="${esc(c.key)} \u00b7 ${c.ms ? fmtPlaytime(c.ms) : "nothing"}"></span>`).join("")}</div>`).join("")}
+      </div>
+    </section>
+
+    <section class="vsec">
+      <div class="vsec-head"><span class="kick">${wrapped.year} so far</span></div>
+      ${wrapped.hasData ? `
+        <div class="srv-stats">
+          <div class="srv-stat"><span class="kick">Played</span><b>${esc(fmtPlaytime(wrapped.total))}</b></div>
+          <div class="srv-stat"><span class="kick">Sessions</span><b>${wrapped.sessions}</b></div>
+          <div class="srv-stat"><span class="kick">Days played</span><b>${wrapped.daysPlayed}</b></div>
+          <div class="srv-stat"><span class="kick">Busiest hour</span><b>${String(wrapped.peakHour).padStart(2, "0")}:00</b></div>
+          ${wrapped.longest ? `<div class="srv-stat"><span class="kick">Longest session</span><b>${esc(fmtPlaytime(wrapped.longest.ms))}</b></div>` : ""}
+        </div>
+        <div class="kick wr-top">Most played</div>
+        <div class="st-list">
+          ${wrapped.top.slice(0, 6).map((t) => `
+            <div class="st-row">
+              <div class="st-meta"><div class="st-label">${esc(t.name)}</div></div>
+              <div class="st-bar"><i style="width:${Math.max(2, Math.round(t.ms / wrapped.top[0].ms * 100))}%"></i></div>
+              <span class="st-size">${esc(fmtPlaytime(t.ms))}</span>
+            </div>`).join("")}
+        </div>`
+        : `<div class="empty-line">Nothing played yet this year. Launch something and it shows up here.</div>`}
+    </section>
+
+    <section class="vsec">
+      <div class="vsec-head"><span class="kick">Achievements</span></div>
+      <div class="ach-grid">
+        ${ach.achievements.map((a) => `
+          <div class="ach${a.got ? " got" : ""}">
+            <span class="ach-mark">${a.got ? "\u2713" : ""}</span>
+            <div class="ach-meta">
+              <div class="ach-name">${esc(a.name)}</div>
+              <div class="ach-desc">${esc(a.desc)}</div>
+              ${!a.got ? `<div class="ach-bar"><i style="width:${Math.round(a.progress * 100)}%"></i></div>` : ""}
+            </div>
+          </div>`).join("")}
+      </div>
+    </section>`;
+}
+
+// Per-instance session history, opened from the instance menu.
+async function openHistorySheet(inst) {
+  const rows = await API.sessions({ instanceId: inst.id, limit: 200 });
+  showModal(`
+    <div class="share-card wide-card">
+      <div class="share-h">${ico("i-pulse")} ${esc(inst.name)} history</div>
+      <p class="share-sub">${rows.length ? `${rows.length} recorded session${rows.length === 1 ? "" : "s"} \u00b7 ${esc(fmtPlaytime(rows.reduce((n, r) => n + (r.ms || 0), 0)))} total` : "No sessions recorded yet."}</p>
+      ${rows.length ? `<div class="hist-list">
+        ${rows.map((r) => `
+          <div class="hist-row">
+            <span class="hist-when">${esc(fmtDate(r.endedAt))}</span>
+            <span class="hist-time">${esc(new Date(r.startedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }))}</span>
+            <span class="hist-bar"><i style="width:${Math.min(100, Math.round((r.ms || 0) / 144e5 * 100))}%"></i></span>
+            <span class="hist-len">${esc(fmtPlaytime(r.ms))}</span>
+          </div>`).join("")}
+      </div>` : `<div class="empty-line">Sessions are recorded when you quit the game.</div>`}
+      <div class="np-actions"><button class="btn-ghost" id="hist-close">Close</button></div>
+    </div>`);
+  document.getElementById("hist-close").onclick = hideModal;
 }
 
 // ---------- Storage ----------

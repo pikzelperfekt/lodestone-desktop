@@ -459,7 +459,7 @@ async function launch(id) {
       (line) => emit("launch:log", { line }),
       (code) => {
         delete running[id];
-        addPlaytime(id, Date.now() - startedAt);
+        addPlaytime(id, Date.now() - startedAt, startedAt);
         emit("launch:state", { id, status: "idle", code });
         social.setActivity(null);
       });
@@ -486,7 +486,7 @@ function isRunning(id) { return !!running[id]; }
 // Sessions under 20s are dropped (a failed launch that exits immediately
 // shouldn't register) and anything over 24h is clamped, since a machine that
 // slept mid-session reports a wall-clock delta that never actually happened.
-function addPlaytime(id, ms) {
+function addPlaytime(id, ms, startedAt) {
   const delta = Number(ms);
   if (!Number.isFinite(delta) || delta < 20_000) return;
   const capped = Math.min(delta, 24 * 60 * 60 * 1000);
@@ -496,7 +496,25 @@ function addPlaytime(id, ms) {
     if (idx < 0) return;
     list[idx].playtimeMs = (Number(list[idx].playtimeMs) || 0) + capped;
     writeInstances(list);
+    // One row per session. This is what the history, heatmap, Wrapped and
+    // achievements are all computed from — a running total alone can't say
+    // WHEN you played, so the total is kept and the sessions are kept beside it.
+    appendSession({ instanceId: id, startedAt: startedAt || (Date.now() - capped), endedAt: Date.now(), ms: capped });
   } catch { /* playtime is cosmetic; never let it break the exit path */ }
+}
+
+const sessionsFile = () => path.join(DATA_DIR, "sessions.json");
+function readSessions() {
+  try { const j = JSON.parse(fs.readFileSync(sessionsFile(), "utf8")); return Array.isArray(j) ? j : []; }
+  catch { return []; }
+}
+function appendSession(row) {
+  const all = readSessions();
+  all.push(row);
+  // Two years is plenty for every view built on this, and keeps the file small.
+  const cutoff = Date.now() - 730 * 86400_000;
+  const trimmed = all.filter((s) => (s.endedAt || 0) >= cutoff);
+  try { fs.writeFileSync(sessionsFile(), JSON.stringify(trimmed)); } catch { /* best effort */ }
 }
 
 // ---- Power tools (repair + bulk content update) ----
@@ -681,6 +699,72 @@ module.exports = {
       instanceDir: install.paths(DATA_DIR).instanceDir(inst.id),
       folder: a && a.world,
     });
+  },
+
+  // ---- Play history / heatmap / wrapped / achievements ----
+  // All four read the same session log. Nothing is estimated: a day with no
+  // session simply has no entry, rather than being interpolated.
+  sessions: (a) => {
+    const all = readSessions();
+    const rows = a && a.instanceId ? all.filter((s) => s.instanceId === a.instanceId) : all;
+    return rows.sort((x, y) => (y.endedAt || 0) - (x.endedAt || 0)).slice(0, (a && a.limit) || 500);
+  },
+  playHeatmap: (a) => {
+    const days = (a && a.days) || 365;
+    const cutoff = Date.now() - days * 86400_000;
+    const byDay = {};
+    for (const s of readSessions()) {
+      if (!s.endedAt || s.endedAt < cutoff) continue;
+      const key = new Date(s.endedAt).toISOString().slice(0, 10);
+      byDay[key] = (byDay[key] || 0) + (s.ms || 0);
+    }
+    const max = Math.max(0, ...Object.values(byDay));
+    return { byDay, max, days };
+  },
+  playWrapped: (a) => {
+    const year = (a && a.year) || new Date().getFullYear();
+    const rows = readSessions().filter((s) => new Date(s.endedAt || 0).getFullYear() === year);
+    const names = new Map(readInstances().map((i) => [i.id, i.name]));
+    const byInstance = {};
+    const byHour = new Array(24).fill(0);
+    const days = new Set();
+    let total = 0, longest = null;
+    for (const s of rows) {
+      total += s.ms || 0;
+      byInstance[s.instanceId] = (byInstance[s.instanceId] || 0) + (s.ms || 0);
+      byHour[new Date(s.startedAt || s.endedAt).getHours()] += s.ms || 0;
+      days.add(new Date(s.endedAt).toISOString().slice(0, 10));
+      if (!longest || (s.ms || 0) > longest.ms) longest = s;
+    }
+    const top = Object.entries(byInstance)
+      .map(([id, ms]) => ({ id, name: names.get(id) || "Deleted instance", ms }))
+      .sort((x, y) => y.ms - x.ms);
+    let peakHour = 0;
+    byHour.forEach((v, h) => { if (v > byHour[peakHour]) peakHour = h; });
+    return { year, total, sessions: rows.length, daysPlayed: days.size, top, peakHour,
+             longest: longest ? { ms: longest.ms, when: longest.endedAt, name: names.get(longest.instanceId) || null } : null,
+             hasData: rows.length > 0 };
+  },
+  achievements: () => {
+    const instances = readInstances();
+    const sessions = readSessions();
+    const totalMs = instances.reduce((n, i) => n + (Number(i.playtimeMs) || 0), 0);
+    const days = new Set(sessions.map((s) => new Date(s.endedAt || 0).toISOString().slice(0, 10)));
+    const modTotal = instances.reduce((n, i) => n + (i.mods || 0), 0);
+    const longest = sessions.reduce((m, s) => Math.max(m, s.ms || 0), 0);
+    // Every one of these is measured from real data; none are aspirational.
+    const defs = [
+      { id: "first", name: "First launch", desc: "Play an instance once.", got: sessions.length >= 1, progress: Math.min(1, sessions.length) },
+      { id: "packrat", name: "Pack rat", desc: "Keep five instances at once.", got: instances.length >= 5, progress: instances.length / 5 },
+      { id: "modded", name: "Modded", desc: "Install 100 mods in total.", got: modTotal >= 100, progress: modTotal / 100 },
+      { id: "tenhours", name: "Invested", desc: "Play for ten hours.", got: totalMs >= 36e6, progress: totalMs / 36e6 },
+      { id: "hundred", name: "Devoted", desc: "Play for a hundred hours.", got: totalMs >= 36e7, progress: totalMs / 36e7 },
+      { id: "marathon", name: "Marathon", desc: "Play a single session of four hours.", got: longest >= 144e5, progress: longest / 144e5 },
+      { id: "week", name: "Regular", desc: "Play on seven different days.", got: days.size >= 7, progress: days.size / 7 },
+      { id: "month", name: "Committed", desc: "Play on thirty different days.", got: days.size >= 30, progress: days.size / 30 },
+    ];
+    return { achievements: defs.map((d) => ({ ...d, progress: Math.max(0, Math.min(1, d.progress)) })),
+             unlocked: defs.filter((d) => d.got).length, total: defs.length };
   },
 
   // ---- Server ops: live stats, access lists, plugins ----

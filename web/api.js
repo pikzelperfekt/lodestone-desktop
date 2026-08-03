@@ -95,6 +95,22 @@
       if (!bridge) return { root: "", configs: [] };
       try { return unwrap(await bridge.instances.configs(instanceId)); } catch { return { root: "", configs: [] }; }
     },
+    async sessions(opts) {
+      if (!bridge) return [];
+      try { return unwrap(await bridge.instances.sessions(opts)); } catch { return []; }
+    },
+    async heatmap(opts) {
+      if (!bridge) return { byDay: {}, max: 0, days: 365 };
+      try { return unwrap(await bridge.instances.heatmap(opts)); } catch { return { byDay: {}, max: 0, days: 365 }; }
+    },
+    async wrapped(opts) {
+      if (!bridge) return { hasData: false, top: [] };
+      try { return unwrap(await bridge.instances.wrapped(opts)); } catch { return { hasData: false, top: [] }; }
+    },
+    async achievements() {
+      if (!bridge) return { achievements: [], unlocked: 0, total: 0 };
+      try { return unwrap(await bridge.instances.achievements()); } catch { return { achievements: [], unlocked: 0, total: 0 }; }
+    },
     async groups() {
       if (!bridge) return [];
       try { return unwrap(await bridge.instances.groups()); } catch { return []; }

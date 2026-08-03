@@ -32,7 +32,7 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 | InstanceKeybindsTab | partial | global screen only; **no per-instance override tab** |
 | EditInstanceSheet | partial | name/version/RAM/Java; **no icon maker, no group, no notes** |
 | HealthView / PerfInsightsBanner | partial | chip only; **no health screen, no perf insights** |
-| InstanceHistorySheet | missing | per-instance session history |
+| InstanceHistorySheet | done | per-instance sessions from the instance menu |
 | InstanceIconMaker | missing | generate an icon |
 | FileBrowserTab | done | breadcrumb browser + text editor, path-escape guarded |
 | ConfigManagerSheet | done | every editable config, grouped by folder |
@@ -50,7 +50,7 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 | SeedFinderSheet | done | native cubiomes helper |
 | PregenSheet | missing | chunk pregeneration via Chunky |
 | NewForeverWorldSheet / DeleteForeverWorldSheet | missing | Forever Worlds |
-| PlaytimeHeatmapView / WrappedSheet / AchievementsSheet | missing | the stats layer |
+| PlaytimeHeatmapView / WrappedSheet / AchievementsSheet | done | one Play history screen off a real session log |
 
 ## Servers
 | Mac view | Status | Notes |

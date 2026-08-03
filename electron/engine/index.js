@@ -15,6 +15,7 @@ const mixins = require("./mixins");
 const seedfinder = require("./seedfinder"); // native cubiomes seed search // static mixin conflict detection
 const worldcreate = require("./worldcreate");
 const worldinfo = require("./worldinfo");
+const region = require("./region"); // .mca reader for the world map + statistics
 const files = require("./files"); // Storage screen, file browser, config manager // World detail: facts read out of level.dat // world creation + import (26.1 split format aware)
 const auth = require("./auth");
 const cloud = require("./cloud");
@@ -680,6 +681,23 @@ module.exports = {
       instanceDir: install.paths(DATA_DIR).instanceDir(inst.id),
       folder: a && a.world,
     });
+  },
+
+  // ---- World map / statistics (reads the region files) ----
+  worldScan: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    const dir = path.join(install.paths(DATA_DIR).instanceDir(inst.id), "saves", a.world);
+    // 26.1 moved the overworld's regions under dimensions/; try both.
+    const candidates = [
+      path.join(dir, "region"),
+      path.join(dir, "dimensions", "minecraft", "overworld", "region"),
+    ];
+    for (const c of candidates) {
+      const res = region.scanDimension({ regionDir: c, maxRegions: (a && a.maxRegions) || 24 });
+      if (res) return res;
+    }
+    return { chunks: 0, biomes: [], cells: [], regionsScanned: 0, regionsTotal: 0 };
   },
 
   // ---- Instance groups (the Instances page's named sections) ----

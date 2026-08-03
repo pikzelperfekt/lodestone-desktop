@@ -155,6 +155,7 @@ handle("files:read", (a) => engine.readFile(a));
 handle("files:write", (a) => engine.writeFile(a));
 handle("configs:list", (a) => engine.listConfigs(a));
 handle("worlds:info", (a) => engine.worldInfo(a));
+handle("worlds:scan", (a) => engine.worldScan(a));
 handle("groups:list", () => engine.listGroups());
 handle("groups:save", (a) => engine.saveGroup(a));
 handle("groups:delete", (a) => engine.deleteGroup(a));

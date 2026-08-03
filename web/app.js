@@ -1903,6 +1903,61 @@ async function openMixinSheet(inst) {
   document.getElementById("mx-close").onclick = hideModal;
 }
 
+// Biome colours, close to the in-game map. Anything unknown — including every
+// modded biome, of which a Terralith world has hundreds — gets a stable colour
+// derived from its name, so the map stays readable instead of going grey.
+const BIOME_COLORS = {
+  ocean: "#3b5ea8", deep_ocean: "#2c4785", lukewarm_ocean: "#4577b0", warm_ocean: "#4a93bf",
+  cold_ocean: "#33518f", frozen_ocean: "#7a92c0", river: "#4a7fd0", frozen_river: "#8fb2dd",
+  beach: "#e3d9a0", snowy_beach: "#e8ecec", stony_shore: "#8d8d8d",
+  plains: "#8db360", sunflower_plains: "#a7c46a", meadow: "#8fbf6a",
+  forest: "#4f7a3a", birch_forest: "#7aa060", dark_forest: "#3c5c2e", flower_forest: "#6ea35a",
+  old_growth_birch_forest: "#82a86a", old_growth_pine_taiga: "#4d6b4a", old_growth_spruce_taiga: "#46613f",
+  taiga: "#456b52", snowy_taiga: "#a8c0be", grove: "#a9bfae",
+  jungle: "#3d8a2f", sparse_jungle: "#5a9a44", bamboo_jungle: "#5aa03a",
+  savanna: "#b3a44f", savanna_plateau: "#a99a52", windswept_savanna: "#9d9256",
+  desert: "#e0d59a", badlands: "#c46a2c", eroded_badlands: "#c8763a", wooded_badlands: "#a8763c",
+  swamp: "#4c6b4a", mangrove_swamp: "#3f6b52",
+  snowy_plains: "#e7edef", ice_spikes: "#c9e4f0", snowy_slopes: "#dbe6ea",
+  jagged_peaks: "#c3ccd2", frozen_peaks: "#cfe0e8", stony_peaks: "#9d9a92", windswept_hills: "#7d8a76",
+  windswept_gravelly_hills: "#8b9184", windswept_forest: "#5f7a52",
+  mushroom_fields: "#a06a9c", cherry_grove: "#e0a3bd",
+  dripstone_caves: "#7c6350", lush_caves: "#4f8a3a", deep_dark: "#1e2a30",
+  nether_wastes: "#7a2b22", crimson_forest: "#8c2b2b", warped_forest: "#1f6b62",
+  soul_sand_valley: "#4a3f38", basalt_deltas: "#4a4750",
+  the_end: "#d8d8a8", end_barrens: "#c8c89c", end_highlands: "#d0d0a0", end_midlands: "#ccccA0",
+  small_end_islands: "#b8b890", the_void: "#0b0c11",
+};
+function biomeColor(name) {
+  const key = String(name).replace(/^minecraft:/, "");
+  if (BIOME_COLORS[key]) return BIOME_COLORS[key];
+  // Stable hash -> hue, so a modded biome keeps the same colour every scan.
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (Math.imul(31, h) + key.charCodeAt(i)) | 0;
+  return `hsl(${Math.abs(h) % 360} 42% 46%)`;
+}
+const biomeLabel = (n) => String(n).replace(/^minecraft:/, "").replace(/_/g, " ")
+  .replace(/\b\w/g, (c) => c.toUpperCase());
+
+// Draw the chunk grid onto a canvas. One pixel per chunk, scaled up — a real
+// map of what has actually been generated, not a preview of the seed.
+function paintWorldMap(canvas, cells) {
+  if (!canvas || !cells.length) return;
+  const xs = cells.map((c) => c.x), zs = cells.map((c) => c.z);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minZ = Math.min(...zs), maxZ = Math.max(...zs);
+  const w = maxX - minX + 1, h = maxZ - minZ + 1;
+  const scale = Math.max(1, Math.min(8, Math.floor(520 / Math.max(w, h))));
+  canvas.width = w * scale; canvas.height = h * scale;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#161a15";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (const c of cells) {
+    ctx.fillStyle = biomeColor(c.biome);
+    ctx.fillRect((c.x - minX) * scale, (c.z - minZ) * scale, scale, scale);
+  }
+}
+
 // ---------- World detail ----------
 // Everything level.dat can tell us about one world, plus the actions that
 // belong to it. Facts only — nothing is inferred or filled in with a plausible
@@ -1957,6 +2012,12 @@ async function renderWorldDetail(instanceId, folder) {
     </section>`}
 
     <section class="vsec">
+      <div class="vsec-head"><span class="kick">Explored map</span>
+        <button class="gh gh-sm" id="wd-scan">Scan region files</button></div>
+      <div id="wd-map"><div class="empty-line">Scan to read this world's region files and draw what has generated.</div></div>
+    </section>
+
+    <section class="vsec">
       <div class="vsec-head"><span class="kick">Actions</span></div>
       <div class="wd-actions">
         <button class="gh" id="wd-copy-seed"${w.seed ? "" : " disabled"}>${ico("i-link")} Copy seed</button>
@@ -1968,6 +2029,35 @@ async function renderWorldDetail(instanceId, folder) {
 
   document.getElementById("wd-back").onclick = () => renderInstanceDetail(instanceId);
   bindCommon();
+
+  document.getElementById("wd-scan").onclick = async (e) => {
+    const b = e.currentTarget; b.disabled = true; b.innerHTML = `<span class="spinner"></span> Reading\u2026`;
+    const host = document.getElementById("wd-map");
+    host.innerHTML = `<div class="empty-line">Reading region files\u2026</div>`;
+    try {
+      const scan = await API.worldTools.scan({ instanceId, world: folder });
+      if (!scan.chunks) {
+        host.innerHTML = `<div class="empty-line">No generated chunks found yet.</div>`;
+      } else {
+        host.innerHTML = `
+          <div class="wm-wrap">
+            <canvas id="wm-canvas" class="wm-canvas"></canvas>
+            <div class="wm-legend">
+              <div class="kick">${scan.chunks} chunks \u00b7 ${scan.regionsScanned} region${scan.regionsScanned === 1 ? "" : "s"}</div>
+              ${scan.biomes.slice(0, 14).map((bi) => `
+                <div class="wm-row">
+                  <span class="wm-dot" style="background:${biomeColor(bi.name)}"></span>
+                  <span class="wm-name">${esc(biomeLabel(bi.name))}</span>
+                  <span class="wm-share">${(bi.share * 100).toFixed(1)}%</span>
+                </div>`).join("")}
+              ${scan.biomes.length > 14 ? `<div class="wm-more kick">+${scan.biomes.length - 14} more biomes</div>` : ""}
+            </div>
+          </div>`;
+        paintWorldMap(document.getElementById("wm-canvas"), scan.cells);
+      }
+    } catch (err) { host.innerHTML = `<div class="empty-line">${esc(err.message)}</div>`; }
+    b.disabled = false; b.innerHTML = "Scan region files";
+  };
 
   const seedBtn = document.getElementById("wd-copy-seed");
   if (w.seed) seedBtn.onclick = async () => {

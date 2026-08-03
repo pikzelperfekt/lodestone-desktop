@@ -57,6 +57,7 @@ contextBridge.exposeInMainWorld("lodestone", {
     remove: (opts) => call("worlds:remove", opts),
     create: (opts) => call("worlds:create", opts),
     info: (opts) => call("worlds:info", opts),
+    scan: (opts) => call("worlds:scan", opts),
     scanMixins: (instanceId) => call("mixins:scan", { instanceId }),
     seedAvailable: () => call("seed:available"),
     seedSearch: (opts) => call("seed:search", opts),

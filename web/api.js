@@ -359,6 +359,10 @@
         if (bridge) return unwrap(await bridge.worlds.info(opts));
         throw new Error("World details run in the desktop app.");
       },
+      async scan(opts) {
+        if (!bridge) return { chunks: 0, biomes: [], cells: [], regionsScanned: 0 };
+        try { return unwrap(await bridge.worlds.scan(opts)); } catch { return { chunks: 0, biomes: [], cells: [], regionsScanned: 0 }; }
+      },
       async import(opts) {
         if (bridge) return unwrap(await bridge.worlds.import(opts));
         throw new Error("World import runs in the desktop app.");

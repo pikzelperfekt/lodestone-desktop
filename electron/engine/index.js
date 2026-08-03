@@ -34,6 +34,11 @@ const { launch: doLaunch, offlineSession } = require("./launch");
 let DATA_DIR = null;
 let emit = () => {};
 const running = {}; // instanceId -> child process
+// Read once from package.json so the Updates sheet reports the real installed
+// version rather than a hardcoded string that drifts every release.
+const APP_VERSION = (() => {
+  try { return require("../../package.json").version; } catch { return null; }
+})();
 let sizeCache = null;  // { at, value } for instanceSizes()
 
 const groupsFile = () => path.join(DATA_DIR, "groups.json");
@@ -151,6 +156,7 @@ function info() {
   return {
     platform: platform.PLATFORM, arch: platform.ARCH, engine: "node-engine",
     electron: process.versions.electron, dataDir: DATA_DIR,
+    appVersion: APP_VERSION,
   };
 }
 

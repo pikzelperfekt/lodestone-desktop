@@ -10,8 +10,8 @@ one is generated from the Mac source so it cannot drift.
 
 | status | count |
 |---|---|
-| done | 72 |
-| partial | 5 |
+| done | 76 |
+| partial | 2 |
 | missing | 11 |
 | n/a | 1 |
 
@@ -95,11 +95,11 @@ one is generated from the Mac source so it cannot drift.
 | SkinsView | done | upload, reset, library |
 | SlottedSlider | done | square-thumb slider |
 | SocialView | done | friends + presence |
-| SquadManagerSheet | partial | squads exist; no manager screen |
+| SquadManagerSheet | done | list, invite codes, leave |
 | StorageView | done | breakdown + reclaim |
-| SyncedModpacksSheet | partial | list only, no management |
+| SyncedModpacksSheet | done | list, pull to rebuild locally, remove from cloud |
 | ThemeBrowserSheet | n/a | Mac deliberately ships one theme |
-| UpdatesSheet | partial | banner only, no release notes |
+| UpdatesSheet | done | version, updater state, release notes from the feed |
 | VersionPickerSheet | done | version list per project |
 | WorldDetailView | done | facts from level.dat |
 | WorldManagerSheet | done | list/backup/restore/rename/delete |

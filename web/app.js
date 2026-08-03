@@ -253,6 +253,7 @@ async function renderInstances() {
       <div class="head-actions">
         <button class="gh${instSelecting ? " is-on" : ""}" id="select-mode">${ico("i-grid")} ${instSelecting ? "Done" : "Select"}</button>
         <button class="gh" id="new-group">${ico("i-plus")} New group</button>
+        <button class="gh" id="synced-packs">${ico("i-bolt")} Synced</button>
         <button class="gh" id="add-from-code">${ico("i-bolt")} Add from code</button>
         <button class="gh" id="import-pack">${ico("i-download")} Import</button>
         <button class="gh" id="new-inst">${ico("i-plus")} New Instance</button>
@@ -373,6 +374,7 @@ async function renderInstances() {
       btn.disabled = false; btn.innerHTML = original;
     }
   };
+  document.getElementById("synced-packs").onclick = () => openSyncedSheet();
   document.getElementById("add-from-code").onclick = () => openAddFromCodeModal();
   document.getElementById("new-inst").onclick = () => { creating = !creating; toggleNewPanel(); };
   if (creating) toggleNewPanel();
@@ -3017,7 +3019,7 @@ async function renderNotifications() {
 }
 async function openNotifications(anchor) {
   const list = await API.notifications();
-  if (!list.length) { toast("Nothing new."); return; }
+  if (!list.length) { openUpdatesSheet(); return; }
   openMenu(anchor, [
     ...list.slice(0, 8).map((n) => ({
       label: n.title,
@@ -3025,6 +3027,7 @@ async function openNotifications(anchor) {
       run: async () => { await API.dismissNotification(n.id); renderNotifications(); if (n.body) toast(n.body); },
     })),
     { separator: true },
+    { label: "Check for updates\u2026", icon: "i-download", run: () => openUpdatesSheet() },
     { label: "Clear all", icon: "i-trash", run: async () => { await API.clearNotifications(); renderNotifications(); } },
   ], { width: 300 });
 }
@@ -3157,6 +3160,137 @@ async function openHistorySheet(inst) {
       <div class="np-actions"><button class="btn-ghost" id="hist-close">Close</button></div>
     </div>`);
   document.getElementById("hist-close").onclick = hideModal;
+}
+
+// ---------- Updates ----------
+// What version you're on, what state the updater is in, and the notes for
+// what's new — rather than a banner that only appears when something happens.
+let lastUpdateState = { status: "idle" };
+async function openUpdatesSheet() {
+  const info = await API.info().catch(() => ({}));
+  const st = lastUpdateState || { status: "idle" };
+  const label = {
+    idle: "No check run yet", checking: "Checking\u2026", current: "You're up to date",
+    downloading: "Downloading\u2026", ready: "Update ready to install", error: "Couldn't check",
+  }[st.status] || st.status;
+
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-download")} Updates</div>
+      <div class="up-now">
+        <div class="srv-stat"><span class="kick">Installed</span><b>${esc(info.appVersion || "dev build")}</b></div>
+        <div class="srv-stat"><span class="kick">Status</span><b class="${st.status === "ready" ? "ok" : st.status === "error" ? "" : ""}">${esc(label)}</b></div>
+        ${st.version ? `<div class="srv-stat"><span class="kick">Available</span><b>${esc(st.version)}</b></div>` : ""}
+      </div>
+      ${st.status === "downloading" && st.percent != null
+        ? `<div class="dashbar" style="margin:12px 0"><i style="width:${st.percent}%"></i></div>` : ""}
+      ${st.message ? `<p class="share-note">${esc(st.message)}</p>` : ""}
+      <div id="up-notes"><div class="share-loading"><span class="spinner"></span> Fetching release notes\u2026</div></div>
+      <div class="np-actions">
+        <button class="btn-ghost" id="up-close">Close</button>
+        <button class="gh" id="up-check">Check now</button>
+        ${st.status === "ready" ? `<button class="btn-accent share-btn" id="up-install">Restart and install</button>` : ""}
+      </div>
+    </div>`);
+
+  document.getElementById("up-close").onclick = hideModal;
+  document.getElementById("up-check").onclick = () => { API.update.check(); toast("Checking for updates\u2026"); };
+  const inst = document.getElementById("up-install");
+  if (inst) inst.onclick = () => API.update.install();
+
+  // Notes come from the public releases feed. Failing to reach it is not an
+  // error worth shouting about — the update itself still works.
+  const notes = document.getElementById("up-notes");
+  try {
+    const res = await fetch("https://api.github.com/repos/pikzelperfekt/lodestone-desktop/releases?per_page=5");
+    if (!res.ok) throw new Error(String(res.status));
+    const rows = await res.json();
+    notes.innerHTML = `<div class="share-label">WHAT'S NEW</div>
+      <div class="up-notes">${rows.map((r) => `
+        <div class="up-rel">
+          <div class="up-rel-head">${esc(r.tag_name)}<span>${esc(fmtDate(Date.parse(r.published_at)))}</span></div>
+          <div class="up-rel-body">${esc(String(r.body || "").split("\n").slice(0, 8).join("\n")).slice(0, 700)}</div>
+        </div>`).join("")}</div>`;
+  } catch {
+    notes.innerHTML = `<div class="empty-line">Couldn't reach the releases feed. Updating still works.</div>`;
+  }
+}
+
+// ---------- Synced modpacks ----------
+async function openSyncedSheet() {
+  showModal(`<div class="share-card"><div class="share-h">${ico("i-bolt")} Synced packs</div>
+    <div class="share-loading"><span class="spinner"></span> Loading\u2026</div></div>`);
+  const rows = await API.cloud.sync.list();
+  showModal(`
+    <div class="share-card wide-card">
+      <div class="share-h">${ico("i-bolt")} Synced packs</div>
+      <p class="share-sub">Instances you've pushed to your account. Pull one to rebuild it on this machine.</p>
+      ${rows.length ? `<div class="fb-list">${rows.map((r) => `
+        <div class="sy-row">
+          <span class="sy-meta">
+            <span class="sy-name">${esc(r.name)}</span>
+            <span class="sy-sub">${esc(r.mcVersion)} \u00b7 ${esc(loaderLabel(r.loader))} \u00b7 ${r.modCount} mod${r.modCount === 1 ? "" : "s"}
+              \u00b7 ${esc(r.device || "unknown device")} \u00b7 ${esc(relTime(Date.parse(r.updatedAt)))}</span>
+          </span>
+          <button class="gh gh-sm" data-sypull="${esc(r.id)}">Pull</button>
+          <button class="kb-icon" data-syrm="${esc(r.id)}" title="Remove from cloud">${ico("i-trash")}</button>
+        </div>`).join("")}</div>`
+        : `<div class="empty-line">Nothing synced yet. Push an instance from its Share &amp; Sync sheet.</div>`}
+      <div class="np-actions"><button class="btn-ghost" id="sy-close">Close</button></div>
+    </div>`);
+  document.getElementById("sy-close").onclick = hideModal;
+  document.querySelectorAll("[data-sypull]").forEach((b) => b.onclick = async () => {
+    b.disabled = true; b.innerHTML = `<span class="spinner"></span>`;
+    try { const r = await API.cloud.sync.pull(b.dataset.sypull);
+      toast(`Pulled ${r.instance ? r.instance.name : "pack"}.`); hideModal(); renderInstances(); }
+    catch (e) { b.disabled = false; b.textContent = "Pull"; toast(e.message); }
+  });
+  document.querySelectorAll("[data-syrm]").forEach((b) => b.onclick = async () => {
+    if (!confirm("Remove this pack from your account? The local instance stays.")) return;
+    try { await API.cloud.sync.remove(b.dataset.syrm); toast("Removed."); openSyncedSheet(); }
+    catch (e) { toast(e.message); }
+  });
+}
+
+// ---------- Squad manager ----------
+async function openSquadManager() {
+  showModal(`<div class="share-card"><div class="share-h">${ico("i-users")} Squads</div>
+    <div class="share-loading"><span class="spinner"></span> Loading\u2026</div></div>`);
+  const squads = await API.cloud.chat.listSquads();
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-users")} Squads</div>
+      <p class="share-sub">A squad is a shared channel. Anyone with the invite code can join.</p>
+      ${squads.length ? `<div class="fb-list">${squads.map((sq) => `
+        <div class="sy-row">
+          <span class="sy-meta">
+            <span class="sy-name">${esc(sq.name)}</span>
+            <span class="sy-sub">${sq.role === "owner" ? "You own this squad" : "Member"}</span>
+          </span>
+          <button class="gh gh-sm" data-sqinv="${esc(sq.id)}">Invite code</button>
+          <button class="kb-icon" data-sqleave="${esc(sq.id)}" title="Leave">${ico("i-trash")}</button>
+        </div>`).join("")}</div>`
+        : `<div class="empty-line">No squads yet.</div>`}
+      <div class="np-actions">
+        <button class="btn-ghost" id="sqm-close">Close</button>
+        <button class="gh" id="sqm-join">Join by code</button>
+        <button class="btn-accent share-btn" id="sqm-new">${ico("i-plus")} New squad</button>
+      </div>
+    </div>`);
+  document.getElementById("sqm-close").onclick = hideModal;
+  document.getElementById("sqm-new").onclick = () => { hideModal(); openNewSquadModal(); };
+  document.getElementById("sqm-join").onclick = () => { hideModal(); openJoinSquadModal(); };
+  document.querySelectorAll("[data-sqinv]").forEach((b) => b.onclick = async () => {
+    try { const code = await API.cloud.chat.squadInvite(b.dataset.sqinv);
+      const text = (code && code.invite_code) || code;
+      toast(await copyText(String(text)) ? `Invite code copied: ${text}` : `Invite code: ${text}`); }
+    catch (e) { toast(e.message); }
+  });
+  document.querySelectorAll("[data-sqleave]").forEach((b) => b.onclick = async () => {
+    if (!confirm("Leave this squad?")) return;
+    try { await API.cloud.chat.leaveSquad(b.dataset.sqleave); toast("Left the squad."); openSquadManager(); }
+    catch (e) { toast(e.message); }
+  });
 }
 
 // ---------- Storage ----------
@@ -4468,8 +4602,9 @@ async function renderSquads() {
     <div class="page-head">
       <h1 class="page-title">Squads</h1>
       <div class="head-actions">
-        <button class="btn-soft" id="sq-join">${ico("i-arrow-right")} Join</button>
-        <button class="btn-soft" id="sq-new">${ico("i-plus")} New squad</button>
+        <button class="gh" id="sq-manage">${ico("i-users")} Manage</button>
+        <button class="gh" id="sq-join">${ico("i-arrow-right")} Join</button>
+        <button class="gh" id="sq-new">${ico("i-plus")} New squad</button>
       </div>
     </div>
     <div class="chat-layout" id="squads-root">
@@ -4484,6 +4619,7 @@ async function renderSquads() {
 
   document.getElementById("sq-new").onclick = openNewSquadModal;
   document.getElementById("sq-join").onclick = openJoinSquadModal;
+  document.getElementById("sq-manage").onclick = openSquadManager;
   document.getElementById("dm-new").onclick = openNewDmModal;
   bindSideLists();
 
@@ -4868,6 +5004,9 @@ function setupLaunchOverlay() {
 // ---------- Auto-update banner ----------
 function setupUpdates() {
   const bar = document.getElementById("update-banner");
+  if (window.API && API.on) {
+    try { API.on("update:state", (st) => { lastUpdateState = st || lastUpdateState; }); } catch { /* non-desktop */ }
+  }
   if (!bar) return;
   API.on("update:state", (s) => {
     if (s.status === "downloading") {

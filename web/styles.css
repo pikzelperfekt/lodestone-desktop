@@ -1701,3 +1701,18 @@ textarea.inp, .share-box {
 .pj-body { font-size: 12.5px; line-height: 1.6; color: var(--text-secondary);
   max-height: 150px; overflow-y: auto; padding: 11px 12px; margin-bottom: 10px;
   background: var(--voxel-side); box-shadow: var(--voxel-recess); }
+
+/* ---- Updates / synced packs / squad manager ---- */
+.up-now { display: flex; gap: 28px; flex-wrap: wrap; margin: 4px 0 6px; }
+.up-notes { display: flex; flex-direction: column; gap: 10px; max-height: 34vh; overflow-y: auto; }
+.up-rel { background: var(--voxel-elev); box-shadow: var(--voxel-bevel); padding: 11px 12px; }
+.up-rel-head { display: flex; align-items: baseline; gap: 9px; font-size: 13px; font-weight: 600;
+  color: var(--text-primary); }
+.up-rel-head span { font-size: 11px; color: var(--voxel-muted); font-weight: 400; }
+.up-rel-body { font-size: 11.5px; color: var(--voxel-muted); line-height: 1.55; margin-top: 5px;
+  white-space: pre-wrap; }
+.sy-row { display: flex; align-items: center; gap: 11px; padding: 10px 4px;
+  border-bottom: 1px solid var(--voxel-hair); }
+.sy-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.sy-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.sy-sub { font-size: 11px; color: var(--voxel-muted); }

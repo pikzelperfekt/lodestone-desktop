@@ -18,9 +18,9 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 | HeroHomeView / HomeCards / PlayView | done | hero, chips, Play, Jump back in, Servers |
 | InstancesView | partial | groups + multi-select + bulk actions done; **no arrange/reorder**; drive sections n/a |
 | CommandPalette | done | Ctrl/Cmd-K |
-| SidebarNotifications | missing | no notification surface at all |
-| OnboardingSheet | missing | no first-run flow |
-| Hubs / LinkTabView / NoteTabView | missing | per-instance link & note tabs |
+| SidebarNotifications | done | bell + badge in the account foot, engine-written feed |
+| OnboardingSheet | done | shown once, only when nothing is set up yet |
+| Hubs / LinkTabView / NoteTabView | done | notes + links per instance, http(s) only |
 
 ## Instance detail
 | Mac view | Status | Notes |
@@ -61,7 +61,7 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 | ServerAccessSheet | done | whitelist/ops/bans, console when live, files when stopped |
 | ServerPluginsView | done | list + enable/disable for Paper servers |
 | CloudHostingSheet | missing | hosted-server flow |
-| LANWorldsSheet | partial | guidance only, no scan |
+| LANWorldsSheet | done | real multicast listener on 224.0.2.60:4445 |
 
 ## Content & sharing
 | Mac view | Status | Notes |

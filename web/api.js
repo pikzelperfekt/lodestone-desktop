@@ -95,6 +95,30 @@
       if (!bridge) return { root: "", configs: [] };
       try { return unwrap(await bridge.instances.configs(instanceId)); } catch { return { root: "", configs: [] }; }
     },
+    async lanStart() { if (!bridge) return { listening: false }; try { return unwrap(await bridge.instances.lanStart()); } catch { return { listening: false }; } },
+    async lanStop() { if (!bridge) return { listening: false }; try { return unwrap(await bridge.instances.lanStop()); } catch { return { listening: false }; } },
+    async lanList() {
+      if (!bridge) return { listening: false, worlds: [] };
+      try { return unwrap(await bridge.instances.lanList()); } catch { return { listening: false, worlds: [] }; }
+    },
+    async notes(instanceId) {
+      if (!bridge) return { note: "", links: [] };
+      try { return unwrap(await bridge.instances.notes(instanceId)); } catch { return { note: "", links: [] }; }
+    },
+    async setNotes(opts) {
+      if (bridge) return unwrap(await bridge.instances.setNotes(opts));
+      throw new Error("Notes run in the desktop app.");
+    },
+    async notifications() {
+      if (!bridge) return [];
+      try { return unwrap(await bridge.instances.notifications()); } catch { return []; }
+    },
+    async dismissNotification(id) {
+      if (!bridge) return []; try { return unwrap(await bridge.instances.dismissNotification(id)); } catch { return []; }
+    },
+    async clearNotifications() {
+      if (!bridge) return []; try { return unwrap(await bridge.instances.clearNotifications()); } catch { return []; }
+    },
     async sessions(opts) {
       if (!bridge) return [];
       try { return unwrap(await bridge.instances.sessions(opts)); } catch { return []; }

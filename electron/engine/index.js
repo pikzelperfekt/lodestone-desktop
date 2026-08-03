@@ -16,7 +16,8 @@ const seedfinder = require("./seedfinder"); // native cubiomes seed search // st
 const worldcreate = require("./worldcreate");
 const worldinfo = require("./worldinfo");
 const region = require("./region"); // .mca reader for the world map + statistics
-const files = require("./files"); // Storage screen, file browser, config manager // World detail: facts read out of level.dat // world creation + import (26.1 split format aware)
+const files = require("./files");
+const lan = require("./lan"); // passive LAN world discovery // Storage screen, file browser, config manager // World detail: facts read out of level.dat // world creation + import (26.1 split format aware)
 const auth = require("./auth");
 const cloud = require("./cloud");
 const sync = require("./sync"); // [Cloud Sync — Vertical A]
@@ -460,6 +461,10 @@ async function launch(id) {
       (code) => {
         delete running[id];
         addPlaytime(id, Date.now() - startedAt, startedAt);
+        // A non-zero exit is the one moment the user genuinely wants telling
+        // about after the fact — the window is gone by then.
+        if (code) notify({ kind: "warn", title: `${inst.name} exited unexpectedly`,
+                           body: `Exit code ${code}. Check the Logs tab, or run the Crash doctor.` });
         emit("launch:state", { id, status: "idle", code });
         social.setActivity(null);
       });
@@ -501,6 +506,23 @@ function addPlaytime(id, ms, startedAt) {
     // WHEN you played, so the total is kept and the sessions are kept beside it.
     appendSession({ instanceId: id, startedAt: startedAt || (Date.now() - capped), endedAt: Date.now(), ms: capped });
   } catch { /* playtime is cosmetic; never let it break the exit path */ }
+}
+
+const notificationsFile = () => path.join(DATA_DIR, "notifications.json");
+function readNotifications() {
+  try { const j = JSON.parse(fs.readFileSync(notificationsFile(), "utf8")); return Array.isArray(j) ? j : []; }
+  catch { return []; }
+}
+function writeNotifications(list) {
+  try { fs.writeFileSync(notificationsFile(), JSON.stringify(list.slice(0, 100), null, 2)); } catch { /* best effort */ }
+}
+// Called from anywhere in the engine that has something worth surfacing.
+function notify({ kind, title, body }) {
+  const list = readNotifications();
+  list.unshift({ id: "n" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                 kind: kind || "info", title: String(title || ""), body: String(body || ""), at: Date.now() });
+  writeNotifications(list);
+  emit("notify", list[0]);
 }
 
 const sessionsFile = () => path.join(DATA_DIR, "sessions.json");
@@ -700,6 +722,51 @@ module.exports = {
       folder: a && a.world,
     });
   },
+
+  // ---- LAN worlds (passive multicast listener) ----
+  lanStart: () => lan.start(),
+  lanStop: () => lan.stop(),
+  lanList: () => lan.list(),
+
+  // ---- Per-instance notes + links ----
+  // Kept beside the instance rather than inside instances.json so a long note
+  // never bloats the file every launch rewrites.
+  instanceNotes: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    const file = path.join(install.paths(DATA_DIR).instanceDir(inst.id), "lodestone-notes.json");
+    try { const j = JSON.parse(fs.readFileSync(file, "utf8")); return { note: j.note || "", links: j.links || [] }; }
+    catch { return { note: "", links: [] }; }
+  },
+  setInstanceNotes: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    const file = path.join(install.paths(DATA_DIR).instanceDir(inst.id), "lodestone-notes.json");
+    const current = (() => { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return { note: "", links: [] }; } })();
+    if (a.note !== undefined) current.note = String(a.note);
+    if (Array.isArray(a.links)) {
+      // Only http(s) links are stored — a file:// or javascript: URL here would
+      // be handed straight to the shell when opened.
+      current.links = a.links
+        .filter((l) => l && /^https?:\/\//i.test(l.url || ""))
+        .slice(0, 50)
+        .map((l) => ({ label: String(l.label || l.url).slice(0, 120), url: String(l.url) }));
+    }
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(current, null, 2));
+    return current;
+  },
+
+  // ---- Notifications ----
+  // A durable feed of things worth telling the user about. Written by the
+  // engine, read and dismissed by the sidebar.
+  notifications: () => readNotifications(),
+  dismissNotification: (a) => {
+    const list = readNotifications().filter((n) => n.id !== (a && a.id));
+    writeNotifications(list);
+    return list;
+  },
+  clearNotifications: () => { writeNotifications([]); return []; },
 
   // ---- Play history / heatmap / wrapped / achievements ----
   // All four read the same session log. Nothing is estimated: a day with no

@@ -1603,3 +1603,33 @@ textarea.inp, .share-box {
 .hist-bar { flex: 1; height: 4px; background: var(--voxel-hair); }
 .hist-bar i { display: block; height: 100%; background: var(--voxel-barfill); }
 .hist-len { width: 74px; text-align: right; flex: none; color: var(--voxel-accent); }
+
+/* ---- Notifications, LAN, notes, onboarding ---- */
+.account-act { position: relative; }
+.notif-badge { position: absolute; top: -1px; right: -1px; min-width: 13px; height: 13px;
+  padding: 0 3px; display: grid; place-items: center; background: var(--voxel-accent);
+  color: var(--voxel-ink); font-size: 9px; font-weight: 700; line-height: 1; }
+
+.lan-list { display: flex; flex-direction: column; gap: 8px; margin: 4px 0; }
+.lan-row { display: flex; align-items: center; gap: 11px; padding: 11px 12px;
+  background: var(--voxel-elev); box-shadow: var(--voxel-bevel); }
+.lan-dot { width: 9px; height: 9px; flex: none; background: var(--live); box-shadow: 0 0 8px var(--live); }
+.lan-meta { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.lan-motd { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.lan-addr { font-family: var(--font-mono); font-size: 11px; color: var(--voxel-muted); }
+
+.notes-box { min-height: 130px; font-family: var(--font-body); font-size: 13px; }
+.notes-row { display: flex; gap: 9px; margin: 10px 0; }
+.notes-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.notes-link { display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px 4px 10px;
+  background: var(--voxel-elev); box-shadow: var(--voxel-bevel); font-size: 12px; }
+.notes-link a { color: var(--voxel-accent); }
+
+.ob-steps { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 4px; }
+.ob-step { display: flex; gap: 12px; padding: 12px 13px; background: var(--voxel-elev);
+  box-shadow: var(--voxel-bevel); }
+.ob-step b { display: block; font-size: 13px; color: var(--text-primary); }
+.ob-step span { display: block; font-size: 11.5px; color: var(--voxel-muted); line-height: 1.5; margin-top: 3px; }
+.ob-n { width: 22px; height: 22px; flex: none; display: grid; place-items: center;
+  background: var(--voxel-accent); color: var(--voxel-ink); font-weight: 700; font-size: 12px;
+  box-shadow: var(--voxel-bevel); }

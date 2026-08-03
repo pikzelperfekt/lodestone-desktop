@@ -575,6 +575,9 @@ async function renderInstanceDetail(id) {
       <button class="gh gh-sm" id="log-reload">Reload</button></div>
     <div id="inst-log"></div>
 
+    <div class="section-head" data-tab="tools"><span class="section-title">NOTES &amp; LINKS</span></div>
+    <div id="inst-notes"></div>
+
     <div class="section-head" data-tab="tools"><span class="section-title">CONFIGS</span></div>
     <div id="config-list"></div>
 
@@ -626,6 +629,7 @@ async function renderInstanceDetail(id) {
   renderInstanceLog(id);
   renderConfigs(id);
   renderFileBrowser(id);
+  renderNotes(id);
 
   const moreBtn = document.getElementById("detail-more");
   if (moreBtn) moreBtn.onclick = () => openMenu(moreBtn, [
@@ -1380,17 +1384,7 @@ async function renderServers() {
   // LAN worlds: any world in any instance can be opened to the network from in
   // game, so this points at the instances that actually have worlds rather than
   // pretending to scan the network.
-  document.getElementById("lan-worlds").onclick = async () => {
-    const list = await API.instances();
-    const withWorlds = [];
-    for (const i of list.slice(0, 12)) {
-      try { const w = await API.worlds.list(i.id); if (w && w.length) withWorlds.push(`${i.name} (${w.length})`); }
-      catch { /* skip unreadable instances */ }
-    }
-    toast(withWorlds.length
-      ? `Open a world to LAN from inside the game (Esc \u2192 Open to LAN). Worlds in: ${withWorlds.slice(0, 3).join(", ")}${withWorlds.length > 3 ? "\u2026" : ""}`
-      : "No worlds yet — play an instance first, then Open to LAN from the pause menu.");
-  };
+  document.getElementById("lan-worlds").onclick = () => openLanSheet();
   document.getElementById("where-host").onclick = () => {
     showModal(`
     <div class="share-card">
@@ -2567,6 +2561,105 @@ async function renderKeybinds() {
   };
 }
 
+// ---------- LAN worlds ----------
+// A real listener on Minecraft's multicast announce, not a placeholder: a
+// world appears only when a packet actually arrives, and disappears when it
+// stops announcing.
+async function openLanSheet() {
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-globe")} LAN worlds</div>
+      <p class="share-sub">Anyone on this network who has opened a world to LAN shows up here.
+        Open yours from the in-game pause menu with <b>Open to LAN</b>.</p>
+      <div id="lan-list"><div class="share-loading"><span class="spinner"></span> Listening\u2026</div></div>
+      <div class="np-actions"><button class="btn-ghost" id="lan-close">Close</button></div>
+    </div>`);
+
+  let timer = null;
+  const paint = async () => {
+    const { worlds } = await API.lanList();
+    const host = document.getElementById("lan-list");
+    if (!host) return;
+    host.innerHTML = worlds.length ? `
+      <div class="lan-list">${worlds.map((w) => `
+        <div class="lan-row">
+          <span class="lan-dot"></span>
+          <span class="lan-meta">
+            <span class="lan-motd">${esc(w.motd)}</span>
+            <span class="lan-addr">${esc(w.address)}</span>
+          </span>
+          <button class="gh gh-sm" data-lancopy="${esc(w.address)}">Copy address</button>
+        </div>`).join("")}</div>`
+      : `<div class="empty-line">Nothing announcing yet. Worlds appear within a couple of seconds of being opened to LAN.</div>`;
+    host.querySelectorAll("[data-lancopy]").forEach((b) => b.onclick = async () => {
+      toast(await copyText(b.dataset.lancopy) ? `Copied ${b.dataset.lancopy}.` : "Couldn't copy.");
+    });
+  };
+
+  await API.lanStart();
+  paint();
+  timer = setInterval(paint, 2000);
+  document.getElementById("lan-close").onclick = async () => {
+    clearInterval(timer);
+    await API.lanStop();
+    hideModal();
+  };
+}
+
+// ---------- Notifications ----------
+async function renderNotifications() {
+  const host = document.getElementById("notif-badge");
+  if (!host) return;
+  const list = await API.notifications();
+  host.textContent = list.length ? String(list.length) : "";
+  host.hidden = !list.length;
+}
+async function openNotifications(anchor) {
+  const list = await API.notifications();
+  if (!list.length) { toast("Nothing new."); return; }
+  openMenu(anchor, [
+    ...list.slice(0, 8).map((n) => ({
+      label: n.title,
+      icon: n.kind === "warn" ? "i-pulse" : "i-bell",
+      run: async () => { await API.dismissNotification(n.id); renderNotifications(); if (n.body) toast(n.body); },
+    })),
+    { separator: true },
+    { label: "Clear all", icon: "i-trash", run: async () => { await API.clearNotifications(); renderNotifications(); } },
+  ], { width: 300 });
+}
+
+// ---------- Onboarding ----------
+// Shown once, and only when there is genuinely nothing set up yet — an empty
+// launcher with no sign-in and no instances.
+async function maybeOnboard() {
+  if (localStorage.getItem("lodestone.onboarded")) return;
+  const [acc, instances] = await Promise.all([
+    API.account.get().catch(() => null), API.instances().catch(() => []),
+  ]);
+  if (acc || instances.length) { localStorage.setItem("lodestone.onboarded", "1"); return; }
+
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-mark")} Welcome to Lodestone</div>
+      <p class="share-sub">Three things and you're playing.</p>
+      <div class="ob-steps">
+        <div class="ob-step"><span class="ob-n">1</span>
+          <div><b>Sign in with Microsoft</b><span>Needed to launch the game and to change your skin.</span></div></div>
+        <div class="ob-step"><span class="ob-n">2</span>
+          <div><b>Make an instance</b><span>Pick a version and a loader. Each instance keeps its own mods, worlds and settings.</span></div></div>
+        <div class="ob-step"><span class="ob-n">3</span>
+          <div><b>Add mods, or import a pack</b><span>Browse Modrinth and CurseForge, or drop a .mrpack, .zip or .lodepack anywhere in this window.</span></div></div>
+      </div>
+      <div class="np-actions">
+        <button class="btn-ghost" id="ob-skip">Skip</button>
+        <button class="btn-accent share-btn" id="ob-go">Sign in</button>
+      </div>
+    </div>`);
+  const done = () => { localStorage.setItem("lodestone.onboarded", "1"); hideModal(); };
+  document.getElementById("ob-skip").onclick = done;
+  document.getElementById("ob-go").onclick = () => { done(); signIn(); };
+}
+
 // ---------- Stats: heatmap, wrapped, achievements, history ----------
 // All four read the same session log. A day with no session has no entry and
 // is drawn empty — nothing here is interpolated or estimated.
@@ -2717,6 +2810,46 @@ async function renderStorage() {
     b.disabled = true;
     try { const r = await API.reclaim(bucket); toast(`Freed ${fmtSize(r.cleared)}.`); renderStorage(); }
     catch (e) { b.disabled = false; toast(e.message); }
+  });
+}
+
+// Per-instance notes and links — the wiki page, the server address, the todo
+// list you keep for a pack.
+async function renderNotes(id) {
+  const host = document.getElementById("inst-notes");
+  if (!host) return;
+  const data = await API.notes(id);
+  host.innerHTML = `
+    <textarea class="share-box notes-box" id="notes-text" placeholder="Notes for this pack \u2014 what you're building, what to fix, who's on the server\u2026">${esc(data.note)}</textarea>
+    <div class="notes-row">
+      <button class="gh gh-sm" id="notes-save">Save note</button>
+      <button class="gh gh-sm" id="notes-addlink">${ico("i-link")} Add link</button>
+    </div>
+    ${data.links.length ? `<div class="notes-links">${data.links.map((l, i) => `
+      <span class="notes-link">
+        <a href="#" data-openlink="${esc(l.url)}">${esc(l.label)}</a>
+        <button class="kb-icon" data-dellink="${i}" title="Remove">${ico("i-trash")}</button>
+      </span>`).join("")}</div>` : ""}`;
+
+  document.getElementById("notes-save").onclick = async () => {
+    try { await API.setNotes({ instanceId: id, note: document.getElementById("notes-text").value }); toast("Note saved."); }
+    catch (e) { toast(e.message); }
+  };
+  document.getElementById("notes-addlink").onclick = async () => {
+    const url = prompt("Link (https://\u2026):");
+    if (!url || !/^https?:\/\//i.test(url)) { if (url) toast("Only http and https links can be saved."); return; }
+    const label = prompt("Label:", url) || url;
+    try { await API.setNotes({ instanceId: id, links: [...data.links, { label, url }] }); renderNotes(id); }
+    catch (e) { toast(e.message); }
+  };
+  host.querySelectorAll("[data-openlink]").forEach((a) => a.onclick = (e) => {
+    e.preventDefault();
+    if (API.openExternal) API.openExternal(a.dataset.openlink); else toast(a.dataset.openlink);
+  });
+  host.querySelectorAll("[data-dellink]").forEach((b) => b.onclick = async () => {
+    const next = data.links.filter((_, i) => i !== Number(b.dataset.dellink));
+    try { await API.setNotes({ instanceId: id, links: next }); renderNotes(id); }
+    catch (e) { toast(e.message); }
   });
 }
 
@@ -3076,8 +3209,12 @@ async function renderAccount() {
     node.innerHTML = `
       <img class="avatar" src="https://mc-heads.net/avatar/${esc(acc.uuid.replace(/-/g, ""))}/64" />
       <div class="account-meta"><div class="account-name">${esc(acc.name)}</div></div>
+      <button class="account-act" id="acc-notif" title="Notifications">${ico("i-bell")}<span class="notif-badge" id="notif-badge" hidden></span></button>
       <button class="account-act" id="acc-prefs" title="Preferences">${ico("i-sliders")}</button>
       <button class="account-act" id="acc-out" title="Sign out">${ico("i-user")}</button>`;
+    const bell = document.getElementById("acc-notif");
+    bell.onclick = () => openNotifications(bell);
+    renderNotifications();
     document.getElementById("acc-prefs").onclick = () => navigate("settings");
     document.getElementById("acc-out").onclick = async () => { await API.account.signOut(); toast("Signed out."); renderAccount(); };
   } else {
@@ -4114,6 +4251,7 @@ function setupUpdates() {
 document.querySelectorAll(".nav-item").forEach((btn) => btn.addEventListener("click", () => navigate(btn.dataset.section)));
 renderAccount();
 renderPinned();
+maybeOnboard();
 setupLaunchOverlay();
 setupUpdates();
 setupCloud();
@@ -4141,6 +4279,7 @@ if (window.API && API.on) {
       if (open) renderInstanceDetail(p.instanceId);
     });
     API.on("pack:error", (p) => { if (p && p.message) toast(p.message); });
+    API.on("notify", () => renderNotifications());
   } catch { /* non-desktop build */ }
 }
 

@@ -24,6 +24,14 @@ contextBridge.exposeInMainWorld("lodestone", {
     readFile: (opts) => call("files:read", opts),
     writeFile: (opts) => call("files:write", opts),
     configs: (instanceId) => call("configs:list", { instanceId }),
+    lanStart: () => call("lan:start"),
+    lanStop: () => call("lan:stop"),
+    lanList: () => call("lan:list"),
+    notes: (instanceId) => call("notes:get", { instanceId }),
+    setNotes: (opts) => call("notes:set", opts),
+    notifications: () => call("notify:list"),
+    dismissNotification: (id) => call("notify:dismiss", { id }),
+    clearNotifications: () => call("notify:clear"),
     sessions: (opts) => call("stats:sessions", opts),
     heatmap: (opts) => call("stats:heatmap", opts),
     wrapped: (opts) => call("stats:wrapped", opts),
@@ -174,7 +182,7 @@ contextBridge.exposeInMainWorld("lodestone", {
     const allowed = ["launch:progress", "launch:log", "launch:state", "update:state", "content:log", "server:log", "server:state",
       "cloud:auth", "cloud:friends", "cloud:presence", "cloud:message", "cloud:sync",
       "pack:shared", "pack:joined", "pack:published", "pack:applied", "pack:left", "pack:error",
-      "seed:progress"];
+      "seed:progress", "notify", "lan:found"];
     if (!allowed.includes(channel)) return () => {};
     const handler = (_e, payload) => fn(payload);
     ipcRenderer.on(channel, handler);

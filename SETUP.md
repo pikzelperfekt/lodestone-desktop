@@ -49,3 +49,28 @@ project for real multiplayer social.
 - **OAuth (Discord)**: `config.toml` already points `site_url` at the
   `lodestone://auth-callback` deep link for a future one-click Discord sign-in.
 - **Rate limits / abuse**: Supabase's defaults are sane; revisit if it gets busy.
+
+## Applying migration 0003 (shared packs)
+
+Sharing a pack with a permanent code needs the `shared_packs` tables. Until the
+migration runs, the feature is present in the app but inert: creating a share
+fails with a clear message rather than silently doing nothing.
+
+To check what is live at any time:
+
+```bash
+node scripts/check-backend.js
+```
+
+To apply it: Supabase dashboard → **SQL Editor** → paste the contents of
+`supabase/migrations/0003_shared_packs.sql` → **Run**.
+
+```bash
+pbcopy < supabase/migrations/0003_shared_packs.sql   # macOS: straight to clipboard
+```
+
+The editor wraps the script in a transaction, so a failed run rolls back whole
+and a re-run after fixing needs no drops. This cannot be automated from a dev
+machine: the anon key shipped with the app cannot execute DDL, and doing it
+headlessly would need a service-role key, a Supabase access token, or the
+database password — none of which belong in this repo.

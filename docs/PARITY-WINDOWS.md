@@ -10,10 +10,10 @@ one is generated from the Mac source so it cannot drift.
 
 | status | count |
 |---|---|
-| done | 86 |
+| done | 87 |
 | partial | 0 |
 | missing | 0 |
-| n/a | 4 |
+| n/a | 3 |
 
 | Mac view | Status | Notes |
 |---|---|---|
@@ -98,7 +98,7 @@ one is generated from the Mac source so it cannot drift.
 | SquadManagerSheet | done | list, invite codes, leave |
 | StorageView | done | breakdown + reclaim |
 | SyncedModpacksSheet | done | list, pull to rebuild locally, remove from cloud |
-| ThemeBrowserSheet | n/a | Mac deliberately ships one theme |
+| ThemeBrowserSheet | done | live-preview gallery; folder + plugin palettes |
 | UpdatesSheet | done | version, updater state, release notes from the feed |
 | VersionPickerSheet | done | version list per project |
 | WorldDetailView | done | facts from level.dat |

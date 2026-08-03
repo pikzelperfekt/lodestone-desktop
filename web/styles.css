@@ -1830,3 +1830,28 @@ textarea.inp, .share-box {
 .switch input:checked + .switch-track { background: var(--glint-fill-hard); border-color: var(--accent); }
 .switch input:checked + .switch-track::after { transform: translateX(16px); background: var(--accent); }
 .switch input:focus-visible + .switch-track { box-shadow: 0 0 0 3px var(--glint-fill); }
+
+/* ---------- Theme browser (ThemeBrowserSheet parity) ---------- */
+.theme-sheet { max-height: 78vh; overflow-y: auto; }
+.theme-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap:14px; margin-top:12px; }
+
+.theme-card { display:flex; flex-direction:column; gap:8px; padding:8px; cursor:pointer; text-align:left;
+  background: var(--voxel-elev); border:1px solid var(--stroke); border-radius:0;
+  box-shadow: var(--voxel-bevel); }
+.theme-card:hover { border-color: var(--accent); }
+/* The one you're wearing gets the accent edge — the same tell a selected
+   instance card uses, so "current" reads the same way everywhere. */
+.theme-card.is-on { border-color: var(--accent); box-shadow: var(--voxel-bevel), 0 0 0 1px var(--accent) inset; }
+
+/* Miniature launcher chrome, painted in the palette being previewed. */
+.theme-mini { display:flex; height:82px; overflow:hidden; border:1px solid rgba(0,0,0,.35); }
+.tm-side { width:22px; flex:0 0 22px; }
+.tm-body { flex:1; display:flex; flex-direction:column; gap:5px; padding:7px; min-width:0; }
+.tm-bar { height:4px; width:60%; }
+.tm-panel { flex:1; }
+.tm-btn { align-self:flex-start; font-family: var(--font-display); font-weight:700; font-size:8.5px;
+  padding:3px 8px; }
+
+.theme-meta { display:flex; flex-direction:column; gap:1px; padding:0 2px 2px; }
+.theme-meta b { font-family: var(--font-display); font-weight:600; font-size:12.5px; }
+.theme-meta span { font-size:10.5px; color: var(--text-tertiary); }

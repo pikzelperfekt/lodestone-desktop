@@ -82,6 +82,11 @@ contextBridge.exposeInMainWorld("lodestone", {
     runCommand: (pluginId, id) => call("plugins:runCommand", { pluginId, id }),
     openFolder: () => call("plugins:openFolder"),
   },
+  themes: {
+    list: () => call("themes:list"),
+    select: (id) => call("themes:select", { id }),
+    openFolder: () => call("themes:openFolder"),
+  },
   playit: {
     status: () => call("playit:status"),
     setSecret: (secret) => call("playit:setSecret", { secret }),

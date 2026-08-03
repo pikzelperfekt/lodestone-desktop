@@ -96,6 +96,11 @@
       async runCommand(pluginId, id) { return unwrap(await bridge.plugins.runCommand(pluginId, id)); },
       async openFolder() { return unwrap(await bridge.plugins.openFolder()); },
     },
+    themes: {
+      async list() { if (!bridge) return { themes: [], currentId: "voxel" }; try { return unwrap(await bridge.themes.list()); } catch { return { themes: [], currentId: "voxel" }; } },
+      async select(id) { return unwrap(await bridge.themes.select(id)); },
+      async openFolder() { return unwrap(await bridge.themes.openFolder()); },
+    },
     playit: {
       async status() { if (!bridge) return { installed: false, running: false, secret: false }; return unwrap(await bridge.playit.status()); },
       async setSecret(s) { return unwrap(await bridge.playit.setSecret(s)); },

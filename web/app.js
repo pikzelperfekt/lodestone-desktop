@@ -935,6 +935,97 @@ async function openPublishModal(inst) {
   };
 }
 
+// ---------- Themes ----------
+// Ports the Mac's ThemeBrowserSheet: a gallery of every available look drawn as
+// a little live-preview card — mock launcher chrome painted in each palette, so
+// you see it before you wear it.
+//
+// Lodestone ships exactly ONE look (Voxel), so a stock install shows a single
+// card confirming what you're wearing. Palettes dropped in the themes folder, or
+// contributed by an enabled plugin, join automatically — which is the only
+// reason a chooser exists at all.
+async function openThemeSheet() {
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-image")} Themes</div>
+      <div class="share-loading"><span class="spinner"></span> Loading looks…</div>
+    </div>`);
+
+  const { themes, currentId } = await API.themes.list();
+  const stock = themes.length <= 1;
+
+  showModal(`
+    <div class="share-card theme-sheet">
+      <div class="share-h">${ico("i-image")} Themes <span class="host-badge">${themes.length}</span></div>
+      <p class="share-sub">${stock
+        ? "Voxel is Lodestone's one built-in look. Drop a JSON palette in the themes folder to add your own — it shows up here."
+        : "Pick a look to wear it — Lodestone re-skins instantly. Drop a JSON palette in the themes folder to add your own."}</p>
+      <div class="theme-grid">${themes.map((t) => themePreviewCard(t, t.id === currentId)).join("")}</div>
+      <div class="np-actions">
+        <button class="btn-soft" id="th-folder">${ico("i-grid")} Themes folder</button>
+        <button class="btn-soft" id="th-reload">${ico("i-refresh")} Reload</button>
+        <span class="host-spacer"></span>
+        <button class="btn-accent share-btn" id="th-done">Done</button>
+      </div>
+    </div>`);
+
+  document.getElementById("th-done").onclick = hideModal;
+  document.getElementById("th-folder").onclick = () => API.themes.openFolder();
+  document.getElementById("th-reload").onclick = () => openThemeSheet();
+
+  document.querySelectorAll("[data-theme-pick]").forEach((b) => b.onclick = async () => {
+    try {
+      const t = await API.themes.select(b.dataset.themePick);
+      applyTheme(t);
+      openThemeSheet();
+    } catch (e) { toast(e.message); }
+  });
+}
+
+// A miniature of the app's own chrome — sidebar, canvas, a surface panel, an
+// accent bar and button — painted in the palette being previewed.
+function themePreviewCard(t, selected) {
+  return `
+    <button class="theme-card${selected ? " is-on" : ""}" data-theme-pick="${esc(t.id)}">
+      <span class="theme-mini" style="background:${esc(t.bgBottom)}">
+        <span class="tm-side" style="background:${esc(t.sidebarHex)}"></span>
+        <span class="tm-body">
+          <span class="tm-bar" style="background:${esc(t.accent)}"></span>
+          <span class="tm-panel" style="background:${esc(t.surfaceHex)}"></span>
+          <span class="tm-btn" style="background:${esc(t.accent)};color:${esc(t.onAccent)}">Play</span>
+        </span>
+      </span>
+      <span class="theme-meta">
+        <b style="color:${esc(t.textHex)}">${esc(t.name)}</b>
+        <span>${esc(t.source)}${selected ? " · wearing" : ""}</span>
+      </span>
+    </button>`;
+}
+
+// Repaint the running UI. The palette drives the same custom properties the
+// stylesheet already reads, so re-skinning is instant and needs no reload.
+function applyTheme(t) {
+  if (!t) return;
+  const r = document.documentElement.style;
+  r.setProperty("--voxel-accent", t.accent);
+  r.setProperty("--voxel-ink", t.onAccent);
+  r.setProperty("--voxel-bg", t.bgBottom);
+  r.setProperty("--voxel-elev", t.surfaceHex);
+  r.setProperty("--voxel-text", t.textHex);
+  r.setProperty("--voxel-muted", t.mutedHex);
+  r.setProperty("--voxel-side", t.sidebarHex);
+}
+
+// Wear the saved look before the first paint, so a non-default theme doesn't
+// flash the built-in palette on every launch.
+async function initTheme() {
+  try {
+    const { themes, currentId } = await API.themes.list();
+    const t = themes.find((x) => x.id === currentId);
+    if (t && t.id !== "voxel") applyTheme(t);
+  } catch { /* non-desktop build */ }
+}
+
 // ---------- Plugins ----------
 // Ports the Mac's PluginsView. Two tabs: what's installed (toggle, remove, see
 // what each contributes and what it's allowed to do) and the community list
@@ -1034,6 +1125,7 @@ function renderPluginsInstalled(installed) {
     await API.plugins.setEnabled(c.dataset.pgtoggle, c.checked);
     toast(c.checked ? "Plugin enabled." : "Plugin disabled.");
     renderPlugins(); refreshPluginNav();
+initTheme();
   });
   body.querySelectorAll("[data-pgupdate]").forEach((b) => b.onclick = async () => {
     b.disabled = true; b.innerHTML = `<span class="spinner"></span> Updating…`;
@@ -2067,6 +2159,17 @@ async function renderSettings() {
   el().innerHTML = `
     <div class="page-head"><h1 class="page-title">Settings</h1></div>
 
+    <div class="section-head" style="margin-top:22px"><span class="section-title">APPEARANCE</span></div>
+    <div class="glass settings-card">
+      <div class="set-row">
+        <div class="set-label">
+          <div class="set-name">Theme</div>
+          <div class="set-hint">Voxel is Lodestone's built-in look. Palettes you drop in the themes folder — or that a plugin contributes — show up here too.</div>
+        </div>
+        <div class="set-control"><button class="btn-soft" id="set-theme">Browse themes</button></div>
+      </div>
+    </div>
+
     <div class="section-head" style="margin-top:22px"><span class="section-title">JAVA &amp; MEMORY</span></div>
     <div class="glass settings-card">
       <div class="set-row">
@@ -2231,6 +2334,7 @@ async function renderSettings() {
     };
   }
 
+  document.getElementById("set-theme").onclick = () => openThemeSheet();
   document.getElementById("set-cf-link").onclick = () => API.openExternal("https://console.curseforge.com/#/api-keys");
 
   document.getElementById("set-open-data").onclick = () => API.openDataDir();

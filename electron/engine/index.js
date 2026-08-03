@@ -63,6 +63,7 @@ function init(userDataPath) {
   auth.init(DATA_DIR);
   cloud.init(DATA_DIR);
   plugins.init(DATA_DIR);
+  themes.init(DATA_DIR);
   social.init(); // Vertical B: presence/friends realtime follow the cloud session
   settings.init(DATA_DIR);
   globalsetup.init(DATA_DIR);
@@ -906,8 +907,14 @@ function pluginReadFile(id, rel) {
   try { return fs.readFileSync(full, "utf8"); } catch { return null; }
 }
 
+// ---- Themes ----
+function themeList() { return themes.list(); }
+function themeSelect(a) { return themes.select(a && a.id); }
+function themesDir() { return themes.themesDir(); }
+
 module.exports = {
   publishInstance,
+  themeList, themeSelect, themesDir,
   pluginList, pluginSetEnabled, pluginRemove, pluginInstall, pluginCommunity,
   pluginTabs, pluginThemes, pluginMainScript, pluginGetData, pluginSetData,
   pluginsDir, pluginReadFile,
@@ -1682,6 +1689,7 @@ const publish = require("./publish");
 const exaroton = require("./exaroton");
 const playit = require("./playit");
 const plugins = require("./plugins");
+const themes = require("./themes");
 
 // ---- Instance icons ----
 function setInstanceIcon({ id, dataBase64, ext }) {

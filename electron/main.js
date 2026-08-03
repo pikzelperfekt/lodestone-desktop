@@ -581,6 +581,11 @@ handle("plugins:runCommand", (a) => {
 });
 handle("plugins:openFolder", () => shell.openPath(engine.pluginsDir()));
 
+// ---- Themes ----
+handle("themes:list", () => engine.themeList());
+handle("themes:select", (a) => engine.themeSelect(a));
+handle("themes:openFolder", () => shell.openPath(engine.themesDir()));
+
 app.whenReady().then(() => {
   engine.init(app.getPath("userData"));
   startPluginRuntime();

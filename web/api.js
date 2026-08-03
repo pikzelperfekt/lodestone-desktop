@@ -86,6 +86,16 @@
       async logs(id) { return unwrap(await bridge.exaroton.logs(id)); },
       async pushMods(serverId, instanceId) { return unwrap(await bridge.exaroton.pushMods(serverId, instanceId)); },
     },
+    plugins: {
+      async list() { if (!bridge) return []; try { return unwrap(await bridge.plugins.list()); } catch { return []; } },
+      async setEnabled(id, enabled) { return unwrap(await bridge.plugins.setEnabled(id, enabled)); },
+      async remove(id) { return unwrap(await bridge.plugins.remove(id)); },
+      async install(repo) { return unwrap(await bridge.plugins.install(repo)); },
+      async community() { if (!bridge) return []; return unwrap(await bridge.plugins.community()); },
+      async contributions() { if (!bridge) return { tabs: [], commands: [] }; try { return unwrap(await bridge.plugins.contributions()); } catch { return { tabs: [], commands: [] }; } },
+      async runCommand(pluginId, id) { return unwrap(await bridge.plugins.runCommand(pluginId, id)); },
+      async openFolder() { return unwrap(await bridge.plugins.openFolder()); },
+    },
     playit: {
       async status() { if (!bridge) return { installed: false, running: false, secret: false }; return unwrap(await bridge.playit.status()); },
       async setSecret(s) { return unwrap(await bridge.playit.setSecret(s)); },

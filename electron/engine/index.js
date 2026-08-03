@@ -62,6 +62,7 @@ function init(userDataPath) {
   fs.mkdirSync(path.join(DATA_DIR, "instances"), { recursive: true });
   auth.init(DATA_DIR);
   cloud.init(DATA_DIR);
+  plugins.init(DATA_DIR);
   social.init(); // Vertical B: presence/friends realtime follow the cloud session
   settings.init(DATA_DIR);
   globalsetup.init(DATA_DIR);
@@ -95,7 +96,8 @@ function setEmitter(fn) { emit = fn || (() => {}); playit.setEmitter(emit); clou
 // [wave0] Trash-tier deletes: Electron main injects shell.trashItem so world /
 // resource-pack / shader / datapack deletes are recoverable (Mac parity).
 // Headless runs never call this and those deletes stay permanent (flagged).
-function setTrash(fn) { worlds.setTrash(fn); packs.setTrash(fn); }
+let trashItem = null;
+function setTrash(fn) { trashItem = fn; worlds.setTrash(fn); packs.setTrash(fn); }
 
 // ---- Cloud account (Lodestone social/sync identity — distinct from Minecraft) ----
 function cloudStatus() { return cloud.status(); }
@@ -879,8 +881,36 @@ function playitSetSecret(a) { setSettings({ playitSecret: String((a && a.secret)
 function playitStart() { playit.start((getSettings() || {}).playitSecret); return playitStatus(); }
 function playitStop() { playit.stop(); return playitStatus(); }
 
+// ---- Plugins ----
+function pluginList() { return plugins.list(); }
+function pluginSetEnabled(id, enabled) { return plugins.setEnabled(id, enabled); }
+function pluginRemove(id) { return plugins.remove(id, trashItem); }
+function pluginInstall(repo) { return plugins.install(repo); }
+function pluginCommunity() { return plugins.community(); }
+function pluginTabs() { return plugins.contributedTabs(); }
+function pluginThemes() { return plugins.contributedThemes(); }
+function pluginMainScript(id) { return plugins.mainScript(id); }
+function pluginGetData(id, key) { return plugins.getData(id, key); }
+function pluginSetData(id, key, value) { return plugins.setData(id, key, value); }
+function pluginsDir() { return plugins.pluginsDir(); }
+
+// Read a file from INSIDE a plugin's own folder. A plugin names the file, so the
+// resolved path is checked to still be under its directory -- "../../id_rsa"
+// must not resolve to something we then hand back to it.
+function pluginReadFile(id, rel) {
+  const plugin = plugins.list().find((p) => p.id === id);
+  if (!plugin) return null;
+  const full = path.resolve(plugin.folder, String(rel || ""));
+  const root = path.resolve(plugin.folder) + path.sep;
+  if (!full.startsWith(root)) return null;
+  try { return fs.readFileSync(full, "utf8"); } catch { return null; }
+}
+
 module.exports = {
   publishInstance,
+  pluginList, pluginSetEnabled, pluginRemove, pluginInstall, pluginCommunity,
+  pluginTabs, pluginThemes, pluginMainScript, pluginGetData, pluginSetData,
+  pluginsDir, pluginReadFile,
   playitStatus, playitSetSecret, playitStart, playitStop,
   exarotonConnect, exarotonDisconnect, exarotonStatus, exarotonRefresh,
   exarotonStart, exarotonStop, exarotonRestart, exarotonCommand, exarotonLogs, exarotonPushMods,
@@ -1651,6 +1681,7 @@ const lodepack = require("./lodepack");
 const publish = require("./publish");
 const exaroton = require("./exaroton");
 const playit = require("./playit");
+const plugins = require("./plugins");
 
 // ---- Instance icons ----
 function setInstanceIcon({ id, dataBase64, ext }) {

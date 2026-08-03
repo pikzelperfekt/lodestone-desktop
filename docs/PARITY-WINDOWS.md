@@ -10,9 +10,9 @@ one is generated from the Mac source so it cannot drift.
 
 | status | count |
 |---|---|
-| done | 84 |
+| done | 86 |
 | partial | 0 |
-| missing | 2 |
+| missing | 0 |
 | n/a | 4 |
 
 | Mac view | Status | Notes |
@@ -67,8 +67,8 @@ one is generated from the Mac source so it cannot drift.
 | PerfInsightsBanner | done | memory + pack-size warnings |
 | PlayView | done | Play screen |
 | PlaytimeHeatmapView | done | year heatmap |
-| PluginWebView | missing | needs a plugin runtime |
-| PluginsView | missing | needs a plugin runtime |
+| PluginWebView | done | plugin tabs in a sandboxed iframe |
+| PluginsView | done | install/enable/remove + community browse |
 | PregenSheet | done | headless server on the pack's own loader, driven through Chunky |
 | ProfileSheet | done | account + profile |
 | PublishSheet | done | publishes to Lodestone's own worker, same as Mac |

@@ -408,9 +408,188 @@ handle("icon:set", (a) => engine.setInstanceIcon(a));
 handle("icon:remove", (a) => engine.removeInstanceIcon(a));
 // ============================================================================
 
+// ==========================================================================
+// Plugin runtime
+// ==========================================================================
+// Each enabled CODE plugin gets its own hidden renderer: nodeIntegration off,
+// contextIsolation on, sandbox on. That gives a plugin a JS engine and nothing
+// else — no fs, no require, no sibling plugin's state. Everything it can
+// actually do arrives here as a plugin:api call, and every capability is
+// re-checked against the manifest on THIS side, because the renderer is the
+// untrusted half.
+const pluginHosts = new Map();     // pluginId -> BrowserWindow
+const pluginCommands = new Map();  // pluginId -> [{ id, name, icon }]
+const pluginTabs = new Map();      // pluginId -> [{ id, title, icon, html }]
+const pluginSubs = new Map();      // event -> Set(pluginId)
+
+function pluginPerms(id) {
+  const p = engine.pluginList().find((x) => x.id === id);
+  return new Set(p ? p.permissions : []);
+}
+
+function stopPluginHost(id) {
+  const win = pluginHosts.get(id);
+  if (win && !win.isDestroyed()) win.destroy();
+  pluginHosts.delete(id);
+  pluginCommands.delete(id);
+  pluginTabs.delete(id);
+  for (const set of pluginSubs.values()) set.delete(id);
+}
+
+function startPluginHost(plugin) {
+  stopPluginHost(plugin.id);
+  const code = engine.pluginMainScript(plugin.id);
+  if (!code) return;
+
+  const host = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, "plugin-preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      // Identity is fixed at construction so a plugin cannot claim to be another.
+      additionalArguments: [
+        `--plugin-id=${plugin.id}`,
+        `--plugin-perms=${(plugin.permissions || []).join(",")}`,
+      ],
+    },
+  });
+  pluginHosts.set(plugin.id, host);
+  host.loadFile(path.join(__dirname, "plugin-host.html"));
+  host.webContents.once("did-finish-load", () => host.webContents.send("plugin:run", { code }));
+}
+
+function startPluginRuntime() {
+  for (const p of engine.pluginList()) {
+    if (p.enabled && p.isCode) {
+      try { startPluginHost(p); } catch (e) { console.error("plugin host failed:", p.id, e.message); }
+    }
+  }
+}
+
+function reloadPluginRuntime() {
+  for (const id of [...pluginHosts.keys()]) stopPluginHost(id);
+  startPluginRuntime();
+  if (win && !win.isDestroyed()) win.webContents.send("plugins:changed", pluginContributions());
+}
+
+function pluginContributions() {
+  const tabs = [];
+  for (const [pluginId, list] of pluginTabs) for (const t of list) tabs.push({ ...t, pluginId });
+  const commands = [];
+  for (const [pluginId, list] of pluginCommands) for (const c of list) commands.push({ ...c, pluginId });
+  return { tabs: [...engine.pluginTabs(), ...tabs], commands };
+}
+
+ipcMain.handle("plugin:api", async (_e, { pluginId, method, payload }) => {
+  const perms = pluginPerms(pluginId);
+  const deny = (p) => { throw new Error(`Plugin ${pluginId} lacks the "${p}" permission.`); };
+  const p = payload || {};
+
+  switch (method) {
+    case "log":
+      if (win && !win.isDestroyed()) win.webContents.send("plugin:log", { pluginId, line: String(p.message) });
+      return true;
+
+    case "notify":
+      if (win && !win.isDestroyed()) win.webContents.send("notify", { message: String(p.message), from: pluginId });
+      return true;
+
+    case "addCommand": {
+      const list = pluginCommands.get(pluginId) || [];
+      list.push({ id: p.id, name: p.name, icon: p.icon });
+      pluginCommands.set(pluginId, list);
+      if (win && !win.isDestroyed()) win.webContents.send("plugins:changed", pluginContributions());
+      return true;
+    }
+
+    case "addTab": {
+      const list = pluginTabs.get(pluginId) || [];
+      // `file` is resolved here, not in the renderer, and only inside the
+      // plugin's own folder — a plugin must not be able to read arbitrary files
+      // by asking for a tab pointed at one.
+      let html = p.html || "";
+      if (!html && p.file) html = engine.pluginReadFile(pluginId, p.file) || "";
+      list.push({ id: `plugin-${pluginId}-${p.id}`, title: p.title, icon: p.icon, kind: "html", html });
+      pluginTabs.set(pluginId, list);
+      if (win && !win.isDestroyed()) win.webContents.send("plugins:changed", pluginContributions());
+      return true;
+    }
+
+    case "subscribe": {
+      if (!pluginSubs.has(p.event)) pluginSubs.set(p.event, new Set());
+      pluginSubs.get(p.event).add(pluginId);
+      return true;
+    }
+
+    case "listInstances":
+      if (!perms.has("instances")) deny("instances");
+      return engine.listInstances().map((i) => ({ id: i.id, name: i.name, version: i.mcVersion, loader: i.loader }));
+
+    case "launch":
+      if (!perms.has("launch")) deny("launch");
+      return engine.launch({ id: p.instanceId });
+
+    case "openSection":
+      if (!perms.has("ui")) deny("ui");
+      if (win && !win.isDestroyed()) win.webContents.send("plugin:navigate", { section: String(p.name) });
+      return true;
+
+    case "getData":
+      if (!perms.has("storage")) deny("storage");
+      return engine.pluginGetData(pluginId, p.key);
+
+    case "setData":
+      if (!perms.has("storage")) deny("storage");
+      return engine.pluginSetData(pluginId, p.key, p.value);
+
+    case "request": {
+      if (!perms.has("network")) deny("network");
+      // http/https only: a plugin with `network` should not be able to reach
+      // file:// and read the disk it was sandboxed away from.
+      let target;
+      try { target = new URL(String(p.url)); } catch { throw new Error("That isn't a valid URL."); }
+      if (!/^https?:$/.test(target.protocol)) throw new Error("Only http and https URLs are allowed.");
+      const res = await fetch(target.toString(), { headers: { "User-Agent": "Lodestone-Plugin" } });
+      return res.text();
+    }
+
+    default:
+      throw new Error(`Unknown plugin API call: ${method}`);
+  }
+});
+
+// Fire an app event at whichever plugins asked for it.
+function emitPluginEvent(event, data) {
+  for (const id of pluginSubs.get(event) || []) {
+    const host = pluginHosts.get(id);
+    if (host && !host.isDestroyed()) host.webContents.send("plugin:event", { event, data });
+  }
+}
+
+handle("plugins:list", () => engine.pluginList());
+handle("plugins:setEnabled", (a) => { const r = engine.pluginSetEnabled(a.id, a.enabled); reloadPluginRuntime(); return r; });
+handle("plugins:remove", async (a) => { const r = await engine.pluginRemove(a.id); reloadPluginRuntime(); return r; });
+handle("plugins:install", async (a) => { const r = await engine.pluginInstall(a.repo); reloadPluginRuntime(); return r; });
+handle("plugins:community", () => engine.pluginCommunity());
+handle("plugins:contributions", () => pluginContributions());
+handle("plugins:runCommand", (a) => {
+  const host = pluginHosts.get(a.pluginId);
+  if (host && !host.isDestroyed()) host.webContents.send("plugin:invoke-command", { id: a.id });
+  return true;
+});
+handle("plugins:openFolder", () => shell.openPath(engine.pluginsDir()));
+
 app.whenReady().then(() => {
   engine.init(app.getPath("userData"));
-  engine.setEmitter((channel, payload) => { if (win && !win.isDestroyed()) win.webContents.send(channel, payload); });
+  startPluginRuntime();
+  engine.setEmitter((channel, payload) => {
+    if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
+    // Plugins subscribe with lodestone.on("launch"|"install"|...) — the channel
+    // prefix is the event name, so "launch:state" reaches on("launch").
+    emitPluginEvent(String(channel).split(":")[0], payload);
+  });
   // [wave0] Trash-tier deletes: worlds + resource/shader/datapacks are recoverable
   // via the OS Recycle Bin (Mac parity); instances/servers stay permanent.
   engine.setTrash((p) => shell.trashItem(p));

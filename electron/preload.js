@@ -72,6 +72,16 @@ contextBridge.exposeInMainWorld("lodestone", {
     pushMods: (serverId, instanceId) => call("exaroton:pushMods", { serverId, instanceId }),
   },
   // playit.gg: a public address for a self-hosted server, no port forwarding.
+  plugins: {
+    list: () => call("plugins:list"),
+    setEnabled: (id, enabled) => call("plugins:setEnabled", { id, enabled }),
+    remove: (id) => call("plugins:remove", { id }),
+    install: (repo) => call("plugins:install", { repo }),
+    community: () => call("plugins:community"),
+    contributions: () => call("plugins:contributions"),
+    runCommand: (pluginId, id) => call("plugins:runCommand", { pluginId, id }),
+    openFolder: () => call("plugins:openFolder"),
+  },
   playit: {
     status: () => call("playit:status"),
     setSecret: (secret) => call("playit:setSecret", { secret }),
@@ -221,7 +231,8 @@ contextBridge.exposeInMainWorld("lodestone", {
       "cloud:auth", "cloud:friends", "cloud:presence", "cloud:message", "cloud:sync",
       "pack:shared", "pack:joined", "pack:published", "pack:applied", "pack:left", "pack:error",
       "seed:progress", "notify", "lan:found", "pregen:log", "pregen:state",
-      "publish:phase", "publish:log", "exaroton:log", "playit:log", "playit:state"];
+      "publish:phase", "publish:log", "exaroton:log", "playit:log", "playit:state",
+      "plugins:changed", "plugin:log", "plugin:navigate"];
     if (!allowed.includes(channel)) return () => {};
     const handler = (_e, payload) => fn(payload);
     ipcRenderer.on(channel, handler);

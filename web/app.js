@@ -935,6 +935,244 @@ async function openPublishModal(inst) {
   };
 }
 
+// ---------- Plugins ----------
+// Ports the Mac's PluginsView. Two tabs: what's installed (toggle, remove, see
+// what each contributes and what it's allowed to do) and the community list
+// (install straight from a GitHub release), plus manual install by repo.
+let pluginTab = "installed";
+let pluginCommunityCache = null;
+
+const PLUGIN_PERMS = {
+  network:   { label: "Network",          blurb: "Make web requests to any URL." },
+  instances: { label: "Read instances",   blurb: "See your list of instances." },
+  launch:    { label: "Launch the game",  blurb: "Start Minecraft for an instance." },
+  storage:   { label: "Save plugin data", blurb: "Persist its own settings/data." },
+  ui:        { label: "Navigate the app", blurb: "Switch between app sections." },
+};
+
+async function renderPlugins() {
+  el().innerHTML = `<div class="placeholder">${ico("i-stack")}<h2>Loading…</h2></div>`;
+  const installed = await API.plugins.list();
+
+  el().innerHTML = `
+    <div class="page-head">
+      <h1 class="page-title pix-title">Plugins</h1>
+      <span class="page-count">Themes, tabs, commands and JavaScript</span>
+      <div class="head-actions">
+        <button class="gh" id="pg-folder">${ico("i-grid")} Folder</button>
+        <button class="gh" id="pg-manual">${ico("i-plus")} Install from GitHub</button>
+      </div>
+    </div>
+    <div class="seg plugin-seg">
+      <button class="${pluginTab === "installed" ? "on" : ""}" data-ptab="installed">Installed${installed.length ? ` (${installed.length})` : ""}</button>
+      <button class="${pluginTab === "browse" ? "on" : ""}" data-ptab="browse">Browse</button>
+    </div>
+    <div id="pg-body"></div>`;
+
+  document.getElementById("pg-folder").onclick = () => API.plugins.openFolder();
+  document.getElementById("pg-manual").onclick = () => openPluginInstallSheet();
+  el().querySelectorAll("[data-ptab]").forEach((b) => b.onclick = () => { pluginTab = b.dataset.ptab; renderPlugins(); });
+
+  if (pluginTab === "installed") renderPluginsInstalled(installed);
+  else renderPluginsBrowse(installed);
+}
+
+function pluginContributes(p) {
+  const m = p.manifest || {};
+  const bits = [];
+  if ((m.themes || []).length) bits.push(`${m.themes.length} theme${m.themes.length === 1 ? "" : "s"}`);
+  if ((m.tabs || []).length) bits.push(`${m.tabs.length} tab${m.tabs.length === 1 ? "" : "s"}`);
+  if (p.isCode) bits.push("JavaScript");
+  return bits.join(" · ") || "Nothing yet";
+}
+
+function renderPluginsInstalled(installed) {
+  const body = document.getElementById("pg-body");
+  if (!installed.length) {
+    body.innerHTML = `
+      <div class="srv-empty">
+        <span class="srv-empty-ico">${ico("i-stack")}</span>
+        <div class="kick">No plugins yet</div>
+        <p>Plugins add themes, tabs and commands. Browse the community list, or drop a folder
+           into the plugins directory yourself.</p>
+        <button class="gh" id="pg-browse2">${ico("i-search")} Browse plugins</button>
+      </div>`;
+    const b = document.getElementById("pg-browse2");
+    if (b) b.onclick = () => { pluginTab = "browse"; renderPlugins(); };
+    return;
+  }
+
+  body.innerHTML = `<div class="plugin-list">${installed.map((p) => {
+    const m = p.manifest || {};
+    return `
+    <div class="plugin-card${p.enabled ? "" : " is-off"}">
+      <div class="plugin-h">
+        <b>${esc(m.name || p.id)}</b>
+        ${m.version ? `<span class="host-badge">v${esc(m.version)}</span>` : ""}
+        ${p.isCode ? `<span class="host-badge">JS</span>` : ""}
+        <span class="host-spacer"></span>
+        <label class="switch" title="${p.enabled ? "Disable" : "Enable"}">
+          <input type="checkbox" data-pgtoggle="${esc(p.id)}" ${p.enabled ? "checked" : ""}>
+          <span class="switch-track"></span>
+        </label>
+      </div>
+      ${m.description ? `<p class="host-blurb">${esc(m.description)}</p>` : ""}
+      <p class="host-note">${m.author ? `by ${esc(m.author)} · ` : ""}Adds: ${esc(pluginContributes(p))}</p>
+      ${p.permissions.length ? `
+        <div class="plugin-perms">
+          ${p.permissions.map((k) => `<span class="perm" title="${esc((PLUGIN_PERMS[k] || {}).blurb || "")}">${esc((PLUGIN_PERMS[k] || {}).label || k)}</span>`).join("")}
+        </div>` : ""}
+      <div class="host-row">
+        ${m.repo ? `<button class="btn-soft" data-pgupdate="${esc(m.repo)}">${ico("i-refresh")} Update</button>` : ""}
+        <span class="host-spacer"></span>
+        <button class="btn-soft danger" data-pgremove="${esc(p.id)}">Remove</button>
+      </div>
+    </div>`;
+  }).join("")}</div>`;
+
+  body.querySelectorAll("[data-pgtoggle]").forEach((c) => c.onchange = async () => {
+    await API.plugins.setEnabled(c.dataset.pgtoggle, c.checked);
+    toast(c.checked ? "Plugin enabled." : "Plugin disabled.");
+    renderPlugins(); refreshPluginNav();
+  });
+  body.querySelectorAll("[data-pgupdate]").forEach((b) => b.onclick = async () => {
+    b.disabled = true; b.innerHTML = `<span class="spinner"></span> Updating…`;
+    try { const m = await API.plugins.install(b.dataset.pgupdate); toast(`Updated ${m.name}.`); renderPlugins(); refreshPluginNav(); }
+    catch (e) { b.disabled = false; b.innerHTML = `${ico("i-refresh")} Update`; toast(e.message); }
+  });
+  body.querySelectorAll("[data-pgremove]").forEach((b) => b.onclick = async () => {
+    if (!confirm("Remove this plugin? Its folder goes to the Recycle Bin, so you can put it back.")) return;
+    await API.plugins.remove(b.dataset.pgremove);
+    toast("Plugin removed."); renderPlugins(); refreshPluginNav();
+  });
+}
+
+async function renderPluginsBrowse(installed) {
+  const body = document.getElementById("pg-body");
+  body.innerHTML = `<div class="share-loading"><span class="spinner"></span> Loading the community list…</div>`;
+  let list = pluginCommunityCache;
+  if (!list) {
+    try { list = await API.plugins.community(); pluginCommunityCache = list; }
+    catch (e) {
+      body.innerHTML = `<p class="host-err">Couldn't load the plugin list: ${esc(e.message)}</p>`;
+      return;
+    }
+  }
+  if (!list.length) {
+    body.innerHTML = `<p class="host-note">The community list is empty right now.</p>`;
+    return;
+  }
+  const have = new Set(installed.map((p) => p.id));
+  body.innerHTML = `<div class="plugin-list">${list.map((e) => `
+    <div class="plugin-card">
+      <div class="plugin-h">
+        <b>${esc(e.name)}</b>
+        <span class="host-spacer"></span>
+        ${have.has(e.id)
+          ? `<span class="host-badge accent">Installed</span>`
+          : `<button class="btn-accent share-btn" data-pginstall="${esc(e.repo)}">Install</button>`}
+      </div>
+      <p class="host-blurb">${esc(e.description || "")}</p>
+      <p class="host-note">by ${esc(e.author || "unknown")} · ${esc(e.repo)}</p>
+    </div>`).join("")}</div>`;
+
+  body.querySelectorAll("[data-pginstall]").forEach((b) => b.onclick = async () => {
+    b.disabled = true; b.innerHTML = `<span class="spinner"></span>`;
+    try { const m = await API.plugins.install(b.dataset.pginstall); toast(`Installed ${m.name}.`); renderPlugins(); refreshPluginNav(); }
+    catch (e) { b.disabled = false; b.textContent = "Install"; toast(e.message); }
+  });
+}
+
+function openPluginInstallSheet() {
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-plus")} Install from GitHub</div>
+      <p class="share-sub">Paste the repo that publishes the plugin. Its latest release needs a
+        <code>manifest.json</code> asset alongside the plugin's files.</p>
+      <input id="pg-repo" class="inp" placeholder="owner/repository">
+      <p class="share-note">A plugin runs code inside Lodestone. Install ones you trust.</p>
+      <div class="np-actions">
+        <button class="btn-ghost" id="pg-cancel">Cancel</button>
+        <button class="btn-accent share-btn" id="pg-go">Install</button>
+      </div>
+    </div>`);
+  document.getElementById("pg-cancel").onclick = hideModal;
+  document.getElementById("pg-go").onclick = async (e) => {
+    const repo = document.getElementById("pg-repo").value.trim();
+    if (!repo) return;
+    const btn = e.currentTarget; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Installing…`;
+    try {
+      const m = await API.plugins.install(repo);
+      hideModal(); toast(`Installed ${m.name}.`); renderPlugins(); refreshPluginNav();
+    } catch (err) { btn.disabled = false; btn.textContent = "Install"; toast(err.message); }
+  };
+}
+
+// ---------- Plugin-contributed tabs (PluginWebView parity) ----------
+// A plugin tab is rendered in a sandboxed <iframe srcdoc> — plugin markup must
+// never share the app's DOM, where it could read the page or reach our bridge.
+// "note" tabs are plain text, "link" tabs open in the real browser rather than
+// embedding an arbitrary site inside the app.
+let pluginNavItems = [];
+
+async function refreshPluginNav() {
+  const nav = document.getElementById("plugin-nav");
+  if (!nav) return;
+  const { tabs } = await API.plugins.contributions();
+  pluginNavItems = tabs || [];
+  nav.innerHTML = pluginNavItems.map((t) => `
+    <button class="nav-item" data-section="plugintab:${esc(t.id)}">
+      <svg class="ico"><use href="#i-stack"/></svg><span>${esc(t.title)}</span>
+    </button>`).join("");
+  nav.querySelectorAll("[data-section]").forEach((b) => b.onclick = () => navigate(b.dataset.section));
+}
+
+function renderPluginTab(tabId) {
+  const tab = pluginNavItems.find((t) => t.id === tabId);
+  if (!tab) { el().innerHTML = placeholder("Plugin tab"); return; }
+
+  if (tab.kind === "link" && tab.url) {
+    el().innerHTML = `
+      <div class="page-head"><h1 class="page-title pix-title">${esc(tab.title)}</h1></div>
+      <div class="srv-empty">
+        <span class="srv-empty-ico">${ico("i-globe")}</span>
+        <p>${esc(tab.url)}</p>
+        <button class="gh" id="pt-open">${ico("i-arrow-right")} Open in your browser</button>
+      </div>`;
+    document.getElementById("pt-open").onclick = () => API.openExternal(tab.url);
+    return;
+  }
+
+  const html = tab.kind === "note"
+    ? `<pre>${esc(tab.content || "")}</pre>`
+    : (tab.html || "");
+
+  el().innerHTML = `
+    <div class="page-head"><h1 class="page-title pix-title">${esc(tab.title)}</h1></div>
+    <iframe class="plugin-frame" sandbox="allow-scripts" srcdoc="${esc(pluginTabDocument(html))}"></iframe>`;
+}
+
+// Wrap a plugin's markup in a themed document so a bare <h1> still looks like it
+// belongs. A full document is passed through untouched.
+function pluginTabDocument(html) {
+  const lower = String(html).toLowerCase();
+  if (lower.includes("<!doctype") || lower.includes("<html")) return html;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+    :root { color-scheme: dark; }
+    html,body { margin:0; }
+    body { padding:22px; background:#14150F; color:rgba(232,236,227,0.92);
+           font:13px/1.55 ui-sans-serif, system-ui, sans-serif; }
+    h1,h2,h3 { color:#F2F4EE; font-weight:700; }
+    a { color:#8EC44F; }
+    button { font:inherit; font-weight:600; color:#14150F; background:#8EC44F;
+             border:0; border-radius:0; padding:8px 14px; cursor:pointer; }
+    button:active { opacity:.8; }
+    .card { background:rgba(232,236,227,0.05); border:1px solid rgba(232,236,227,0.1); padding:14px; }
+    code,pre { font-family: ui-monospace, monospace; color:rgba(232,236,227,0.7); }
+    pre { white-space: pre-wrap; word-break: break-word; }
+  </style></head><body>${html}</body></html>`;
+}
+
 // ---------- Where to host ----------
 // Ports the Mac's CloudHostingSheet. Self-hosting is what almost everyone wants,
 // so it IS the default view; tunnels and third-party clouds sit behind a
@@ -2505,7 +2743,8 @@ function navigate(section) {
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("is-active", b.dataset.section === section));
   document.querySelectorAll(".pin-item").forEach((b) => b.classList.remove("is-active"));
   if (section === "discover") discoverTarget = null;   // Discover = browse for any instance
-  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, cloud: renderCloud, friends: renderFriends, squads: renderSquads, settings: renderSettings, game: renderGameSettings, keybinds: renderKeybinds, skins: renderSkins, storage: renderStorage, stats: renderStats }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
+  if (section.startsWith("plugintab:")) return renderPluginTab(section.slice("plugintab:".length));
+  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, cloud: renderCloud, friends: renderFriends, squads: renderSquads, settings: renderSettings, game: renderGameSettings, keybinds: renderKeybinds, skins: renderSkins, storage: renderStorage, stats: renderStats, plugins: renderPlugins }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
 }
 
 // ---- PINNED sidebar block ----
@@ -5679,6 +5918,16 @@ function setupUpdates() {
 document.querySelectorAll(".nav-item").forEach((btn) => btn.addEventListener("click", () => navigate(btn.dataset.section)));
 renderAccount();
 renderPinned();
+// Plugin tabs appear in the sidebar as soon as their plugin loads, and again
+// whenever a code plugin registers one at runtime.
+refreshPluginNav();
+if (window.API && API.on) {
+  try {
+    API.on("plugins:changed", () => refreshPluginNav());
+    API.on("plugin:navigate", (p) => { if (p && p.section) navigate(p.section); });
+    API.on("plugin:log", (p) => console.log(`[plugin ${p.pluginId}]`, p.line));
+  } catch { /* non-desktop build */ }
+}
 maybeOnboard();
 setupLaunchOverlay();
 setupUpdates();

@@ -1799,3 +1799,34 @@ textarea.inp, .share-box {
 .host-pick:hover { background: var(--fill-hover); border-color: var(--accent); }
 .host-pick b { font-size:12.5px; font-weight:600; }
 .host-pick span { font-size:11px; color: var(--text-tertiary); }
+
+/* ---------- Plugins (PluginsView parity) ---------- */
+.plugin-seg { max-width: 320px; margin: 4px 0 16px; }
+
+.plugin-list { display:flex; flex-direction:column; gap:10px; }
+.plugin-card { background: var(--voxel-elev); border:1px solid var(--stroke); border-radius:0;
+  box-shadow: var(--voxel-bevel); padding:13px 14px; }
+/* A disabled plugin stays legible but visibly inert — greying it out entirely
+   would hide the very toggle you need to turn it back on. */
+.plugin-card.is-off { opacity:.62; }
+.plugin-h { display:flex; align-items:center; gap:8px; }
+.plugin-h b { font-family: var(--font-display); font-weight:600; font-size:13.5px; color: var(--text-primary); }
+
+.plugin-perms { display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+.perm { font-size:10.5px; color: var(--text-secondary); border:1px solid var(--stroke);
+  padding:3px 7px; border-radius:0; cursor:help; }
+
+/* A plugin's own markup renders in a sandboxed frame, never in the app's DOM. */
+.plugin-frame { width:100%; height: calc(100vh - 190px); border:1px solid var(--stroke);
+  background: var(--voxel-bg); }
+
+/* Switch — the toggle used on plugin cards. Square, like everything else here. */
+.switch { position:relative; display:inline-flex; width:36px; height:20px; flex:0 0 36px; cursor:pointer; }
+.switch input { position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; }
+.switch-track { position:absolute; inset:0; background: var(--deepslate-1); border:1px solid var(--edge);
+  transition: background-color .14s ease, border-color .14s ease; }
+.switch-track::after { content:""; position:absolute; top:2px; left:2px; width:14px; height:14px;
+  background: var(--text-tertiary); transition: transform .14s ease, background-color .14s ease; }
+.switch input:checked + .switch-track { background: var(--glint-fill-hard); border-color: var(--accent); }
+.switch input:checked + .switch-track::after { transform: translateX(16px); background: var(--accent); }
+.switch input:focus-visible + .switch-track { box-shadow: 0 0 0 3px var(--glint-fill); }

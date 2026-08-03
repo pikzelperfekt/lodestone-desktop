@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <!-- The plugin host renders nothing. Its only job is to be a JS environment
+       with no DOM worth attacking and no network of its own: a strict CSP means
+       a plugin cannot pull remote script into this context, so everything it
+       does has to go through the `lodestone` bridge (which the main process
+       permission-checks). -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'">
+  <title>Lodestone plugin host</title>
+</head>
+<body>
+<script>
+  // main sends the plugin's code once the window is ready. It is evaluated in a
+  // function scope with `lodestone` in view, so a plugin's top-level `var`s stay
+  // out of the global object.
+  window.addEventListener("message", (event) => {
+    if (!event.data || event.data.type !== "run") return;
+    try {
+      // eslint-disable-next-line no-new-func
+      new Function("lodestone", event.data.code)(window.lodestone);
+      window.lodestone.log("loaded");
+    } catch (err) {
+      window.lodestone.log("failed to load: " + (err && err.message ? err.message : String(err)));
+    }
+  });
+</script>
+</body>
+</html>

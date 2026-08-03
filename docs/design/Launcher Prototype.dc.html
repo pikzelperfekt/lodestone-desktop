@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="stylesheet" href="_ds/nocturne-8e31c8a4-0527-43d5-8f33-998b02242588/styles.css">
+<script src="_ds/nocturne-8e31c8a4-0527-43d5-8f33-998b02242588/_ds_bundle.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Figtree:wght@400;500;600&family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&family=Silkscreen:wght@400;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<script src="./image-slot.js"></script>
+<style>
+:root{
+--a-bg:#161826;--a-side:#13141f;--a-elev:#232532;--a-bar:#1b1d2c;--a-text:#e9e9ed;--a-muted:#8f93a6;
+--a-line:rgba(233,233,237,.13);--a-hair:rgba(233,233,237,.07);--a-hover:rgba(233,233,237,.05);
+--a-accent:#9184d9;--a-soft:rgba(145,132,217,.16);--a-ink:#161826;--a-glow:0 6px 20px rgba(145,132,217,.28);
+--a-r:10px;--a-rs:7px;--a-pill:8px;--a-font:"Inter",system-ui,sans-serif;--a-head:"Inter",system-ui,sans-serif;
+--a-hw:500;--a-hls:-.02em;--a-hcase:none;--a-frame:0 0 0 1px rgba(233,233,237,.10),0 18px 46px rgba(0,0,0,.6);
+--a-bevel:none;--a-tex:none;--a-barfill:var(--a-accent);
+}
+[data-theme="voxel"]{
+--a-bg:#1b1f1a;--a-side:#161a15;--a-elev:#242a21;--a-bar:#20251d;--a-text:#e8ece3;--a-muted:#9aa591;
+--a-line:rgba(232,236,227,.17);--a-hair:rgba(232,236,227,.1);--a-hover:rgba(142,196,79,.13);
+--a-accent:#8ec44f;--a-soft:rgba(142,196,79,.15);--a-ink:#16200e;--a-glow:0 7px 20px rgba(142,196,79,.24);
+--a-r:0px;--a-rs:0px;--a-pill:0px;--a-font:"Inter",system-ui,sans-serif;--a-head:"Inter",system-ui,sans-serif;
+--a-hw:500;--a-hls:-.01em;--a-hcase:none;
+--a-frame:0 0 0 2px #0e110d,0 0 0 3px rgba(232,236,227,.15),0 22px 54px rgba(0,0,0,.6);
+--a-bevel:inset 0 1px 0 rgba(255,255,255,.26),inset 2px 0 0 rgba(255,255,255,.07),inset -2px 0 0 rgba(0,0,0,.16),inset 0 -2px 0 rgba(0,0,0,.34);
+--a-pix:"Silkscreen",monospace;
+--a-tex:radial-gradient(46% 34% at 88% -4%,rgba(255,238,196,.06),transparent 72%),repeating-linear-gradient(0deg,rgba(255,255,255,.019) 0 1px,transparent 1px 16px),repeating-linear-gradient(90deg,rgba(255,255,255,.019) 0 1px,transparent 1px 16px);
+--a-barfill:repeating-linear-gradient(90deg,var(--a-accent) 0 5px,transparent 5px 7px);
+}
+[data-theme="ash"]{
+--a-bg:#262935;--a-side:#20222d;--a-elev:#343849;--a-bar:#2c2f3c;--a-text:#eceef6;--a-muted:#a2a7bb;
+--a-line:rgba(236,238,246,.15);--a-hair:rgba(236,238,246,.08);--a-hover:rgba(236,238,246,.06);
+--a-accent:#b5abfc;--a-soft:rgba(181,171,252,.17);--a-ink:#1c1e29;--a-glow:0 6px 20px rgba(181,171,252,.24);
+--a-r:12px;--a-rs:8px;--a-pill:10px;--a-font:"Inter",system-ui,sans-serif;--a-head:"Inter",system-ui,sans-serif;
+--a-hw:500;--a-hls:-.02em;--a-hcase:none;--a-frame:0 0 0 1px rgba(236,238,246,.12),0 18px 46px rgba(0,0,0,.5);
+}
+[data-theme="ember"]{
+--a-bg:#24201c;--a-side:#1e1a17;--a-elev:#332c26;--a-bar:#2a2521;--a-text:#f4ebde;--a-muted:#a8998a;
+--a-line:rgba(244,235,222,.15);--a-hair:rgba(244,235,222,.08);--a-hover:rgba(217,140,80,.12);
+--a-accent:#d98c50;--a-soft:rgba(217,140,80,.17);--a-ink:#24201c;--a-glow:0 8px 24px rgba(217,140,80,.26);
+--a-r:16px;--a-rs:13px;--a-pill:999px;--a-font:"Figtree",system-ui,sans-serif;--a-head:"Caprasimo",serif;
+--a-hw:400;--a-hls:0;--a-hcase:none;--a-frame:0 0 0 1px rgba(244,235,222,.11),0 18px 46px rgba(0,0,0,.55);
+}
+[data-theme="blueprint"]{
+--a-bg:#2a2d31;--a-side:#23262a;--a-elev:#383c42;--a-bar:#303439;--a-text:#edeff1;--a-muted:#9ba2a9;
+--a-line:rgba(237,239,241,.17);--a-hair:rgba(237,239,241,.09);--a-hover:rgba(143,179,214,.11);
+--a-accent:#8fb3d6;--a-soft:rgba(143,179,214,.15);--a-ink:#22252a;--a-glow:none;
+--a-r:4px;--a-rs:4px;--a-pill:4px;--a-font:"Barlow",system-ui,sans-serif;--a-head:"Barlow Condensed",sans-serif;
+--a-hw:600;--a-hls:.03em;--a-hcase:uppercase;--a-frame:0 0 0 1px rgba(237,239,241,.16),0 18px 46px rgba(0,0,0,.5);
+}
+body{margin:0;background:#0b0c11;display:grid;place-items:center;min-height:100vh;font-family:var(--a-font)}
+a{color:var(--a-accent);text-decoration:none}
+a:hover{opacity:.8}
+.app *{box-sizing:border-box}
+.h{font-family:var(--a-head);font-weight:var(--a-hw);letter-spacing:var(--a-hls);text-transform:var(--a-hcase);line-height:1.1;margin:0}
+.kick{font:600 10px/1 var(--a-font);letter-spacing:.09em;text-transform:uppercase;color:var(--a-muted)}
+.nav{display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:var(--a-rs);font-size:13.5px;color:var(--a-muted);cursor:pointer;border:0;background:none;width:100%;text-align:left;font-family:var(--a-font)}
+.nav:hover{background:var(--a-hover);color:var(--a-text)}
+.nav[data-on]{background:var(--a-soft);color:var(--a-accent);font-weight:500}
+.nav i{font-size:16px}
+.play{display:inline-flex;align-items:center;justify-content:center;gap:9px;border:0;cursor:pointer;background:var(--a-accent);color:var(--a-ink);border-radius:var(--a-pill);font-family:var(--a-head);font-weight:var(--a-hw);letter-spacing:var(--a-hls);text-transform:var(--a-hcase);box-shadow:var(--a-glow);transition:transform .12s ease,filter .12s ease}
+.play:hover{filter:brightness(1.08)}
+.play:active{transform:scale(.98)}
+.play:disabled{opacity:.5;cursor:default;box-shadow:none}
+.gh{display:inline-flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;background:transparent;color:var(--a-text);border:1px solid var(--a-line);border-radius:var(--a-pill);font:500 12.5px var(--a-font);padding:0 13px;height:30px;transition:background .12s ease}
+.gh:hover{background:var(--a-hover)}
+.gh[data-on]{border-color:var(--a-accent);color:var(--a-accent)}
+.ico{width:30px;height:30px;padding:0;flex:none}
+.seg{display:inline-flex;border:1px solid var(--a-line);border-radius:var(--a-pill);overflow:hidden;height:30px}
+.seg button{width:34px;border:0;background:transparent;color:var(--a-muted);cursor:pointer;display:grid;place-items:center;font-size:15px}
+.seg button+button{border-left:1px solid var(--a-line)}
+.seg button[data-on]{background:var(--a-soft);color:var(--a-accent)}
+.tab{border:0;background:none;cursor:pointer;font:400 13.5px var(--a-font);color:var(--a-muted);padding:0 0 10px;font-family:var(--a-font)}
+.tab[data-on]{color:var(--a-accent);box-shadow:inset 0 -2px 0 var(--a-accent)}
+.tile{display:flex;flex-direction:column;gap:8px;cursor:pointer;border:0;background:none;padding:0;text-align:left;font-family:var(--a-font)}
+.tile .art{position:relative;height:118px;border-radius:var(--a-r);overflow:hidden;background:var(--a-elev);transition:transform .14s ease,box-shadow .14s ease}
+.tile:hover .art{transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,.25)}
+.tile .ov{position:absolute;inset:0;display:grid;place-items:center;background:rgba(10,11,16,.45);opacity:0;transition:opacity .14s ease}
+.tile:hover .ov{opacity:1}
+.lrow{display:flex;align-items:center;gap:16px;padding:13px 26px;border-bottom:1px solid var(--a-hair);cursor:pointer;background:none;border-left:0;border-right:0;border-top:0;width:100%;text-align:left;font-family:var(--a-font);color:var(--a-text)}
+.lrow:hover{background:var(--a-hover)}
+.lrow[data-on]{background:var(--a-soft)}
+.mrow{display:flex;align-items:center;gap:14px;padding:11px 24px;border-bottom:1px solid var(--a-hair);cursor:pointer;width:100%;text-align:left;background:none;border-left:0;border-right:0;border-top:0;font-family:var(--a-font);color:var(--a-text)}
+.mrow:hover{background:var(--a-hover)}
+.mrow[data-on]{background:var(--a-soft)}
+.mi{width:34px;height:34px;border-radius:var(--a-rs);flex:none;background:var(--a-elev);display:grid;place-items:center;color:var(--a-muted);font-size:15px}
+.sw{width:34px;height:20px;border-radius:999px;flex:none;position:relative;background:var(--a-accent);border:0;cursor:pointer;padding:0;transition:background .14s ease}
+.sw::after{content:"";position:absolute;top:2px;left:16px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .14s ease}
+.sw[data-off]{background:var(--a-muted);opacity:.45}
+.sw[data-off]::after{left:2px}
+.inp{height:32px;border-radius:var(--a-pill);border:1px solid var(--a-line);background:var(--a-elev);color:var(--a-text);padding:0 12px;font:400 13px var(--a-font);outline:none;width:100%}
+.inp:focus-visible{border-color:var(--a-accent);outline:none}
+.sw-th{width:18px;height:18px;border-radius:50%;border:1px solid var(--a-line);cursor:pointer;padding:0}
+.sw-th[data-on]{box-shadow:0 0 0 2px var(--a-bar),0 0 0 3.5px var(--a-accent)}
+.muted{color:var(--a-muted)}
+@keyframes barpulse{0%,100%{opacity:.75}50%{opacity:1}}
+@keyframes fadeup{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.scr{flex:1;min-height:0;display:flex;flex-direction:column;animation:fadeup .3s cubic-bezier(.2,.8,.25,1) both}
+.panel{position:relative;overflow:hidden;background:var(--a-elev);border:1px solid var(--a-hair);border-radius:var(--a-r);padding:0;cursor:pointer;text-align:left;font-family:var(--a-font);color:var(--a-text);transition:transform .16s cubic-bezier(.2,.8,.25,1),box-shadow .16s ease}
+.panel:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(0,0,0,.32)}
+.strip{height:4px;width:100%;flex:none}
+.imgbox{position:relative;overflow:hidden;background:var(--a-side);box-shadow:inset 0 0 0 1px var(--a-hair)}
+[data-theme="voxel"] .imgbox{box-shadow:inset 0 2px 0 rgba(0,0,0,.34),inset 2px 0 0 rgba(0,0,0,.18),inset -2px 0 0 rgba(255,255,255,.05),inset 0 -1px 0 rgba(255,255,255,.09)}
+.chip2{display:inline-flex;align-items:center;height:27px;padding:0 12px;border-radius:var(--a-pill);background:rgba(255,255,255,.1);backdrop-filter:blur(6px);font-size:11.5px}
+.bar{height:3px;border-radius:999px;background:var(--a-hair);overflow:hidden;width:100%}
+.bar i{display:block;height:100%;background:var(--a-barfill);opacity:.9}
+.rail{display:flex;gap:14px;overflow-x:auto;overflow-y:hidden;padding:2px 0 8px}
+.rcard{width:178px;flex:none;border-radius:var(--a-r);overflow:hidden;background:var(--a-elev);border:0;padding:0;cursor:pointer;text-align:left;font-family:var(--a-font);color:var(--a-text);transition:transform .16s cubic-bezier(.2,.8,.25,1),box-shadow .16s ease}
+.rcard:hover{transform:translateY(-3px);box-shadow:0 14px 28px rgba(0,0,0,.4)}
+.pdot{width:7px;height:7px;border-radius:50%;flex:none}
+[data-theme="voxel"] .pdot{border-radius:0}
+[data-theme="voxel"] .gh,[data-theme="voxel"] .seg,[data-theme="voxel"] .rcard,[data-theme="voxel"] .mi,[data-theme="voxel"] .inp,[data-theme="voxel"] .chip2{box-shadow:var(--a-bevel)}
+[data-theme="voxel"] .gh,[data-theme="voxel"] .chip2{background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(0,0,0,.14))}
+[data-theme="voxel"] .play{box-shadow:var(--a-bevel),var(--a-glow);background:linear-gradient(180deg,color-mix(in srgb,var(--a-accent) 74%,#fff),var(--a-accent) 62%,color-mix(in srgb,var(--a-accent) 88%,#000))}
+[data-theme="voxel"] .play:active{transform:translateY(2px);box-shadow:var(--a-bevel)}
+[data-theme="voxel"] .kick{font-family:var(--a-pix);letter-spacing:.01em;font-weight:400;font-size:9.5px}
+[data-theme="voxel"] .pix{font-family:var(--a-pix);letter-spacing:0;font-weight:400;line-height:1.25}
+[data-theme="voxel"] .hero-title{font-size:33px}
+[data-theme="voxel"] .panel{border:0;box-shadow:var(--a-bevel)}
+[data-theme="voxel"] .panel:hover{transform:none;box-shadow:var(--a-bevel),0 0 0 2px var(--a-accent)}
+.hero-title{font-size:44px}
+.tex{position:absolute;inset:0;pointer-events:none;background:var(--a-tex);z-index:3}
+</style>
+</helmet>
+
+<div class="app" data-theme="{{ theme }}" style="position:relative;width:1120px;height:720px;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(255,255,255,.05),transparent 30%),radial-gradient(72% 52% at 86% -12%,var(--a-soft),transparent 70%),var(--a-bg);color:var(--a-text);border-radius:14px;overflow:hidden;box-shadow:var(--a-frame);font-family:var(--a-font);font-size:14px">
+
+  <div class="tex"></div>
+  <div style="height:48px;flex:none;display:flex;align-items:center;gap:12px;padding:0 14px;background:var(--a-bar);border-bottom:1px solid var(--a-hair);box-shadow:inset 0 1px 0 rgba(255,255,255,.09)">
+    <div style="display:flex;gap:8px;flex:none"><i style="display:block;width:11px;height:11px;border-radius:50%;background:#ff5f57"></i><i style="display:block;width:11px;height:11px;border-radius:50%;background:#febc2e"></i><i style="display:block;width:11px;height:11px;border-radius:50%;background:#28c840"></i></div>
+    <div style="flex:1"></div>
+    <span class="kick" style="font-size:9.5px">Theme</span>
+    <div style="display:flex;gap:7px;align-items:center">
+      <button class="sw-th" data-on="{{ thVoxel }}" onClick="{{ pickVoxel }}" style="background:#8ec44f" title="Voxel — blocky, nostalgic"></button>
+      <button class="sw-th" data-on="{{ thNocturne }}" onClick="{{ pickNocturne }}" style="background:#9184d9" title="Nocturne — deepest"></button>
+      <button class="sw-th" data-on="{{ thAsh }}" onClick="{{ pickAsh }}" style="background:#b5abfc" title="Ash — lifted blue-grey"></button>
+      <button class="sw-th" data-on="{{ thEmber }}" onClick="{{ pickEmber }}" style="background:#d98c50" title="Ember — warm, rounded, Caprasimo"></button>
+      <button class="sw-th" data-on="{{ thBlueprint }}" onClick="{{ pickBlueprint }}" style="background:#8fb3d6" title="Blueprint — steel, condensed, square"></button>
+      <span style="font-size:11px;color:var(--a-muted);margin-left:4px">{{ themeName }}</span>
+    </div>
+  </div>
+
+  <div style="flex:1;display:flex;min-height:0">
+
+    <div style="width:216px;flex:none;background:linear-gradient(180deg,rgba(255,255,255,.055),transparent 38%),var(--a-side);border-right:1px solid var(--a-hair);display:flex;flex-direction:column;padding:10px 9px">
+      <button class="nav" data-on="{{ onHome }}" onClick="{{ goHome }}"><i class="ph ph-play"></i>Play</button>
+      <button class="nav" data-on="{{ onInstances }}" onClick="{{ goInstances }}"><i class="ph ph-squares-four"></i>Instances</button>
+      <button class="nav" data-on="{{ onBrowse }}" onClick="{{ goBrowse }}"><i class="ph ph-puzzle-piece"></i>Add mods</button>
+      <div class="kick" style="padding:18px 11px 8px">Pinned</div>
+      <sc-for list="{{ pinned }}" as="p" hint-placeholder-count="3">
+        <button class="nav" data-on="{{ p.on }}" onClick="{{ p.open }}"><span class="pdot" style="background:{{ p.dot }}"></span>{{ p.short }}</button>
+      </sc-for>
+      <div style="flex:1"></div>
+      <div class="nav" style="cursor:default"><i class="ph ph-user-circle" style="font-size:19px"></i>Steve_Builds</div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+
+      <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+      <div class="scr">
+        <div class="imgbox" style="height:352px;flex:none">
+          <image-slot id="{{ cur.slot }}" shape="rect" placeholder="Drop a screenshot"></image-slot>
+          <div style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top,var(--a-bg) 2%,rgba(0,0,0,.34) 56%,rgba(0,0,0,0) 92%)"></div>
+          <div style="position:absolute;left:34px;right:34px;bottom:28px;display:flex;align-items:flex-end;gap:18px">
+            <div style="flex:1;min-width:0">
+              <div class="kick">Last played · {{ cur.played }}</div>
+              <div class="h pix hero-title" style="margin-top:13px">{{ cur.name }}</div>
+              <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+                <span class="chip2">{{ cur.version }}</span>
+                <span class="chip2">{{ cur.loaderShort }}</span>
+                <span class="chip2">{{ cur.modCount }} mods</span>
+                <span class="chip2">{{ cur.hours }} h played</span>
+              </div>
+            </div>
+            <button class="play" style="height:54px;padding:0 36px;font-size:16px" onClick="{{ play }}" disabled="{{ busy }}"><i class="ph ph-play" style="font-size:17px"></i>{{ playLabel }}</button>
+            <button class="gh ico" style="width:54px;height:54px" onClick="{{ openCurrent }}"><i class="ph ph-sliders-horizontal" style="font-size:17px"></i></button>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;padding:24px 34px;display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:baseline;gap:10px">
+            <span class="kick">Jump back in</span>
+            <div style="flex:1"></div>
+            <button class="gh" style="height:26px;font-size:11.5px" onClick="{{ goInstances }}">All instances</button>
+          </div>
+          <div class="rail">
+            <sc-for list="{{ instances }}" as="it" hint-placeholder-count="5">
+              <button class="panel" style="width:190px;flex:none;display:flex;flex-direction:column" onClick="{{ it.open }}">
+                <div class="strip" style="background:{{ it.dot }}"></div>
+                <div class="imgbox" style="height:96px"><image-slot id="{{ it.slot }}" shape="rect" placeholder=""></image-slot></div>
+                <div style="padding:13px 14px 14px;display:flex;flex-direction:column;gap:8px">
+                  <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.name }}</div>
+                  <div style="font-size:11px;color:var(--a-muted)">{{ it.played }}</div>
+                  <div class="bar"><i style="width:{{ it.pct }}%"></i></div>
+                </div>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isInstances }}">
+      <div class="scr">
+        <div style="padding:22px 26px 16px;display:flex;align-items:center;gap:12px">
+          <div class="h" style="font-size:25px">Instances</div>
+          <span style="font-size:12px;color:var(--a-muted)">{{ instCount }}</span>
+          <div style="flex:1"></div>
+          <span style="font-size:12px;color:var(--a-muted)">Sort: last played</span>
+          <div class="seg">
+            <button data-on="{{ isList }}" onClick="{{ setList }}"><i class="ph ph-list"></i></button>
+            <button data-on="{{ isGrid }}" onClick="{{ setGrid }}"><i class="ph ph-squares-four"></i></button>
+          </div>
+          <button class="gh"><i class="ph ph-plus"></i>New</button>
+        </div>
+        <sc-if value="{{ isGrid }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;min-height:0;overflow:auto;padding:0 26px 20px;display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:min-content;gap:22px 18px;align-content:start">
+          <sc-for list="{{ instances }}" as="it" hint-placeholder-count="6">
+            <button class="panel" style="display:flex;flex-direction:column" onClick="{{ it.open }}">
+              <div class="strip" style="background:{{ it.dot }}"></div>
+              <div class="imgbox" style="height:124px"><image-slot id="{{ it.slot }}" shape="rect" placeholder=""></image-slot></div>
+              <div style="padding:15px 16px 17px;display:flex;flex-direction:column;gap:10px">
+                <div style="font-size:14.5px">{{ it.name }}</div>
+                <div style="font-size:11.5px;color:var(--a-muted);margin-top:-4px">{{ it.meta }}</div>
+                <div style="display:flex;align-items:center;gap:10px;margin-top:2px">
+                  <div class="bar"><i style="width:{{ it.pct }}%"></i></div>
+                  <span style="font-size:11px;color:var(--a-muted);flex:none">{{ it.hours }} h</span>
+                </div>
+              </div>
+            </button>
+          </sc-for>
+        </div>
+        </sc-if>
+        <sc-if value="{{ isList }}">
+        <div style="flex:1;min-height:0;overflow:auto">
+          <sc-for list="{{ instances }}" as="it" hint-placeholder-count="6">
+            <button class="lrow" onClick="{{ it.open }}">
+              <div class="imgbox" style="width:56px;height:40px;flex:none;border-radius:var(--a-rs)"><image-slot id="{{ it.slot }}" shape="rect" placeholder=""></image-slot></div>
+              <div style="flex:1;min-width:0"><div style="font-size:14.5px">{{ it.name }}</div><div style="font-size:12px;color:var(--a-muted);margin-top:3px">{{ it.meta }}</div></div>
+              <span style="font-size:12px;color:var(--a-muted);width:100px">{{ it.played }}</span>
+              <span class="gh" style="pointer-events:none">Open</span>
+            </button>
+          </sc-for>
+        </div>
+        </sc-if>
+        <div style="flex:none;padding:12px 26px;border-top:1px solid var(--a-hair);font-size:12px;color:var(--a-muted)">{{ instCount }} instances · 19.4 GB on disk</div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isDetail }}">
+      <div class="scr">
+        <div style="padding:20px 26px 0;display:flex;align-items:center;gap:16px">
+          <button class="gh ico" onClick="{{ goInstances }}"><i class="ph ph-caret-left"></i></button>
+          <div class="imgbox" style="width:64px;height:46px;flex:none;border-radius:var(--a-rs)"><image-slot id="{{ cur.slot }}" shape="rect" placeholder=""></image-slot></div>
+          <div style="flex:1;min-width:0">
+            <div class="h" style="font-size:24px">{{ cur.name }}</div>
+            <div style="font-size:12.5px;color:var(--a-muted);margin-top:6px">{{ cur.detailMeta }}</div>
+          </div>
+          <button class="play" style="height:40px;padding:0 26px;font-size:14px" onClick="{{ play }}" disabled="{{ busy }}"><i class="ph ph-play" style="font-size:14px"></i>{{ playLabel }}</button>
+          <button class="gh ico" style="width:40px;height:40px"><i class="ph ph-dots-three"></i></button>
+        </div>
+        <div style="display:flex;gap:22px;padding:20px 26px 0;border-bottom:1px solid var(--a-line)">
+          <button class="tab" data-on="{{ tabMods }}" onClick="{{ setTabMods }}">Mods <span class="muted">{{ cur.modCount }}</span></button>
+          <button class="tab" data-on="{{ tabWorlds }}" onClick="{{ setTabWorlds }}">Worlds <span class="muted">{{ cur.worldCount }}</span></button>
+          <button class="tab" data-on="{{ tabLogs }}" onClick="{{ setTabLogs }}">Logs</button>
+          <div style="flex:1"></div>
+          <div style="width:180px;margin-bottom:8px"><input class="inp" style="height:30px" placeholder="Filter mods" value="{{ filter }}" onChange="{{ onFilter }}"></div>
+        </div>
+        <sc-if value="{{ tabMods }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;display:flex;min-height:0">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="padding:9px 26px;border-bottom:1px solid var(--a-hair);display:flex;align-items:center;gap:12px;background:var(--a-hover)">
+              <span class="kick" style="flex:1">{{ enabledLine }}</span>
+              <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--a-muted)"><i class="ph ph-lock-simple" style="font-size:13px"></i>Versions pinned by pack</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto">
+              <sc-for list="{{ mods }}" as="m" hint-placeholder-count="7">
+                <button class="mrow" data-on="{{ m.on }}" onClick="{{ m.select }}">
+                  <div class="mi"><i class="ph ph-puzzle-piece"></i></div>
+                  <div style="flex:1;min-width:0"><div style="font-size:14px">{{ m.name }}</div><div style="font-size:11.5px;color:var(--a-muted);margin-top:2px">{{ m.author }}</div></div>
+                  <span style="font-size:12px;color:var(--a-muted);width:78px">{{ m.version }}</span>
+                  <span style="font-size:12px;color:var(--a-muted);width:60px">{{ m.size }}</span>
+                  <span class="sw" data-off="{{ m.off }}" onClick="{{ m.toggle }}"></span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="width:272px;flex:none;background:var(--a-side);border-left:1px solid var(--a-hair);display:flex;flex-direction:column;padding:20px 18px;gap:14px">
+            <div>
+              <div class="h" style="font-size:18px">{{ sel.name }}</div>
+              <div style="font-size:12px;color:var(--a-muted);margin-top:6px">{{ sel.line }}</div>
+            </div>
+            <p style="margin:0;font-size:12.5px;line-height:1.55;color:var(--a-text);opacity:.8">{{ sel.desc }}</p>
+            <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--a-muted)"><i class="ph ph-lock-simple" style="font-size:13px"></i>Pinned by pack v4.6</div>
+            <div>
+              <div class="kick" style="margin-bottom:9px">Depends on</div>
+              <sc-for list="{{ sel.deps }}" as="d" hint-placeholder-count="2">
+                <div style="font-size:12.5px;padding:3px 0">{{ d.name }}</div>
+              </sc-for>
+            </div>
+            <div>
+              <div class="kick" style="margin-bottom:9px">Required by</div>
+              <sc-for list="{{ sel.reqBy }}" as="r" hint-placeholder-count="2">
+                <div style="font-size:12.5px;padding:3px 0">{{ r.name }}</div>
+              </sc-for>
+            </div>
+            <div style="flex:1"></div>
+            <div style="display:flex;gap:8px">
+              <button class="gh" style="flex:1" onClick="{{ toggleSelected }}">{{ sel.action }}</button>
+              <button class="gh ico"><i class="ph ph-arrow-square-out"></i></button>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+        <sc-if value="{{ tabWorlds }}">
+        <div style="flex:1;min-height:0;overflow:auto;padding:8px 0">
+          <sc-for list="{{ cur.worlds }}" as="w" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:14px;padding:13px 26px;border-bottom:1px solid var(--a-hair)">
+              <div class="mi" style="width:40px;height:40px"><i class="ph ph-globe-hemisphere-west" style="font-size:17px"></i></div>
+              <div style="flex:1"><div style="font-size:14px">{{ w.name }}</div><div style="font-size:12px;color:var(--a-muted);margin-top:3px">{{ w.meta }}</div></div>
+              <span class="gh">Open folder</span>
+            </div>
+          </sc-for>
+        </div>
+        </sc-if>
+        <sc-if value="{{ tabLogs }}">
+        <div style="flex:1;min-height:0;overflow:auto;padding:18px 26px;font:12px/1.7 ui-monospace,Menlo,monospace;color:var(--a-muted);white-space:pre-wrap">{{ logs }}</div>
+        </sc-if>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isBrowse }}">
+      <div class="scr">
+        <div style="padding:22px 26px 16px;display:flex;align-items:center;gap:14px">
+          <div class="h" style="font-size:25px">Add mods</div>
+          <div style="flex:1;max-width:340px"><input class="inp" placeholder="Search mods" value="{{ query }}" onChange="{{ onQuery }}"></div>
+          <div style="flex:1"></div>
+          <span style="font-size:12px;color:var(--a-muted)">Adding to {{ cur.name }}</span>
+        </div>
+        <div style="padding:0 26px 14px;display:flex;gap:8px;align-items:center">
+          <span class="gh" data-on="yes">Fabric</span><span class="gh">Forge</span><span class="gh">Quilt</span>
+          <span style="width:8px"></span>
+          <span class="gh" data-on="yes">{{ cur.version }}</span><span class="gh">Any version</span>
+          <div style="flex:1"></div>
+          <span style="font-size:12px;color:var(--a-muted)">{{ resultCount }}</span>
+        </div>
+        <div style="flex:1;min-height:0;overflow:auto">
+          <sc-for list="{{ results }}" as="b" hint-placeholder-count="6">
+            <div style="display:flex;align-items:center;gap:14px;padding:14px 26px;border-bottom:1px solid var(--a-hair)">
+              <div class="mi" style="width:40px;height:40px"><i class="ph ph-puzzle-piece" style="font-size:17px"></i></div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:14.5px">{{ b.name }}</div>
+                <div style="font-size:12px;color:var(--a-muted);margin-top:3px">{{ b.desc }}</div>
+                <div style="font-size:11.5px;color:var(--a-muted);margin-top:4px;opacity:.8">{{ b.by }}</div>
+              </div>
+              <button class="gh" data-on="{{ b.added }}" onClick="{{ b.add }}">{{ b.label }}</button>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+    </div>
+  </div>
+
+  <sc-if value="{{ launching }}">
+  <div style="flex:none;position:relative;padding:13px 26px;display:flex;align-items:center;gap:16px;background:var(--a-soft);border-top:1px solid var(--a-hair)">
+    <i class="ph ph-cube" style="font-size:18px;color:var(--a-accent)"></i>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13.5px">{{ cur.name }}</div>
+      <div style="font-size:12px;color:var(--a-accent);margin-top:3px;animation:barpulse 1.6s ease-in-out infinite">{{ launchStep }}</div>
+    </div>
+    <button class="gh" onClick="{{ cancel }}">Cancel</button>
+    <div style="position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--a-hair)"><div style="height:100%;background:var(--a-accent);transition:width .09s linear;width:{{ pct }}%"></div></div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ running }}">
+  <div style="flex:none;padding:13px 26px;display:flex;align-items:center;gap:16px;background:var(--a-soft);border-top:1px solid var(--a-hair)">
+    <i class="ph ph-check-circle" style="font-size:18px;color:var(--a-accent)"></i>
+    <div style="flex:1;min-width:0"><div style="font-size:13.5px">{{ cur.name }} is running</div><div style="font-size:12px;color:var(--a-muted);margin-top:3px">{{ clock }} · window stays open</div></div>
+    <button class="gh" onClick="{{ cancel }}">Quit game</button>
+  </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1120,&quot;height&quot;:720}}">
+const STEPS = [[25,"Checking files"],[58,"Downloading assets"],[82,"Verifying mods"],[100,"Starting Java 21"]];
+
+const dot = h => "hsl(" + h + " 40% 62%)";
+
+const INSTANCES = [
+  {hue:262, hours:46, name:"All the Mods 10", version:"1.21.1", loader:"Fabric 0.16.9", pack:"Pack v4.6", played:"2 days ago", size:"4.1 GB",
+   worlds:[{name:"Ore Deep",meta:"Survival · 2 days ago"},{name:"Test Flat",meta:"Creative · last week"},{name:"Factory Run",meta:"Survival · 3 weeks ago"}]},
+  {hue:26, hours:31, name:"Create: Above & Beyond", version:"1.18.2", loader:"Forge 40.2", pack:"Pack v1.3", played:"yesterday", size:"3.4 GB",
+   worlds:[{name:"Cog Valley",meta:"Survival · yesterday"}]},
+  {hue:352, hours:18, name:"Hardcore SMP", version:"1.20.4", loader:"Fabric 0.15.7", pack:"Custom", played:"4 days ago", size:"2.2 GB",
+   worlds:[{name:"Season 4",meta:"Hardcore · 4 days ago"}]},
+  {hue:88, hours:12, name:"SkyFactory 5", version:"1.19.2", loader:"Forge 43.3", pack:"Pack v5.2", played:"2 weeks ago", size:"5.1 GB",
+   worlds:[{name:"One Block",meta:"Survival · 2 weeks ago"}]},
+  {hue:194, hours:6, name:"Vanilla 1.21.4", version:"1.21.4", loader:"none", pack:"Vanilla", played:"3 weeks ago", size:"0.9 GB",
+   worlds:[{name:"Sandbox",meta:"Creative · 3 weeks ago"}]},
+  {hue:214, hours:2, name:"Snapshot 25w03a", version:"25w03a", loader:"none", pack:"Vanilla", played:"2 months ago", size:"0.9 GB",
+   worlds:[]}
+];
+
+const MOD_SETS = {
+  0: [
+    {name:"Create", author:"simibubi", version:"6.0.4", size:"28 MB", on:true, desc:"Mechanical contraptions, kinetics and automation. Ships as part of the pack.", deps:["Flywheel 1.0.2","Fabric API 0.110.0"], reqBy:["Create: Crafts & Additions","Create: Deco","Ad Astra"]},
+    {name:"Create: Crafts & Additions", author:"MRHminer", version:"1.2.4", size:"4 MB", on:true, desc:"Electricity for Create — generators, motors and accumulators.", deps:["Create 6.0.4"], reqBy:[]},
+    {name:"Distant Horizons", author:"jeseibel", version:"2.2.1", size:"6 MB", on:false, desc:"Level-of-detail terrain for very long render distances. Disabled by you.", deps:[], reqBy:[]},
+    {name:"Farmer's Delight", author:"vectorwing", version:"1.2.7", size:"3 MB", on:true, desc:"Cooking, crops and kitchen blocks.", deps:["Fabric API 0.110.0"], reqBy:[]},
+    {name:"Flywheel", author:"jozufozu", version:"1.0.2", size:"2 MB", on:true, desc:"Instanced rendering backend used by Create.", deps:[], reqBy:["Create"]},
+    {name:"Iris Shaders", author:"IrisShaders", version:"1.8.1", size:"2 MB", on:true, desc:"Shader pack support that keeps Sodium's performance.", deps:["Sodium 0.6.5"], reqBy:[]},
+    {name:"Just Enough Items", author:"mezz", version:"19.21.0", size:"4 MB", on:true, desc:"Recipe and item lookup.", deps:[], reqBy:[]},
+    {name:"Sodium", author:"CaffeineMC", version:"0.6.5", size:"1 MB", on:true, desc:"Modern rendering engine that greatly improves frame rates.", deps:[], reqBy:["Iris Shaders"]},
+    {name:"Xaero's Minimap", author:"xaero96", version:"24.7.0", size:"5 MB", on:true, desc:"Minimap and waypoints.", deps:[], reqBy:[]}
+  ],
+  1: [
+    {name:"Create", author:"simibubi", version:"0.5.1", size:"26 MB", on:true, desc:"The pack is built entirely around Create.", deps:["Flywheel 0.6.9"], reqBy:["Create: Deco"]},
+    {name:"Flywheel", author:"jozufozu", version:"0.6.9", size:"2 MB", on:true, desc:"Instanced rendering backend used by Create.", deps:[], reqBy:["Create"]},
+    {name:"Just Enough Items", author:"mezz", version:"9.7.0", size:"4 MB", on:true, desc:"Recipe and item lookup.", deps:[], reqBy:[]}
+  ],
+  2: [
+    {name:"Sodium", author:"CaffeineMC", version:"0.5.8", size:"1 MB", on:true, desc:"Modern rendering engine that greatly improves frame rates.", deps:[], reqBy:[]},
+    {name:"Xaero's Minimap", author:"xaero96", version:"24.2.0", size:"5 MB", on:true, desc:"Minimap and waypoints.", deps:[], reqBy:[]},
+    {name:"Simple Voice Chat", author:"henkelmax", version:"2.5.24", size:"3 MB", on:true, desc:"Proximity voice for the server.", deps:[], reqBy:[]}
+  ],
+  3: [
+    {name:"Ex Nihilo Sequentia", author:"NovaMachina", version:"2.5.1", size:"7 MB", on:true, desc:"Sieves and hammers — the skyblock progression core.", deps:[], reqBy:[]},
+    {name:"Just Enough Items", author:"mezz", version:"11.6.0", size:"4 MB", on:true, desc:"Recipe and item lookup.", deps:[], reqBy:[]}
+  ],
+  4: [], 5: []
+};
+
+const BROWSE = [
+  {name:"Lithium", by:"CaffeineMC · 33.7M downloads", desc:"Server-side optimisation with no behaviour changes"},
+  {name:"FerriteCore", by:"malte0811 · 21.6M downloads", desc:"Reduces memory usage"},
+  {name:"Entity Culling", by:"tr7zw · 18.9M downloads", desc:"Skips rendering entities you cannot see"},
+  {name:"Mod Menu", by:"Terraformers · 40.1M downloads", desc:"In-game list of installed mods and their settings"},
+  {name:"AppleSkin", by:"squeek502 · 30.2M downloads", desc:"Shows saturation and hunger values"},
+  {name:"Jade", by:"Snownee · 24.8M downloads", desc:"Shows what block or entity you are looking at"},
+  {name:"Simple Voice Chat", by:"henkelmax · 12.4M downloads", desc:"Proximity voice chat"},
+  {name:"Distant Horizons", by:"jeseibel · 9.1M downloads", desc:"Level-of-detail terrain for very long render distances"},
+  {name:"Sodium", by:"CaffeineMC · 41.2M downloads", desc:"Modern rendering engine that greatly improves frame rates"}
+];
+
+const LOGS = `[16:02:11] [main/INFO]: Loading Minecraft 1.21.1 with Fabric Loader 0.16.9
+[16:02:11] [main/INFO]: Loading 214 mods:
+[16:02:12] [main/INFO]:   - create 6.0.4
+[16:02:12] [main/INFO]:   - flywheel 1.0.2
+[16:02:12] [main/INFO]:   - sodium 0.6.5
+[16:02:13] [main/WARN]: Mod 'distanthorizons' is disabled by user preference
+[16:02:14] [Render thread/INFO]: Environment: authHost='https://authserver.mojang.com'
+[16:02:19] [Render thread/INFO]: Setting user: Steve_Builds
+[16:02:23] [Render thread/INFO]: Loaded 7 recipes
+[16:02:26] [Render thread/INFO]: Started 214 mods in 14.8s`;
+
+class Component extends DCLogic {
+  state = {
+    theme: "voxel", screen: "home", view: "grid", tab: "mods",
+    inst: 0, mod: 0, filter: "", query: "",
+    mods: JSON.parse(JSON.stringify(MOD_SETS)),
+    added: {}, launch: null
+  };
+
+  componentWillUnmount() { clearInterval(this.timer); }
+
+  tick = () => {
+    this.setState(s => {
+      if (!s.launch) return null;
+      if (s.launch.phase === "launching") {
+        const pct = Math.min(100, s.launch.pct + 2);
+        return { launch: pct >= 100 ? { phase: "running", secs: 0 } : { phase: "launching", pct } };
+      }
+      return { launch: { phase: "running", secs: s.launch.secs + 0.09 } };
+    });
+  };
+
+  play = () => {
+    if (this.state.launch) return;
+    clearInterval(this.timer);
+    this.timer = setInterval(this.tick, 90);
+    this.setState({ launch: { phase: "launching", pct: 0 } });
+  };
+
+  cancel = () => { clearInterval(this.timer); this.setState({ launch: null }); };
+
+  open = i => this.setState({ screen: "detail", inst: i, tab: "mods", mod: 0, filter: "" });
+
+  toggleMod = i => this.setState(s => {
+    const mods = JSON.parse(JSON.stringify(s.mods));
+    mods[s.inst][i].on = !mods[s.inst][i].on;
+    return { mods };
+  });
+
+  addMod = name => this.setState(s => {
+    const added = Object.assign({}, s.added);
+    added[name] = !added[name];
+    return { added };
+  });
+
+  renderVals() {
+    const s = this.state;
+    const inst = INSTANCES[s.inst];
+    const list = (s.mods[s.inst] || []);
+    const f = s.filter.trim().toLowerCase();
+    const shown = f ? list.filter(m => m.name.toLowerCase().includes(f) || m.author.toLowerCase().includes(f)) : list;
+    const sel = shown[Math.min(s.mod, Math.max(0, shown.length - 1))] || { name: "No mod selected", author: "", version: "", desc: "Pick a mod on the left to see its versions and dependency chain.", deps: [], reqBy: [], on: true };
+    const q = s.query.trim().toLowerCase();
+    const results = q ? BROWSE.filter(b => b.name.toLowerCase().includes(q) || b.desc.toLowerCase().includes(q)) : BROWSE;
+    const enabled = list.filter(m => m.on).length;
+    const launching = !!s.launch && s.launch.phase === "launching";
+    const running = !!s.launch && s.launch.phase === "running";
+    const pct = launching ? s.launch.pct : 0;
+    const secs = running ? Math.floor(s.launch.secs) : 0;
+    const mm = String(Math.floor(secs / 60)).padStart(2, "0") + ":" + String(secs % 60).padStart(2, "0");
+
+    return {
+      theme: s.theme,
+      themeName: { voxel: "Voxel", nocturne: "Nocturne", ash: "Ash", ember: "Ember", blueprint: "Blueprint" }[s.theme],
+      thVoxel: s.theme === "voxel" ? "yes" : null,
+      pickVoxel: () => this.setState({ theme: "voxel" }),
+      thNocturne: s.theme === "nocturne" ? "yes" : null,
+      thAsh: s.theme === "ash" ? "yes" : null,
+      thEmber: s.theme === "ember" ? "yes" : null,
+      thBlueprint: s.theme === "blueprint" ? "yes" : null,
+      pickNocturne: () => this.setState({ theme: "nocturne" }),
+      pickAsh: () => this.setState({ theme: "ash" }),
+      pickEmber: () => this.setState({ theme: "ember" }),
+      pickBlueprint: () => this.setState({ theme: "blueprint" }),
+
+      isHome: s.screen === "home", isInstances: s.screen === "instances",
+      isDetail: s.screen === "detail", isBrowse: s.screen === "browse",
+      onHome: s.screen === "home" ? "yes" : null,
+      onInstances: s.screen === "instances" || s.screen === "detail" ? "yes" : null,
+      onBrowse: s.screen === "browse" ? "yes" : null,
+      goHome: () => this.setState({ screen: "home" }),
+      goInstances: () => this.setState({ screen: "instances" }),
+      goBrowse: () => this.setState({ screen: "browse" }),
+      openCurrent: () => this.open(s.inst),
+
+      isGrid: s.view === "grid" ? "yes" : null,
+      isList: s.view === "list" ? "yes" : null,
+      setGrid: () => this.setState({ view: "grid" }),
+      setList: () => this.setState({ view: "list" }),
+
+      instCount: INSTANCES.length,
+      instances: INSTANCES.map((it, i) => ({
+        name: it.name, played: it.played, dot: dot(it.hue), hours: it.hours, slot: "lp-i" + i,
+        pct: Math.round((it.hours / 46) * 100),
+        meta: it.loader === "none" ? it.version + " · no mods" : it.version + " · " + it.loader.split(" ")[0] + " · " + (s.mods[i] || []).length + " mods",
+        open: () => this.open(i)
+      })),
+      pinned: INSTANCES.slice(0, 3).map((it, i) => ({
+        short: it.name.length > 20 ? it.name.slice(0, 19) + "…" : it.name,
+        dot: dot(it.hue),
+        on: s.screen === "detail" && s.inst === i ? "yes" : null,
+        open: () => this.open(i)
+      })),
+
+      cur: {
+        name: inst.name, version: inst.version, played: inst.played,
+        hours: inst.hours, dot: dot(inst.hue), slot: "lp-i" + s.inst,
+        loaderShort: inst.loader === "none" ? "Vanilla" : inst.loader.split(" ")[0],
+        meta: inst.version + " · " + (inst.loader === "none" ? "no mods" : inst.loader) + " · " + list.length + " mods · " + inst.played,
+        detailMeta: inst.pack + " · " + inst.version + " · " + (inst.loader === "none" ? "no loader" : inst.loader) + " · " + inst.size + " on disk",
+        modCount: list.length, worldCount: inst.worlds.length, worlds: inst.worlds
+      },
+
+      tabMods: s.tab === "mods" ? "yes" : null,
+      tabWorlds: s.tab === "worlds" ? "yes" : null,
+      tabLogs: s.tab === "logs" ? "yes" : null,
+      setTabMods: () => this.setState({ tab: "mods" }),
+      setTabWorlds: () => this.setState({ tab: "worlds" }),
+      setTabLogs: () => this.setState({ tab: "logs" }),
+      logs: LOGS,
+
+      filter: s.filter,
+      onFilter: e => this.setState({ filter: e.target.value, mod: 0 }),
+      enabledLine: enabled + " enabled · " + (list.length - enabled) + " disabled",
+      mods: shown.map((m, i) => ({
+        name: m.name, author: m.author, version: m.version, size: m.size,
+        on: i === Math.min(s.mod, shown.length - 1) ? "yes" : null,
+        off: m.on ? null : "yes",
+        select: () => this.setState({ mod: i }),
+        toggle: e => { e.stopPropagation(); this.toggleMod(list.indexOf(m)); }
+      })),
+      sel: {
+        name: sel.name, line: sel.author ? sel.author + " · " + sel.version : "",
+        desc: sel.desc, action: sel.on ? "Disable" : "Enable",
+        deps: (sel.deps || []).map(d => ({ name: d })),
+        reqBy: (sel.reqBy || []).length ? sel.reqBy.map(d => ({ name: d })) : [{ name: "Nothing depends on this" }]
+      },
+      toggleSelected: () => { const i = list.indexOf(sel); if (i >= 0) this.toggleMod(i); },
+
+      query: s.query,
+      onQuery: e => this.setState({ query: e.target.value }),
+      resultCount: results.length + " results",
+      results: results.map(b => ({
+        name: b.name, by: b.by, desc: b.desc,
+        added: s.added[b.name] ? "yes" : null,
+        label: s.added[b.name] ? "Queued" : "Add",
+        add: () => this.addMod(b.name)
+      })),
+
+      play: this.play, cancel: this.cancel,
+      busy: !!s.launch,
+      playLabel: running ? "Running" : launching ? "Launching…" : "Play",
+      launching, running, pct, launchStep: (STEPS.find(x => pct <= x[0]) || STEPS[3])[1] + " — " + pct + "%",
+      clock: mm
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,92 +1,115 @@
 # Windows parity tracker
 
-The Mac app is 89 feature views and ~65,000 lines of Swift. The Windows app is
-~25 screens and ~14,000 lines. This file is the checklist that closes that gap.
+Every one of the Mac app's **89** feature views, listed individually. An
+earlier version of this file grouped several views per row, which made it look
+shorter than the real surface and let a few views go unnamed entirely — this
+one is generated from the Mac source so it cannot drift.
 
-It exists because the first attempt at parity was reactive — fixing whatever
-turned up in the latest screenshot — which never converges. Every Mac view is
-listed below with an honest status, so what is left is visible instead of being
-rediscovered one complaint at a time.
+**done** = present and matching · **partial** = exists but thinner than Mac ·
+**missing** = not built · **n/a** = Mac-only by design.
 
-Status: **done** = present and matching · **partial** = exists but thinner than
-Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
+| status | count |
+|---|---|
+| done | 68 |
+| partial | 9 |
+| missing | 11 |
+| n/a | 1 |
 
-## Shell & navigation
 | Mac view | Status | Notes |
 |---|---|---|
-| RootView | done | sidebar, Play/Instances/Servers/Friends, PINNED, SETUP |
-| HeroHomeView / HomeCards / PlayView | done | hero, chips, Play, Jump back in, Servers |
-| InstancesView | done | groups, multi-select, bulk actions, drag-to-reorder; drive sections n/a |
+| AIPackBuilderSheet | missing | needs an AI backend |
+| AchievementsSheet | done | Play history screen |
+| AddWorldSheet | done | folder or .zip import |
+| AppSettingsView | done | preferences |
+| BackupSettingsSheet | partial | manual backups only; no schedule |
+| BrowseView | done | categories, sort, project pages |
+| ClipRecorder | missing | needs screen capture |
+| CloudHostingSheet | missing | needs a hosting provider |
 | CommandPalette | done | Ctrl/Cmd-K |
-| SidebarNotifications | done | bell + badge in the account foot, engine-written feed |
-| OnboardingSheet | done | shown once, only when nothing is set up yet |
-| Hubs / LinkTabView / NoteTabView | done | notes + links per instance, http(s) only |
-
-## Instance detail
-| Mac view | Status | Notes |
-|---|---|---|
-| Tab bar (All/Worlds/Screenshots/Keybinds/Logs/Tools) | done | fixed set |
-| Mod list + toggles + update | done | icons, filter, state, sort |
-| InstanceScreenshotsTab / ScreenshotViewer | done | grid, enlarge, copy, save-as, reveal, trash |
-| LogConsole | done | tail, level filter with counts, find, copy |
-| InstanceKeybindsTab | done | this instance's own options.txt binds, with clash marking |
-| EditInstanceSheet | partial | name/version/RAM/Java; **no icon maker, no group, no notes** |
-| HealthView / PerfInsightsBanner | done | real checks drive both the screen and the hero chip |
-| InstanceHistorySheet | done | per-instance sessions from the instance menu |
-| InstanceIconMaker | done | initials + palette, written through the normal icon path |
-| FileBrowserTab | done | breadcrumb browser + text editor, path-escape guarded |
-| ConfigManagerSheet | done | every editable config, grouped by folder |
-| RepairSheet | done | offered inline against the finding that needs it |
-
-## Worlds
-| Mac view | Status | Notes |
-|---|---|---|
-| NewWorldSheet / AddWorldSheet | done | both save formats, seed parsing |
-| WorldManagerSheet | partial | list/backup/restore/rename/delete |
-| WorldDetailView | done | facts from level.dat (both save formats) + actions |
-| WorldMapView | done | .mca reader + canvas biome map of generated chunks |
-| WorldStatisticsView | done | biomes, structures, player position/health/XP and inventory |
-| SeedMapView / SeedInfoSheet | done | predicted biome map from the seed, beside the explored map |
-| SeedFinderSheet | done | native cubiomes helper |
-| PregenSheet | missing | chunk pregeneration via Chunky |
-| NewForeverWorldSheet / DeleteForeverWorldSheet | missing | Forever Worlds |
-| PlaytimeHeatmapView / WrappedSheet / AchievementsSheet | done | one Play history screen off a real session log |
-
-## Servers
-| Mac view | Status | Notes |
-|---|---|---|
-| ServersView | done | list, empty state, LAN/where-to-host |
-| ServerConsoleSheet / ServerSettingsSheet | done | console + server.properties |
-| ServerDashboard / ServerHealthCard | done | live status, players, TPS, uptime, memory |
-| ServerAccessSheet | done | whitelist/ops/bans, console when live, files when stopped |
-| ServerPluginsView | done | list + enable/disable for Paper servers |
-| CloudHostingSheet | missing | hosted-server flow |
-| LANWorldsSheet | done | real multicast listener on 224.0.2.60:4445 |
-
-## Content & sharing
-| Mac view | Status | Notes |
-|---|---|---|
-| BrowseView | done | categories, sort, project page with gallery, versions and changelogs |
-| CurseForge* (4 views) | partial | search + install only |
-| ModpacksView / ModpackEditor | missing | pack authoring |
-| ResourcePackManagerSheet / DatapacksSheet | done | via packs vertical |
-| ShareSheets / SharePackToFriendSheet | done | permanent codes |
-| SyncedModpacksSheet | partial | list only |
-| PublishSheet / ScreenshotShare | missing | publishing |
-| AIPackBuilderSheet | missing | AI pack builder |
-| StorageView | done | breakdown by bucket + biggest instances; only caches clearable |
-
-## Social & account
-| Mac view | Status | Notes |
-|---|---|---|
-| SocialView / SignInSheet / ProfileSheet | done | friends, presence, auth |
-| SquadManagerSheet | partial | squads exist; no manager |
-| SkinsView | done | upload/reset, body render, and a local library you can re-wear from |
-| SettingsView / AppSettingsView | done | behaviour toggles + parallel downloads, values clamped |
-| UpdatesSheet | partial | banner only |
-| PluginsView / PluginWebView | missing | launcher plugins |
+| ConfigManagerSheet | done | every editable config |
+| CrashDoctorSheet | done | crash scan + wired fixes |
+| CulpritFinderSheet | done | bisect with library pinning + control round |
+| CurseForgeBrowser | partial | search + install; no project pages yet |
+| CurseForgeCleanup | partial | not surfaced |
+| CurseForgeSearchView | partial | search only |
+| CurseForgeSheets | partial | install flow only |
+| DatapacksSheet | done | packs vertical |
+| DeleteForeverWorldSheet | missing | Forever Worlds not built |
+| DropSupport | done | drag a pack onto the window |
+| EditInstanceSheet | done | name/version/RAM/Java/icon/group/notes |
+| FileBrowserTab | done | breadcrumb browser + editor |
+| HealthView | done | real checks drive the screen and the chip |
+| HeroHomeView | done | hero + rail |
+| HomeCards | done | instance cards |
+| Hubs | done | notes + links per instance |
+| InstanceArtwork | done | recessed art well + drop target |
+| InstanceHistorySheet | done | per-instance sessions |
+| InstanceIconMaker | done | initials + palette |
+| InstanceKeybindsTab | done | this instance's own binds |
+| InstanceScreenshotsTab | done | grid, enlarge, copy, save, reveal, trash |
+| InstancesView | done | groups, multi-select, reorder |
+| KeybindSheets | done | capture + preset dialogs |
+| KeybindsView | done | global library with discovery |
+| LANWorldsSheet | done | real multicast listener |
+| LaunchOverlay | done | launch progress |
+| LaunchStatusBar | done | launch state |
+| LinkTabView | done | per-instance links |
+| LiveStatsOverlay | missing | needs an in-game overlay |
+| LogConsole | done | tail, level filter, find, copy |
+| MixinConflictsSheet | done | static scanner |
+| ModpackEditor | missing | pack authoring |
+| ModpacksView | partial | import + list; no authoring |
+| NewForeverWorldSheet | missing | Forever Worlds not built |
+| NewWorldSheet | done | both save formats |
+| NoteTabView | done | per-instance notes |
+| OnboardingSheet | done | first run only |
+| PackArtPicker | done | click or drop art |
+| PerfInsightsBanner | done | memory + pack-size warnings |
+| PlayView | done | Play screen |
+| PlaytimeHeatmapView | done | year heatmap |
+| PluginWebView | missing | needs a plugin runtime |
+| PluginsView | missing | needs a plugin runtime |
+| PregenSheet | missing | needs headless server + Chunky |
+| ProfileSheet | done | account + profile |
+| PublishSheet | missing | needs a publish target |
+| RepairSheet | done | offered against the finding |
+| ResourcePackManagerSheet | done | packs vertical |
+| RootView | done | shell + sidebar |
+| ScreenshotShare | done | copy image + save as |
+| ScreenshotViewer | done | enlarge + actions |
+| SeedFinderSheet | done | native cubiomes search |
+| SeedInfoSheet | done | seed facts on world detail |
+| SeedMapView | done | predicted biome map |
+| ServerAccessSheet | done | whitelist/ops/bans |
+| ServerConsoleSheet | done | live console |
+| ServerDashboard | done | status, players, TPS, uptime |
+| ServerHealthCard | done | same telemetry |
+| ServerPluginsView | done | list + toggle |
+| ServerSettingsSheet | done | server.properties |
+| ServersView | done | list + empty state |
+| SettingsView | done | behaviour + sources |
+| SharePackToFriendSheet | done | permanent codes |
+| ShareSheets | done | share + export |
+| SidebarNotifications | done | bell + badge |
+| SignInSheet | done | Microsoft device code |
+| SkinsView | done | upload, reset, library |
+| SlottedSlider | done | square-thumb slider |
+| SocialView | done | friends + presence |
+| SquadManagerSheet | partial | squads exist; no manager screen |
+| StorageView | done | breakdown + reclaim |
+| SyncedModpacksSheet | partial | list only, no management |
 | ThemeBrowserSheet | n/a | Mac deliberately ships one theme |
+| UpdatesSheet | partial | banner only, no release notes |
+| VersionPickerSheet | done | version list per project |
+| WorldDetailView | done | facts from level.dat |
+| WorldManagerSheet | done | list/backup/restore/rename/delete |
+| WorldMapView | done | explored map from region files |
+| WorldStatisticsView | done | biomes, structures, player |
+| WrappedSheet | done | year summary |
 
-## Not applicable
-External-drive instance storage (Mac `libraryRoot`) has no Windows equivalent
-in the engine, so drive sections in InstancesView are n/a until that ships.
+## What the missing ones need
+
+None of the remaining gaps are UI work alone. They each need something that
+does not exist on the Windows side yet: an AI backend, a screen-capture
+pipeline, a hosting provider, a publish target, a plugin runtime, or a headless
+server for pregeneration. Those are product decisions, not screens.

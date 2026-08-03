@@ -96,6 +96,13 @@
       async runCommand(pluginId, id) { return unwrap(await bridge.plugins.runCommand(pluginId, id)); },
       async openFolder() { return unwrap(await bridge.plugins.openFolder()); },
     },
+    async hostMemory() { if (!bridge) return null; try { return unwrap(await bridge.hostMemory()); } catch { return null; } },
+    async revealFile(path) { if (bridge) return unwrap(await bridge.revealFile(path)); },
+    clip: {
+      async sources(instanceId) { if (!bridge) return []; return unwrap(await bridge.clip.sources(instanceId)); },
+      async save(instanceId, gif, poster) { return unwrap(await bridge.clip.save(instanceId, gif, poster)); },
+      async running(instanceId) { if (!bridge) return { pid: null }; return unwrap(await bridge.clip.running(instanceId)); },
+    },
     themes: {
       async list() { if (!bridge) return { themes: [], currentId: "voxel" }; try { return unwrap(await bridge.themes.list()); } catch { return { themes: [], currentId: "voxel" }; } },
       async select(id) { return unwrap(await bridge.themes.select(id)); },

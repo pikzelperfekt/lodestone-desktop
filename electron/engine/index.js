@@ -541,7 +541,14 @@ async function launch(id, opts) {
     const child = doLaunch(detail, built, session,
       { gameDir, assetsRoot: p.assets, librariesDir: p.libraries, ramMB: inst.ramMB || undefined, extraJvm, overlay,
         joinServer: opts && opts.joinServer, quickPlayWorld: opts && opts.quickPlayWorld },
-      (line) => emit("launch:log", { line }),
+      (line) => {
+        emit("launch:log", { line });
+        // Diagnostic mods print FPS and F3-style heap lines; lift them as they
+        // stream so the HUD is live rather than a post-mortem.
+        const fps = livestats.fpsFromLine(line);
+        const heap = livestats.memoryFractionFromLine(line);
+        if (fps !== null || heap !== null) emit("stats:tick", { instanceId: id, fps, heap });
+      },
       (code) => {
         delete running[id];
         addPlaytime(id, Date.now() - startedAt, startedAt);
@@ -912,8 +919,38 @@ function themeList() { return themes.list(); }
 function themeSelect(a) { return themes.select(a && a.id); }
 function themesDir() { return themes.themesDir(); }
 
+function hostMemory() { return livestats.hostMemory(); }
+
+// ---- Clip recorder ----
+// Clips land in the instance's screenshots/ folder as clip-<n>.gif with a
+// clip-<n>.png poster beside it, so the existing gallery (which lists png/jpg)
+// surfaces the clip too instead of it being invisible until you open Finder.
+function nextClipPaths(instanceId) {
+  const inst = readInstances().find((i) => i.id === instanceId);
+  if (!inst) throw new Error("Instance not found.");
+  const dir = path.join(install.paths(DATA_DIR).instanceDir(inst.id), "screenshots");
+  fs.mkdirSync(dir, { recursive: true });
+  let n = 1;
+  while (fs.existsSync(path.join(dir, `clip-${n}.gif`))) n++;
+  return { dir, gif: path.join(dir, `clip-${n}.gif`), poster: path.join(dir, `clip-${n}.png`), name: `clip-${n}.gif` };
+}
+
+function saveClip(a) {
+  const { gif, poster, name, dir } = nextClipPaths(a.instanceId);
+  fs.writeFileSync(gif, Buffer.from(a.gifBase64, "base64"));
+  if (a.posterBase64) fs.writeFileSync(poster, Buffer.from(a.posterBase64, "base64"));
+  return { path: gif, name, dir, size: fs.statSync(gif).size };
+}
+
+// Is this instance running, and under which pid? The clip UI needs to know
+// whether there is even a game window to record.
+function runningPid(instanceId) {
+  const r = running[instanceId];
+  return r && r.pid ? r.pid : null;
+}
+
 module.exports = {
-  publishInstance,
+  publishInstance, hostMemory, saveClip, runningPid,
   themeList, themeSelect, themesDir,
   pluginList, pluginSetEnabled, pluginRemove, pluginInstall, pluginCommunity,
   pluginTabs, pluginThemes, pluginMainScript, pluginGetData, pluginSetData,
@@ -1690,6 +1727,7 @@ const exaroton = require("./exaroton");
 const playit = require("./playit");
 const plugins = require("./plugins");
 const themes = require("./themes");
+const livestats = require("./livestats");
 
 // ---- Instance icons ----
 function setInstanceIcon({ id, dataBase64, ext }) {

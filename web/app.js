@@ -743,6 +743,7 @@ async function renderInstanceDetail(id) {
     { label: "Edit as a modpack\u2026", icon: "i-stack", run: () => openPackEditor(inst) },
     { label: "CurseForge cleanup\u2026", icon: "i-pulse", run: () => openCFCleanup(inst) },
     { label: "Make an icon\u2026", icon: "i-image", run: () => openIconMaker(inst) },
+    { label: "Record a clip\u2026", icon: "i-image", run: () => openClipSheet(inst) },
     { label: "Session history", icon: "i-pulse", run: () => openHistorySheet(inst) },
     { label: "Move to group\u2026", icon: "i-stack", run: async () => {
         const groups = await API.groups();
@@ -933,6 +934,285 @@ async function openPublishModal(inst) {
       if (typeof off === "function") off();
     }
   };
+}
+
+// ---------- Clip recorder (ClipRecorder parity) ----------
+// Records a short looping GIF of the running game window into the instance's
+// screenshots/ folder as clip-<n>.gif, with a clip-<n>.png poster beside it so
+// the existing gallery surfaces it.
+//
+// Frames are grabbed from a desktopCapturer stream onto a canvas at 12fps and
+// encoded by web/gif.js. Same tuning as the Mac: 12fps, longest edge 640px —
+// a balance of smoothness, file size and CPU.
+const CLIP_FPS = 12;
+const CLIP_MAX_EDGE = 640;
+let clipBusy = false;
+
+async function openClipSheet(inst) {
+  const { pid } = await API.clip.running(inst.id);
+  if (!pid) {
+    toast("Start the game first — there's no window to record yet.");
+    return;
+  }
+
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-image")} Record a clip</div>
+      <div class="share-loading"><span class="spinner"></span> Finding the game window…</div>
+    </div>`);
+
+  let sources = [];
+  try { sources = await API.clip.sources(inst.id); }
+  catch (e) { toast("Couldn't list windows: " + e.message); hideModal(); return; }
+
+  if (!sources.length) {
+    showModal(`
+      <div class="share-card">
+        <div class="share-h">${ico("i-image")} Record a clip</div>
+        <p class="share-sub">Couldn't find any window to record — is the game showing?</p>
+        <div class="np-actions"><button class="btn-ghost" id="cl-close">Close</button></div>
+      </div>`);
+    document.getElementById("cl-close").onclick = hideModal;
+    return;
+  }
+
+  showModal(`
+    <div class="share-card clip-sheet">
+      <div class="share-h">${ico("i-image")} Record a clip</div>
+      <p class="share-sub">Grabs a looping GIF of the game window into <b>${esc(inst.name)}</b>'s screenshots.</p>
+
+      <div class="share-label">WINDOW</div>
+      <div class="clip-sources">
+        ${sources.slice(0, 6).map((s, i) => `
+          <button class="clip-src${i === 0 ? " is-on" : ""}" data-clipsrc="${esc(s.id)}">
+            <img src="${esc(s.thumbnail)}" alt="">
+            <span>${esc(s.name)}${s.isGame ? " · game" : ""}</span>
+          </button>`).join("")}
+      </div>
+
+      <div class="share-label">LENGTH</div>
+      <div class="seg clip-len">
+        <button data-cliplen="4">4s</button>
+        <button data-cliplen="6" class="on">6s</button>
+        <button data-cliplen="10">10s</button>
+      </div>
+
+      <div id="clip-status" class="host-note">Ready.</div>
+      <div class="clip-bar" hidden><span id="clip-fill"></span></div>
+
+      <div class="np-actions">
+        <button class="btn-ghost" id="cl-close">Close</button>
+        <button class="btn-accent share-btn" id="cl-go">${ico("i-play")} Record</button>
+      </div>
+    </div>`);
+
+  let sourceId = sources[0].id;
+  let seconds = 6;
+
+  document.getElementById("cl-close").onclick = hideModal;
+  document.querySelectorAll("[data-clipsrc]").forEach((b) => b.onclick = () => {
+    sourceId = b.dataset.clipsrc;
+    document.querySelectorAll("[data-clipsrc]").forEach((x) => x.classList.toggle("is-on", x === b));
+  });
+  document.querySelectorAll("[data-cliplen]").forEach((b) => b.onclick = () => {
+    seconds = Number(b.dataset.cliplen);
+    document.querySelectorAll("[data-cliplen]").forEach((x) => x.classList.toggle("on", x === b));
+  });
+
+  document.getElementById("cl-go").onclick = async (e) => {
+    if (clipBusy) return;
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      const res = await recordClip(inst.id, sourceId, seconds);
+      showModal(`
+        <div class="share-card">
+          <div class="share-h">${ico("i-image")} Clip saved</div>
+          <p class="share-sub">Saved <b>${esc(res.name)}</b> — ${(res.size / 1048576).toFixed(1)} MB, in this pack's screenshots.</p>
+          <div class="np-actions">
+            <button class="btn-ghost" id="cl-done">Done</button>
+            <button class="btn-soft" id="cl-show">Show in folder</button>
+          </div>
+        </div>`);
+      document.getElementById("cl-done").onclick = hideModal;
+      document.getElementById("cl-show").onclick = () => API.revealFile(res.path);
+    } catch (err) {
+      btn.disabled = false;
+      const st = document.getElementById("clip-status");
+      if (st) st.textContent = err.message;
+      toast(err.message);
+    }
+  };
+}
+
+// Grab `seconds` of the chosen window and encode it. Returns the saved clip.
+async function recordClip(instanceId, sourceId, seconds) {
+  clipBusy = true;
+  const status = (msg) => { const el2 = document.getElementById("clip-status"); if (el2) el2.textContent = msg; };
+  const bar = document.querySelector(".clip-bar");
+  const fill = document.getElementById("clip-fill");
+  if (bar) bar.hidden = false;
+
+  let stream = null;
+  try {
+    status("Opening the window…");
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { mandatory: { chromeMediaSource: "desktop", chromeMediaSourceId: sourceId } },
+    });
+
+    const video = document.createElement("video");
+    video.srcObject = stream;
+    video.muted = true;
+    await video.play();
+    // The first frames of a capture are often blank while the compositor warms
+    // up; waiting for real dimensions avoids a clip that opens on black.
+    await new Promise((r) => (video.videoWidth ? r() : (video.onloadedmetadata = r)));
+
+    const scale = Math.min(1, CLIP_MAX_EDGE / Math.max(video.videoWidth, video.videoHeight));
+    const w = Math.max(2, Math.round(video.videoWidth * scale));
+    const h = Math.max(2, Math.round(video.videoHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+    const total = Math.max(2, Math.round(seconds * CLIP_FPS));
+    const interval = 1000 / CLIP_FPS;
+    const frames = [];
+
+    for (let i = 0; i < total; i++) {
+      const t0 = performance.now();
+      ctx.drawImage(video, 0, 0, w, h);
+      frames.push(ctx.getImageData(0, 0, w, h).data);
+      status(`Recording… ${i + 1}/${total}`);
+      if (fill) fill.style.width = `${Math.round(((i + 1) / total) * 100)}%`;
+      const wait = interval - (performance.now() - t0);
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    }
+
+    // An all-black capture means the window never actually rendered into the
+    // stream — saying so beats saving a black GIF and calling it done.
+    if (frames.every(isBlankFrame)) throw new Error("Every frame came back blank — try picking the game window itself.");
+
+    status("Encoding…");
+    // Yield first: encoding is synchronous and would otherwise freeze the UI
+    // before the status text ever painted.
+    await new Promise((r) => setTimeout(r, 30));
+    const gif = window.LodeGIF.encodeGIF(frames, w, h, interval);
+
+    status("Saving…");
+    const poster = canvas.toDataURL("image/png").split(",")[1];
+    const res = await API.clip.save(instanceId, bytesToBase64(gif), poster);
+    return res;
+  } finally {
+    clipBusy = false;
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+  }
+}
+
+function isBlankFrame(data) {
+  // Sample rather than scan: a genuinely black frame is black everywhere.
+  for (let i = 0; i < data.length; i += 4 * 997) {
+    if (data[i] > 8 || data[i + 1] > 8 || data[i + 2] > 8) return false;
+  }
+  return true;
+}
+
+// btoa on a huge string blows the argument limit, so chunk it.
+function bytesToBase64(bytes) {
+  let bin = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
+}
+
+// ---------- Live stats HUD (LiveStatsOverlay parity) ----------
+// A small, unobtrusive performance readout shown while the game runs: current
+// frame rate with a sparkline of the recent trend, plus host RAM.
+//
+// Flat and semi-transparent, no glow — and status markers are SQUARES here, the
+// same as everywhere else in this theme. Vanilla Minecraft never prints FPS, so
+// the number stays "—" until a diagnostic mod (Spark, an F3 dump) emits one;
+// that's honest rather than inventing a reading.
+const LIVE_STATS_CAPACITY = 40;   // samples the sparkline remembers
+let liveStats = { fps: null, heap: null, history: [], host: null, timer: null };
+
+function fpsTint(fps) {
+  if (fps == null) return "var(--text-tertiary)";
+  if (fps >= 60) return "var(--accent)";
+  if (fps >= 30) return "#E0B34A";
+  return "#E07A4A";
+}
+
+// The sparkline is scaled to the window's own min/max, not to a fixed 0-240, so
+// a steady 58-62fps still shows its shape instead of flatlining at the bottom.
+function sparklinePath(history, w, h) {
+  if (history.length < 2) return "";
+  const min = Math.min(...history), max = Math.max(...history);
+  const span = max - min || 1;
+  return history.map((v, i) => {
+    const x = (i / (history.length - 1)) * w;
+    const y = h - ((v - min) / span) * h;
+    return `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+}
+
+function renderLiveStats() {
+  const host = document.getElementById("live-stats");
+  if (!host) return;
+  const { fps, history } = liveStats;
+  const mem = liveStats.host;
+
+  host.innerHTML = `
+    <div class="ls-block">
+      <div class="ls-row">
+        <span class="ls-marker" style="background:${fpsTint(fps)}"></span>
+        <span class="ls-value">${fps == null ? "—" : Math.round(fps)}</span>
+        <span class="ls-unit">fps</span>
+      </div>
+      ${history.length > 1 ? `
+        <svg class="ls-spark" viewBox="0 0 64 16" preserveAspectRatio="none">
+          <path d="${sparklinePath(history, 64, 16)}" fill="none" stroke="${fpsTint(fps)}" stroke-width="1.5"/>
+        </svg>` : `<span class="ls-hint">waiting for a reading</span>`}
+    </div>
+    ${mem ? `
+      <div class="ls-div"></div>
+      <div class="ls-block">
+        <div class="ls-row">
+          <span class="ls-value">${mem.usedGB.toFixed(1)}</span>
+          <span class="ls-unit">/ ${mem.totalGB.toFixed(0)} GB</span>
+        </div>
+        <span class="ls-hint">system memory</span>
+      </div>` : ""}`;
+}
+
+function startLiveStats() {
+  const host = document.getElementById("live-stats");
+  if (host) host.hidden = false;
+  if (liveStats.timer) return;
+  const poll = async () => { liveStats.host = await API.hostMemory(); renderLiveStats(); };
+  poll();
+  liveStats.timer = setInterval(poll, 4000);
+}
+
+function stopLiveStats() {
+  const host = document.getElementById("live-stats");
+  if (host) host.hidden = true;
+  if (liveStats.timer) { clearInterval(liveStats.timer); liveStats.timer = null; }
+  liveStats = { fps: null, heap: null, history: [], host: null, timer: null };
+}
+
+function noteLiveStat(p) {
+  if (!p) return;
+  if (p.fps != null) {
+    liveStats.fps = p.fps;
+    liveStats.history.push(p.fps);
+    if (liveStats.history.length > LIVE_STATS_CAPACITY) liveStats.history.shift();
+  }
+  if (p.heap != null) liveStats.heap = p.heap;
+  renderLiveStats();
 }
 
 // ---------- Themes ----------
@@ -1126,6 +1406,16 @@ function renderPluginsInstalled(installed) {
     toast(c.checked ? "Plugin enabled." : "Plugin disabled.");
     renderPlugins(); refreshPluginNav();
 initTheme();
+if (window.API && API.on) {
+  try {
+    API.on("stats:tick", (p) => noteLiveStat(p));
+    API.on("launch:state", (st) => {
+      if (!st) return;
+      if (st.status === "running") startLiveStats();
+      else if (st.status === "idle") stopLiveStats();
+    });
+  } catch { /* non-desktop build */ }
+}
   });
   body.querySelectorAll("[data-pgupdate]").forEach((b) => b.onclick = async () => {
     b.disabled = true; b.innerHTML = `<span class="spinner"></span> Updating…`;

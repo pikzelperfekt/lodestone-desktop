@@ -2,7 +2,7 @@
 // cross-platform stand-in for the Swift sidecar. It exposes a small JSON API over
 // IPC that the web UI (web/) calls, and drives auto-updates via electron-updater
 // (GitHub Releases feed configured in package.json's build.publish).
-const { app, BrowserWindow, ipcMain, shell, dialog, clipboard, nativeImage } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, dialog, clipboard, nativeImage, desktopCapturer } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { autoUpdater } = require("electron-updater");
@@ -585,6 +585,30 @@ handle("plugins:openFolder", () => shell.openPath(engine.pluginsDir()));
 handle("themes:list", () => engine.themeList());
 handle("themes:select", (a) => engine.themeSelect(a));
 handle("themes:openFolder", () => shell.openPath(engine.themesDir()));
+handle("stats:host", () => engine.hostMemory());
+
+// ---- Clip recorder ----
+// desktopCapturer only runs in main; it hands back source ids that the renderer
+// turns into a capture stream. The game window is surfaced first so you aren't
+// hunting for it in a list of every window you have open.
+handle("clip:sources", async (a) => {
+  const sources = await desktopCapturer.getSources({
+    types: ["window", "screen"],
+    thumbnailSize: { width: 320, height: 180 },
+  });
+  const pid = a && a.instanceId ? engine.runningPid(a.instanceId) : null;
+  return sources.map((s) => ({
+    id: s.id,
+    name: s.name,
+    // A window owned by the launched java process IS the game, which beats
+    // matching on a title that mods and the version string keep changing.
+    isGame: (pid && String(s.id).includes(String(pid))) || /minecraft|java/i.test(s.name),
+    thumbnail: s.thumbnail.toDataURL(),
+  })).sort((x, y) => (y.isGame ? 1 : 0) - (x.isGame ? 1 : 0));
+});
+
+handle("clip:save", (a) => engine.saveClip(a));
+handle("clip:running", (a) => ({ pid: engine.runningPid(a && a.instanceId) }));
 
 app.whenReady().then(() => {
   engine.init(app.getPath("userData"));

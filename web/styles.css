@@ -1855,3 +1855,39 @@ textarea.inp, .share-box {
 .theme-meta { display:flex; flex-direction:column; gap:1px; padding:0 2px 2px; }
 .theme-meta b { font-family: var(--font-display); font-weight:600; font-size:12.5px; }
 .theme-meta span { font-size:10.5px; color: var(--text-tertiary); }
+
+/* ---------- Live stats HUD (LiveStatsOverlay parity) ---------- */
+/* Pinned to a corner, flat and semi-transparent — no glass, no accent glow. */
+.live-stats { position:fixed; right:18px; bottom:18px; z-index:40;
+  display:flex; align-items:center; gap:12px; padding:8px 12px;
+  background: rgba(0,0,0,.42); border:1px solid var(--stroke); border-radius:0;
+  box-shadow: var(--voxel-bevel); pointer-events:none; }
+.live-stats[hidden] { display:none; }   /* [hidden] loses to display:flex without this */
+
+.ls-block { display:flex; flex-direction:column; gap:2px; }
+.ls-row { display:flex; align-items:baseline; gap:5px; }
+/* Status markers are squares in this theme, never dots. */
+.ls-marker { width:6px; height:6px; align-self:center; }
+.ls-value { font-family: var(--font-display); font-weight:600; font-size:15px;
+  font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.ls-unit { font-size:10.5px; color: var(--text-tertiary); }
+.ls-hint { font-size:9.5px; color: var(--text-tertiary); }
+.ls-spark { width:64px; height:16px; display:block; }
+.ls-div { width:1px; align-self:stretch; background: var(--stroke); }
+
+/* ---------- Clip recorder (ClipRecorder parity) ---------- */
+.clip-sheet { max-height: 78vh; overflow-y: auto; }
+.clip-len { max-width: 220px; }
+
+.clip-sources { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:8px; margin-top:4px; }
+.clip-src { display:flex; flex-direction:column; gap:5px; padding:5px; cursor:pointer; text-align:left;
+  background: var(--voxel-elev); border:1px solid var(--stroke); border-radius:0;
+  box-shadow: var(--voxel-bevel); color: var(--text-secondary); }
+.clip-src:hover { border-color: var(--accent); }
+.clip-src.is-on { border-color: var(--accent); box-shadow: var(--voxel-bevel), 0 0 0 1px var(--accent) inset; }
+.clip-src img { width:100%; aspect-ratio:16/9; object-fit:cover; display:block; background:#000; }
+.clip-src span { font-size:10.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+.clip-bar { height:3px; background: var(--deepslate-1); border:1px solid var(--stroke); margin-top:8px; }
+.clip-bar[hidden] { display:none; }
+.clip-bar span { display:block; height:100%; width:0; background: var(--accent); transition: width .1s linear; }

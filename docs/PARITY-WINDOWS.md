@@ -10,10 +10,10 @@ one is generated from the Mac source so it cannot drift.
 
 | status | count |
 |---|---|
-| done | 87 |
+| done | 88 |
 | partial | 0 |
 | missing | 0 |
-| n/a | 3 |
+| n/a | 1 |
 
 | Mac view | Status | Notes |
 |---|---|---|
@@ -23,7 +23,7 @@ one is generated from the Mac source so it cannot drift.
 | AppSettingsView | done | preferences |
 | BackupSettingsSheet | done | interval + keep count, skips running instances, prunes old copies |
 | BrowseView | done | categories, sort, project pages |
-| ClipRecorder | n/a | josi's call 2026-08-03: not wanted on Windows |
+| ClipRecorder | done | records a looping GIF of the game window into screenshots/ |
 | CloudHostingSheet | done | self-host + playit agent + exaroton (wired) + Oracle |
 | CommandPalette | done | Ctrl/Cmd-K |
 | ConfigManagerSheet | done | every editable config |
@@ -54,7 +54,7 @@ one is generated from the Mac source so it cannot drift.
 | LaunchOverlay | done | launch progress |
 | LaunchStatusBar | done | launch state |
 | LinkTabView | done | per-instance links |
-| LiveStatsOverlay | n/a | josi's call 2026-08-03: not wanted on Windows |
+| LiveStatsOverlay | done | in-app FPS + sparkline + host RAM while the game runs |
 | LogConsole | done | tail, level filter, find, copy |
 | MixinConflictsSheet | done | static scanner |
 | ModpackEditor | done | pick what leaves the machine, export .mrpack |

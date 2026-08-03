@@ -82,6 +82,14 @@ contextBridge.exposeInMainWorld("lodestone", {
     runCommand: (pluginId, id) => call("plugins:runCommand", { pluginId, id }),
     openFolder: () => call("plugins:openFolder"),
   },
+  hostMemory: () => call("stats:host"),
+  // main has had a shots:reveal handler all along, but it was never bridged.
+  revealFile: (path) => call("shots:reveal", { path }),
+  clip: {
+    sources: (instanceId) => call("clip:sources", { instanceId }),
+    save: (instanceId, gifBase64, posterBase64) => call("clip:save", { instanceId, gifBase64, posterBase64 }),
+    running: (instanceId) => call("clip:running", { instanceId }),
+  },
   themes: {
     list: () => call("themes:list"),
     select: (id) => call("themes:select", { id }),
@@ -237,7 +245,7 @@ contextBridge.exposeInMainWorld("lodestone", {
       "pack:shared", "pack:joined", "pack:published", "pack:applied", "pack:left", "pack:error",
       "seed:progress", "notify", "lan:found", "pregen:log", "pregen:state",
       "publish:phase", "publish:log", "exaroton:log", "playit:log", "playit:state",
-      "plugins:changed", "plugin:log", "plugin:navigate"];
+      "plugins:changed", "plugin:log", "plugin:navigate", "stats:tick"];
     if (!allowed.includes(channel)) return () => {};
     const handler = (_e, payload) => fn(payload);
     ipcRenderer.on(channel, handler);

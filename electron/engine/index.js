@@ -13,7 +13,8 @@ const curseforge = require("./curseforge");
 const worlds = require("./worlds");
 const mixins = require("./mixins");
 const seedfinder = require("./seedfinder"); // native cubiomes seed search // static mixin conflict detection
-const worldcreate = require("./worldcreate"); // world creation + import (26.1 split format aware)
+const worldcreate = require("./worldcreate");
+const worldinfo = require("./worldinfo"); // World detail: facts read out of level.dat // world creation + import (26.1 split format aware)
 const auth = require("./auth");
 const cloud = require("./cloud");
 const sync = require("./sync"); // [Cloud Sync — Vertical A]
@@ -646,6 +647,16 @@ module.exports = {
     packsync.publish(inst.id).catch(() => {});
     return true;
   },
+  // ---- World detail ----
+  worldInfo: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    return worldinfo.worldInfo({
+      instanceDir: install.paths(DATA_DIR).instanceDir(inst.id),
+      folder: a && a.world,
+    });
+  },
+
   // ---- Instance groups (the Instances page's named sections) ----
   // Membership lives here rather than on the instance so an instance can be
   // regrouped without rewriting instances.json, and so a group survives an

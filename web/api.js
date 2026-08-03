@@ -331,6 +331,10 @@
         if (bridge) return unwrap(await bridge.worlds.create(opts));
         throw new Error("World creation runs in the desktop app.");
       },
+      async info(opts) {
+        if (bridge) return unwrap(await bridge.worlds.info(opts));
+        throw new Error("World details run in the desktop app.");
+      },
       async import(opts) {
         if (bridge) return unwrap(await bridge.worlds.import(opts));
         throw new Error("World import runs in the desktop app.");

@@ -148,6 +148,7 @@ handle("setup:skin:reset", () => engine.skinReset());
 handle("mixins:scan", (a) => engine.scanMixins(a));
 handle("instances:sizes", () => engine.instanceSizes());
 handle("mods:list", (a) => engine.listMods(a));
+handle("worlds:info", (a) => engine.worldInfo(a));
 handle("groups:list", () => engine.listGroups());
 handle("groups:save", (a) => engine.saveGroup(a));
 handle("groups:delete", (a) => engine.deleteGroup(a));

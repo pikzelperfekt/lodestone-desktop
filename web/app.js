@@ -218,6 +218,8 @@ function bindArtDrops(refresh) {
 
 // ---------- INSTANCES ----------
 let creating = false;
+let instSelecting = false;          // multi-select mode on the Instances page
+const instSelected = new Set();     // ids chosen while selecting
 async function renderInstances() {
   el().innerHTML = `<div class="placeholder">${ico("i-stack")}<h2>Loading…</h2></div>`;
   const [instances, groups, sizes] = await Promise.all([
@@ -249,6 +251,7 @@ async function renderInstances() {
     <div class="page-head">
       <h1 class="page-title">Instances <span class="page-count">${instances.length}</span></h1>
       <div class="head-actions">
+        <button class="gh${instSelecting ? " is-on" : ""}" id="select-mode">${ico("i-grid")} ${instSelecting ? "Done" : "Select"}</button>
         <button class="gh" id="new-group">${ico("i-plus")} New group</button>
         <button class="gh" id="add-from-code">${ico("i-bolt")} Add from code</button>
         <button class="gh" id="import-pack">${ico("i-download")} Import</button>
@@ -258,7 +261,43 @@ async function renderInstances() {
     <div id="new-panel"></div>
     ${groups.map((g) => section(g.name, g.instanceIds.map((id) => byId.get(id)).filter(Boolean), g)).join("")}
     ${section("Ungrouped", ungrouped, null)}
-    ${instances.length ? `<div class="grid-foot kick">${instances.length} instance${instances.length === 1 ? "" : "s"} \u00b7 ${esc(fmtSize(sizes.total))} on disk</div>` : ""}`;
+    ${instances.length ? `<div class="grid-foot kick">${instances.length} instance${instances.length === 1 ? "" : "s"} \u00b7 ${esc(fmtSize(sizes.total))} on disk</div>` : ""}
+    ${instSelecting ? `
+      <div class="bulk-bar">
+        <span class="bulk-count">${instSelected.size} selected</span>
+        <button class="gh" id="bulk-group">${ico("i-stack")} Move to group</button>
+        <button class="gh danger" id="bulk-delete"${instSelected.size ? "" : " disabled"}>${ico("i-trash")} Delete</button>
+        <button class="gh" id="bulk-cancel">Cancel</button>
+      </div>` : ""}`;
+
+  document.getElementById("select-mode").onclick = () => {
+    instSelecting = !instSelecting;
+    if (!instSelecting) instSelected.clear();
+    renderInstances();
+  };
+  if (instSelecting) {
+    document.getElementById("bulk-cancel").onclick = () => { instSelecting = false; instSelected.clear(); renderInstances(); };
+    document.getElementById("bulk-group").onclick = (e) => {
+      if (!instSelected.size) { toast("Pick some instances first."); return; }
+      openMenu(e.currentTarget, [
+        { label: "Ungrouped", run: async () => {
+            for (const id of instSelected) { try { await API.assignGroup({ instanceId: id, groupId: null }); } catch (err) { toast(err.message); break; } }
+            instSelecting = false; instSelected.clear(); renderInstances();
+          } },
+        ...groups.map((g) => ({ label: g.name, run: async () => {
+            for (const id of instSelected) { try { await API.assignGroup({ instanceId: id, groupId: g.id }); } catch (err) { toast(err.message); break; } }
+            instSelecting = false; instSelected.clear(); renderInstances();
+          } })),
+      ]);
+    };
+    document.getElementById("bulk-delete").onclick = async () => {
+      const n = instSelected.size;
+      if (!n || !confirm(`Delete ${n} instance${n === 1 ? "" : "s"}? This removes their mods, worlds and configs permanently.`)) return;
+      for (const id of instSelected) { try { await API.deleteInstance(id); } catch (e) { toast(e.message); break; } }
+      toast(`Deleted ${n} instance${n === 1 ? "" : "s"}.`);
+      instSelecting = false; instSelected.clear(); renderInstances();
+    };
+  }
 
   // Group controls.
   document.getElementById("new-group").onclick = async () => {
@@ -314,6 +353,12 @@ async function renderInstances() {
   // Click a card (but not its Play/Delete buttons) to open its detail + mods.
   el().querySelectorAll("[data-open]").forEach((n) => n.addEventListener("click", (e) => {
     if (e.target.closest("[data-play],[data-del]")) return;
+    if (instSelecting) {
+      const id = n.dataset.open;
+      if (instSelected.has(id)) instSelected.delete(id); else instSelected.add(id);
+      renderInstances();
+      return;
+    }
     renderInstanceDetail(n.dataset.open);
   }));
 }
@@ -667,6 +712,11 @@ async function renderInstanceDetail(id) {
     } catch (e) { wImp.disabled = false; toast("Couldn't import: " + e.message); }
   };
 
+  el().querySelectorAll("[data-wopen]").forEach((n) => n.addEventListener("click", (e) => {
+    if (e.target.closest("button")) return;      // let the row's own actions win
+    renderWorldDetail(id, n.dataset.wopen);
+  }));
+
   // Backups: restore.
   el().querySelectorAll("[data-wrestore]").forEach((b) => b.onclick = async () => {
     const backup = b.dataset.wrestore;
@@ -889,7 +939,7 @@ const fmtSize = (n) => (
   : (n || 0) + " B");
 
 const worldRow = (w) => `
-  <div class="glass world-row">
+  <div class="glass world-row" data-wopen="${esc(w.name)}">
     ${w.icon ? `<img class="hit-icon" src="${esc(fileURL(w.icon))}?v=${w.modified}" />` : `<div class="hit-icon ph">${ico("i-globe")}</div>`}
     <div class="hit-meta">
       <div class="hit-title">${esc(w.name)}</div>
@@ -1000,7 +1050,8 @@ const instGridCard = (i, compact) => {
     ? relTime(i.lastPlayed)
     : `${esc(i.mcVersion)}${i.loader && i.loader !== "vanilla" ? ` \u00b7 ${esc(loaderLabel(i.loader))}` : ""} \u00b7 ${mods === 0 ? "no mods" : `${mods} mods`}`;
   return `
-  <div class="strip-card${compact ? " is-compact" : ""}${flair ? " has-flair" : ""}" data-open="${i.id}"${flair ? ` style="--flair:${t.color}"` : ""}>
+  <div class="strip-card${compact ? " is-compact" : ""}${flair ? " has-flair" : ""}${instSelecting && instSelected.has(i.id) ? " is-selected" : ""}" data-open="${i.id}"${flair ? ` style="--flair:${t.color}"` : ""}>
+    ${instSelecting && !compact ? `<span class="sel-mark${instSelected.has(i.id) ? " on" : ""}">${instSelected.has(i.id) ? "\u2713" : ""}</span>` : ""}
     <div class="inst-art imgbox" data-art="${i.id}">
       ${i.iconPath ? "" : `<div class="art-invite">${ico("i-image")}<span>Drop an image</span><span class="art-browse">or <u>browse files</u></span></div>`}
       <button class="card-del" data-del="${i.id}" title="Delete instance">${ico("i-trash")}</button>
@@ -1843,6 +1894,97 @@ async function openMixinSheet(inst) {
       <div class="np-actions"><button class="btn-ghost" id="mx-close">Close</button></div>
     </div>`);
   document.getElementById("mx-close").onclick = hideModal;
+}
+
+// ---------- World detail ----------
+// Everything level.dat can tell us about one world, plus the actions that
+// belong to it. Facts only — nothing is inferred or filled in with a plausible
+// default, so a field that is genuinely absent shows as unknown.
+async function renderWorldDetail(instanceId, folder) {
+  el().innerHTML = `<div class="placeholder">${ico("i-globe")}<h2>Reading level.dat\u2026</h2></div>`;
+  let w;
+  try { w = await API.worldTools.info({ instanceId, world: folder }); }
+  catch (e) { toast(e.message); renderInstanceDetail(instanceId); return; }
+
+  const fact = (label, value) => value === null || value === undefined || value === ""
+    ? "" : `<div class="wd-fact"><span class="kick">${esc(label)}</span><b>${esc(String(value))}</b></div>`;
+  const clock = w.timeOfDay === null ? null
+    : `${String(Math.floor(((w.timeOfDay / 1000) + 6) % 24)).padStart(2, "0")}:${String(Math.floor((w.timeOfDay % 1000) * 60 / 1000)).padStart(2, "0")}`;
+
+  el().innerHTML = `
+    <div class="page-head">
+      <button class="gh ico-sq" id="wd-back" title="Back">${ico("i-back")}</button>
+      <h1 class="page-title">${esc(w.name)}</h1>
+      <span class="page-count">${esc(w.folder)}</span>
+      <div class="head-actions">
+        <button class="play-btn wd-play" data-play="${instanceId}">${ico("i-play")} Play</button>
+      </div>
+    </div>
+
+    <section class="vsec">
+      <div class="vsec-head"><span class="kick">World</span></div>
+      <div class="wd-facts">
+        ${fact("Seed", w.seed)}
+        ${fact("Version", w.versionName)}
+        ${fact("Mode", w.hardcore ? "Hardcore" : w.gameMode)}
+        ${fact("Difficulty", w.difficultyLocked ? `${w.difficulty} (locked)` : w.difficulty)}
+        ${fact("Cheats", w.cheats ? "Allowed" : "Off")}
+        ${fact("Day", w.days === null ? null : `Day ${w.days}`)}
+        ${fact("Time", clock)}
+        ${fact("Size", fmtSize(w.size))}
+        ${fact("Last played", w.lastPlayed ? relTime(w.lastPlayed) : "Never")}
+        ${fact("Save format", w.split ? "26.1+ (split)" : "Classic")}
+      </div>
+    </section>
+
+    ${w.dimensions.length ? `
+    <section class="vsec">
+      <div class="vsec-head"><span class="kick">Generated</span></div>
+      <div class="wd-dims">
+        ${w.dimensions.map((d) => `<span class="vchip">${esc(d.name)} \u00b7 ${d.regions} region${d.regions === 1 ? "" : "s"}</span>`).join("")}
+      </div>
+    </section>` : `
+    <section class="vsec">
+      <div class="vsec-head"><span class="kick">Generated</span></div>
+      <div class="empty-line">No terrain generated yet \u2014 this world hasn't been opened.</div>
+    </section>`}
+
+    <section class="vsec">
+      <div class="vsec-head"><span class="kick">Actions</span></div>
+      <div class="wd-actions">
+        <button class="gh" id="wd-copy-seed"${w.seed ? "" : " disabled"}>${ico("i-link")} Copy seed</button>
+        <button class="gh" id="wd-backup">${ico("i-download")} Back up</button>
+        <button class="gh" id="wd-rename">Rename</button>
+        <button class="gh danger" id="wd-delete">${ico("i-trash")} Delete</button>
+      </div>
+    </section>`;
+
+  document.getElementById("wd-back").onclick = () => renderInstanceDetail(instanceId);
+  bindCommon();
+
+  const seedBtn = document.getElementById("wd-copy-seed");
+  if (w.seed) seedBtn.onclick = async () => {
+    toast(await copyText(w.seed) ? `Copied ${w.seed}.` : "Couldn't copy the seed.");
+  };
+  document.getElementById("wd-backup").onclick = async (e) => {
+    const b = e.currentTarget; b.disabled = true; b.innerHTML = `<span class="spinner"></span> Backing up\u2026`;
+    try { const r = await API.worlds.backup({ instanceId, world: folder }); toast(`Backed up ${r.world} (${fmtSize(r.size)}).`); }
+    catch (err) { toast("Backup failed: " + err.message); }
+    b.disabled = false; b.innerHTML = `${ico("i-download")} Back up`;
+  };
+  document.getElementById("wd-rename").onclick = async () => {
+    const name = prompt(`Rename "${w.name}" to:`, w.name);
+    if (name == null || !name.trim() || name.trim() === w.name) return;
+    try { await API.worlds.rename({ instanceId, world: folder, name: name.trim() }); toast("World renamed."); renderInstanceDetail(instanceId); }
+    catch (e) { toast("Rename failed: " + e.message); }
+  };
+  document.getElementById("wd-delete").onclick = async () => {
+    if (!confirm(`Move "${w.name}" to the Recycle Bin? Back it up first if you're not sure.`)) return;
+    try { const r = await API.worlds.remove({ instanceId, world: folder });
+      toast(r && r.trashed ? "World moved to the Recycle Bin." : "World deleted.");
+      renderInstanceDetail(instanceId); }
+    catch (e) { toast("Delete failed: " + e.message); }
+  };
 }
 
 // ---------- New world sheet ----------

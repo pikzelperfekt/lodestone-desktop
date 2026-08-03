@@ -33,7 +33,7 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 | EditInstanceSheet | partial | name/version/RAM/Java; **no icon maker, no group, no notes** |
 | HealthView / PerfInsightsBanner | done | real checks drive both the screen and the hero chip |
 | InstanceHistorySheet | done | per-instance sessions from the instance menu |
-| InstanceIconMaker | missing | generate an icon |
+| InstanceIconMaker | done | initials + palette, written through the normal icon path |
 | FileBrowserTab | done | breadcrumb browser + text editor, path-escape guarded |
 | ConfigManagerSheet | done | every editable config, grouped by folder |
 | RepairSheet | done | offered inline against the finding that needs it |
@@ -82,7 +82,7 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 | SocialView / SignInSheet / ProfileSheet | done | friends, presence, auth |
 | SquadManagerSheet | partial | squads exist; no manager |
 | SkinsView | done | upload/reset, body render, and a local library you can re-wear from |
-| SettingsView / AppSettingsView | partial | core prefs only |
+| SettingsView / AppSettingsView | done | behaviour toggles + parallel downloads, values clamped |
 | UpdatesSheet | partial | banner only |
 | PluginsView / PluginWebView | missing | launcher plugins |
 | ThemeBrowserSheet | n/a | Mac deliberately ships one theme |

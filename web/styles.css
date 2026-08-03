@@ -1689,3 +1689,12 @@ textarea.inp, .share-box {
 .hl-detail { font-size: 11.5px; color: var(--voxel-muted); line-height: 1.5; }
 .vchip.health.bad { color: var(--danger); }
 .vchip.health.warn { color: var(--warn); }
+
+/* ---- Icon maker ---- */
+.im-wrap { display: flex; gap: 18px; align-items: flex-start; margin: 4px 0; }
+.im-canvas { width: 148px; height: 148px; flex: none; image-rendering: pixelated;
+  box-shadow: var(--voxel-bevel); }
+.im-side { flex: 1; min-width: 0; }
+.im-swatches { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 7px; }
+.im-sw { width: 26px; height: 26px; border: 0; cursor: pointer; box-shadow: var(--voxel-bevel); }
+.im-sw.is-on { box-shadow: var(--voxel-bevel), 0 0 0 2px var(--voxel-text); }

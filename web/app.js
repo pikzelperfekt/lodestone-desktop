@@ -735,6 +735,7 @@ async function renderInstanceDetail(id) {
     { label: "Share & Sync", icon: "i-bolt", run: () => openShareModal(inst) },
     { label: "Mixin conflicts", icon: "i-pulse", run: () => openMixinSheet(inst) },
     { label: "Find a seed", icon: "i-globe", run: () => openSeedSheet(inst) },
+    { label: "Make an icon\u2026", icon: "i-image", run: () => openIconMaker(inst) },
     { label: "Session history", icon: "i-pulse", run: () => openHistorySheet(inst) },
     { label: "Move to group\u2026", icon: "i-stack", run: async () => {
         const groups = await API.groups();
@@ -1473,6 +1474,37 @@ async function renderSettings() {
       </div>
     </div>
 
+    <div class="section-head" style="margin-top:22px"><span class="section-title">BEHAVIOUR</span></div>
+    <div class="glass settings-card">
+      <div class="gs-list">
+        <div class="gs-row">
+          <div class="gs-meta"><div class="gs-label">Hide the launcher while playing</div>
+            <div class="gs-desc">The window comes back when the game exits.</div></div>
+          <div class="gs-ctl"><button class="switch ${settings.closeOnLaunch ? "on" : ""}" data-set="closeOnLaunch"><span class="knob"></span></button></div>
+        </div>
+        <div class="gs-row">
+          <div class="gs-meta"><div class="gs-label">Confirm before deleting an instance</div>
+            <div class="gs-desc">Deleting is permanent, so this is on by default.</div></div>
+          <div class="gs-ctl"><button class="switch ${settings.confirmDelete !== false ? "on" : ""}" data-set="confirmDelete"><span class="knob"></span></button></div>
+        </div>
+        <div class="gs-row">
+          <div class="gs-meta"><div class="gs-label">Download launcher updates automatically</div>
+            <div class="gs-desc">Applied the next time you quit.</div></div>
+          <div class="gs-ctl"><button class="switch ${settings.autoUpdate !== false ? "on" : ""}" data-set="autoUpdate"><span class="knob"></span></button></div>
+        </div>
+        <div class="gs-row">
+          <div class="gs-meta"><div class="gs-label">Parallel downloads</div>
+            <div class="gs-desc">Higher installs faster on a good connection; lower is kinder to a slow one.</div></div>
+          <div class="gs-ctl">
+            <div class="gs-slider">
+              <input class="rng" type="range" min="1" max="16" step="1" value="${settings.concurrentDownloads || 8}" id="set-conc">
+              <span class="gs-val is-set" id="set-conc-val">${settings.concurrentDownloads || 8}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="section-head" style="margin-top:22px"><span class="section-title">CONTENT SOURCES</span></div>
     <div class="glass settings-card">
       <div class="set-row">
@@ -1551,6 +1583,23 @@ async function renderSettings() {
     cf.value = val;
     save({ curseforgeKey: val }, val ? "CurseForge key saved." : "CurseForge key cleared.");
   };
+  // New behaviour toggles + the parallel-download slider.
+  el().querySelectorAll("[data-set]").forEach((b) => b.onclick = async () => {
+    const on = !b.classList.contains("on");
+    b.classList.toggle("on", on);
+    try { await API.settings.set({ [b.dataset.set]: on }); }
+    catch (e) { toast(e.message); renderSettings(); }
+  });
+  const conc = document.getElementById("set-conc");
+  if (conc) {
+    const out = document.getElementById("set-conc-val");
+    conc.oninput = () => { if (out) out.textContent = conc.value; };
+    conc.onchange = async () => {
+      try { await API.settings.set({ concurrentDownloads: Number(conc.value) }); }
+      catch (e) { toast(e.message); }
+    };
+  }
+
   document.getElementById("set-cf-link").onclick = () => API.openExternal("https://console.curseforge.com/#/api-keys");
 
   document.getElementById("set-open-data").onclick = () => API.openDataDir();
@@ -2302,6 +2351,77 @@ function paintWorldMap(canvas, cells) {
     ctx.fillStyle = biomeColor(c.biome);
     ctx.fillRect((c.x - minX) * scale, (c.z - minZ) * scale, scale, scale);
   }
+}
+
+// ---------- Icon maker ----------
+// Generates a real PNG from initials and a colour, for packs that have no art
+// of their own. It writes through the same icon path a dropped image uses, so
+// there is nothing special about a generated icon afterwards.
+const ICON_PALETTE = ["#8EC44F", "#5FC9C0", "#E0B34A", "#E07A4A", "#E6467A",
+                      "#9B7BE6", "#5AA0E6", "#E8E4DC", "#7A8C6A", "#C4553D"];
+function openIconMaker(inst) {
+  const initials = String(inst.name).trim().split(/\s+/).slice(0, 2)
+    .map((w) => w[0]).join("").toUpperCase() || "MC";
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-image")} Make an icon</div>
+      <p class="share-sub">A generated icon for <b>${esc(inst.name)}</b>. Drop a real image on the pack art any time to replace it.</p>
+      <div class="im-wrap">
+        <canvas id="im-canvas" width="256" height="256" class="im-canvas"></canvas>
+        <div class="im-side">
+          <label class="np-field"><span>LETTERS</span>
+            <input class="inp" id="im-text" maxlength="3" value="${esc(initials)}"></label>
+          <div class="kick" style="margin-top:14px">COLOUR</div>
+          <div class="im-swatches" id="im-swatches">
+            ${ICON_PALETTE.map((c, i) => `<button class="im-sw${i === 0 ? " is-on" : ""}" data-col="${c}" style="background:${c}"></button>`).join("")}
+          </div>
+          <label class="nw-check" style="margin-top:14px">
+            <input type="checkbox" id="im-pixel" checked> Pixel lettering
+          </label>
+        </div>
+      </div>
+      <div class="np-actions">
+        <button class="btn-ghost" id="im-close">Cancel</button>
+        <button class="btn-accent share-btn" id="im-save">Use this icon</button>
+      </div>
+    </div>`);
+
+  let colour = ICON_PALETTE[0];
+  const draw = () => {
+    const cv = document.getElementById("im-canvas");
+    const ctx = cv.getContext("2d");
+    const text = (document.getElementById("im-text").value || "MC").toUpperCase().slice(0, 3);
+    const pixel = document.getElementById("im-pixel").checked;
+    ctx.fillStyle = colour;
+    ctx.fillRect(0, 0, 256, 256);
+    // A darker foot so it reads as an extruded block, matching the app.
+    ctx.fillStyle = "rgba(0,0,0,.22)";
+    ctx.fillRect(0, 208, 256, 48);
+    ctx.fillStyle = "rgba(255,255,255,.20)";
+    ctx.fillRect(0, 0, 256, 6);
+    ctx.fillStyle = "#16200E";
+    ctx.font = `${pixel ? "" : "700 "}${text.length > 2 ? 92 : 120}px ${pixel ? '"Silkscreen", monospace' : 'system-ui, sans-serif'}`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(text, 128, 122);
+  };
+  draw();
+
+  document.getElementById("im-text").oninput = draw;
+  document.getElementById("im-pixel").onchange = draw;
+  document.querySelectorAll("[data-col]").forEach((b) => b.onclick = () => {
+    colour = b.dataset.col;
+    document.querySelectorAll("[data-col]").forEach((x) => x.classList.toggle("is-on", x === b));
+    draw();
+  });
+  document.getElementById("im-close").onclick = hideModal;
+  document.getElementById("im-save").onclick = async (e) => {
+    const btn = e.currentTarget; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Saving\u2026`;
+    try {
+      const data = document.getElementById("im-canvas").toDataURL("image/png").split(",")[1];
+      await API.icons.set(inst.id, data, "png");
+      toast("Icon set."); hideModal(); renderInstanceDetail(inst.id);
+    } catch (err) { btn.disabled = false; btn.textContent = "Use this icon"; toast(err.message); }
+  };
 }
 
 // ---------- World detail ----------

@@ -16,7 +16,7 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 |---|---|---|
 | RootView | done | sidebar, Play/Instances/Servers/Friends, PINNED, SETUP |
 | HeroHomeView / HomeCards / PlayView | done | hero, chips, Play, Jump back in, Servers |
-| InstancesView | partial | groups done; **no drive sections, no multi-select, no arrange/reorder** |
+| InstancesView | partial | groups + multi-select + bulk actions done; **no arrange/reorder**; drive sections n/a |
 | CommandPalette | done | Ctrl/Cmd-K |
 | SidebarNotifications | missing | no notification surface at all |
 | OnboardingSheet | missing | no first-run flow |
@@ -43,7 +43,7 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 |---|---|---|
 | NewWorldSheet / AddWorldSheet | done | both save formats, seed parsing |
 | WorldManagerSheet | partial | list/backup/restore/rename/delete |
-| WorldDetailView | missing | per-world page |
+| WorldDetailView | done | facts from level.dat (both save formats) + actions |
 | WorldMapView | missing | rendered chunk map (needs a .mca reader) |
 | WorldStatisticsView | missing | playtime, structures, inventory |
 | SeedMapView / SeedInfoSheet | missing | biome map from a seed |

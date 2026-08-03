@@ -71,6 +71,22 @@
       if (bridge) return unwrap(await bridge.instances.toggleMod(opts));
       throw new Error("Toggling mods runs in the desktop app.");
     },
+    async groups() {
+      if (!bridge) return [];
+      try { return unwrap(await bridge.instances.groups()); } catch { return []; }
+    },
+    async saveGroup(opts) {
+      if (bridge) return unwrap(await bridge.instances.saveGroup(opts));
+      throw new Error("Groups run in the desktop app.");
+    },
+    async deleteGroup(id) {
+      if (bridge) return unwrap(await bridge.instances.deleteGroup(id));
+      throw new Error("Groups run in the desktop app.");
+    },
+    async assignGroup(opts) {
+      if (bridge) return unwrap(await bridge.instances.assignGroup(opts));
+      throw new Error("Groups run in the desktop app.");
+    },
     async screenshots(instanceId) {
       if (!bridge) return { shots: [], dir: "" };
       try { return unwrap(await bridge.instances.screenshots(instanceId)); } catch { return { shots: [], dir: "" }; }

@@ -32,6 +32,21 @@ let emit = () => {};
 const running = {}; // instanceId -> child process
 let sizeCache = null;  // { at, value } for instanceSizes()
 
+const groupsFile = () => path.join(DATA_DIR, "groups.json");
+function readGroups() {
+  let raw = [];
+  try { raw = JSON.parse(fs.readFileSync(groupsFile(), "utf8")); } catch { return []; }
+  if (!Array.isArray(raw)) return [];
+  // Prune members whose instance is gone, so a deleted pack can't leave a
+  // ghost in a group.
+  const live = new Set(readInstances().map((i) => i.id));
+  return raw.map((g) => ({
+    id: g.id, name: g.name, collapsed: !!g.collapsed,
+    instanceIds: (g.instanceIds || []).filter((id) => live.has(id)),
+  }));
+}
+function writeGroups(list) { try { fs.writeFileSync(groupsFile(), JSON.stringify(list, null, 2)); } catch { /* best effort */ } }
+
 function init(userDataPath) {
   DATA_DIR = userDataPath || path.join(os.homedir(), ".lodestone");
   fs.mkdirSync(path.join(DATA_DIR, "instances"), { recursive: true });
@@ -631,6 +646,43 @@ module.exports = {
     packsync.publish(inst.id).catch(() => {});
     return true;
   },
+  // ---- Instance groups (the Instances page's named sections) ----
+  // Membership lives here rather than on the instance so an instance can be
+  // regrouped without rewriting instances.json, and so a group survives an
+  // instance being deleted (it is pruned on read instead).
+  listGroups: () => readGroups(),
+  saveGroup: (a) => {
+    const groups = readGroups();
+    if (a && a.id) {
+      const g = groups.find((x) => x.id === a.id);
+      if (!g) throw new Error("Group not found.");
+      if (a.name !== undefined) g.name = String(a.name).trim() || g.name;
+      if (a.collapsed !== undefined) g.collapsed = !!a.collapsed;
+      if (Array.isArray(a.instanceIds)) g.instanceIds = a.instanceIds.slice();
+    } else {
+      const name = String((a && a.name) || "").trim();
+      if (!name) throw new Error("Name the group.");
+      groups.push({ id: "g" + Date.now().toString(36), name, collapsed: false, instanceIds: [] });
+    }
+    writeGroups(groups);
+    return readGroups();
+  },
+  deleteGroup: (a) => {
+    // Deleting a group never deletes instances — they fall back to Ungrouped.
+    writeGroups(readGroups().filter((g) => g.id !== (a && a.id)));
+    return readGroups();
+  },
+  setInstanceGroup: (a) => {
+    const groups = readGroups();
+    for (const g of groups) g.instanceIds = g.instanceIds.filter((x) => x !== a.instanceId);
+    if (a.groupId) {
+      const g = groups.find((x) => x.id === a.groupId);
+      if (g) g.instanceIds.push(a.instanceId);
+    }
+    writeGroups(groups);
+    return readGroups();
+  },
+
   // ---- Screenshots tab ----
   listScreenshots: (a) => {
     const inst = readInstances().find((i) => i.id === (a && a.instanceId));

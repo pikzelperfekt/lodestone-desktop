@@ -220,22 +220,69 @@ function bindArtDrops(refresh) {
 let creating = false;
 async function renderInstances() {
   el().innerHTML = `<div class="placeholder">${ico("i-stack")}<h2>Loading…</h2></div>`;
-  const instances = await API.instances();
-  const totalPlay = instances.reduce((sum, i) => sum + (Number(i.playtimeMs) || 0), 0);
+  const [instances, groups, sizes] = await Promise.all([
+    API.instances(), API.groups(), API.instanceSizes(),
+  ]);
+  const grouped = new Set(groups.flatMap((g) => g.instanceIds));
+  const ungrouped = instances.filter((i) => !grouped.has(i.id));
+  const byId = new Map(instances.map((i) => [i.id, i]));
+
+  // A named section per group, then Ungrouped last and always present so
+  // there is somewhere for a new instance to land.
+  const section = (title, list, group) => `
+    <section class="inst-group${group && group.collapsed ? " is-collapsed" : ""}">
+      <div class="inst-group-head">
+        <button class="group-toggle" ${group ? `data-gtoggle="${group.id}"` : "disabled"} title="${group ? "Collapse" : ""}">
+          ${ico("i-chevron")}
+        </button>
+        <span class="kick">${esc(title)}</span>
+        <span class="group-count">${list.length}</span>
+        ${group ? `<button class="kb-icon group-more" data-gmore="${group.id}" title="Group actions">\u22ef</button>` : ""}
+      </div>
+      <div class="grid">
+        ${list.map((i) => instGridCard(i)).join("")
+          || `<div class="empty-line">${group ? "Nothing in this group yet \u2014 use an instance's \u22ef menu to move it here." : "No instances yet. Hit New Instance, Import a pack, or drag one into this window."}</div>`}
+      </div>
+    </section>`;
+
   el().innerHTML = `
     <div class="page-head">
       <h1 class="page-title">Instances <span class="page-count">${instances.length}</span></h1>
       <div class="head-actions">
-        <button class="btn-soft" id="add-from-code">${ico("i-bolt")} Add from code</button>
-        <button class="btn-soft" id="import-pack">${ico("i-download")} Import</button>
-        <button class="btn-soft" id="new-inst">${ico("i-plus")} New Instance</button>
+        <button class="gh" id="new-group">${ico("i-plus")} New group</button>
+        <button class="gh" id="add-from-code">${ico("i-bolt")} Add from code</button>
+        <button class="gh" id="import-pack">${ico("i-download")} Import</button>
+        <button class="gh" id="new-inst">${ico("i-plus")} New Instance</button>
       </div>
     </div>
     <div id="new-panel"></div>
-    <div class="grid">
-      ${instances.map((i) => instGridCard(i)).join("") || `<div class="empty-line">No instances yet. Hit <b>New Instance</b>, <b>Import</b> a .mrpack or .lodepack, or drag a pack file anywhere in this window.</div>`}
-    </div>
-    ${instances.length ? `<div class="grid-foot kick">${instances.length} instance${instances.length === 1 ? "" : "s"} · ${esc(fmtPlaytime(totalPlay))} played</div>` : ""}`;
+    ${groups.map((g) => section(g.name, g.instanceIds.map((id) => byId.get(id)).filter(Boolean), g)).join("")}
+    ${section("Ungrouped", ungrouped, null)}
+    ${instances.length ? `<div class="grid-foot kick">${instances.length} instance${instances.length === 1 ? "" : "s"} \u00b7 ${esc(fmtSize(sizes.total))} on disk</div>` : ""}`;
+
+  // Group controls.
+  document.getElementById("new-group").onclick = async () => {
+    const name = prompt("Name the group:");
+    if (!name || !name.trim()) return;
+    try { await API.saveGroup({ name: name.trim() }); renderInstances(); } catch (e) { toast(e.message); }
+  };
+  el().querySelectorAll("[data-gtoggle]").forEach((b) => b.onclick = async () => {
+    const g = groups.find((x) => x.id === b.dataset.gtoggle);
+    try { await API.saveGroup({ id: g.id, collapsed: !g.collapsed }); renderInstances(); } catch (e) { toast(e.message); }
+  });
+  el().querySelectorAll("[data-gmore]").forEach((b) => b.onclick = () => {
+    const g = groups.find((x) => x.id === b.dataset.gmore);
+    openMenu(b, [
+      { label: "Rename group", icon: "i-gear", run: async () => {
+          const name = prompt("New name:", g.name);
+          if (name && name.trim()) { try { await API.saveGroup({ id: g.id, name }); renderInstances(); } catch (e) { toast(e.message); } }
+        } },
+      { label: "Delete group", icon: "i-trash", danger: true, run: async () => {
+          if (!confirm(`Delete the group "${g.name}"? The instances in it stay, and move to Ungrouped.`)) return;
+          try { await API.deleteGroup(g.id); renderInstances(); } catch (e) { toast(e.message); }
+        } },
+    ], { alignRight: true });
+  });
   document.getElementById("import-pack").onclick = async () => {
     const btn = document.getElementById("import-pack");
     const original = btn.innerHTML;
@@ -528,10 +575,38 @@ async function renderInstanceDetail(id) {
   renderInstanceLog(id);
 
   const moreBtn = document.getElementById("detail-more");
-  if (moreBtn) moreBtn.onclick = () => {
-    const menu = document.getElementById("detail-menu");
-    if (menu) menu.hidden = !menu.hidden;
-  };
+  if (moreBtn) moreBtn.onclick = () => openMenu(moreBtn, [
+    { label: "Share & Sync", icon: "i-bolt", run: () => openShareModal(inst) },
+    { label: "Mixin conflicts", icon: "i-pulse", run: () => openMixinSheet(inst) },
+    { label: "Find a seed", icon: "i-globe", run: () => openSeedSheet(inst) },
+    { label: "Move to group\u2026", icon: "i-stack", run: async () => {
+        const groups = await API.groups();
+        const current = groups.find((g) => g.instanceIds.includes(inst.id));
+        openMenu(moreBtn, [
+          { label: "Ungrouped", checked: !current, run: async () => {
+              try { await API.assignGroup({ instanceId: inst.id, groupId: null }); toast("Moved to Ungrouped."); }
+              catch (e) { toast(e.message); } } },
+          ...groups.map((g) => ({
+            label: g.name, checked: current && current.id === g.id,
+            run: async () => {
+              try { await API.assignGroup({ instanceId: inst.id, groupId: g.id }); toast(`Moved to ${g.name}.`); }
+              catch (e) { toast(e.message); } },
+          })),
+        ], { alignRight: true, width: 230 });
+      } },
+    { separator: true },
+    { label: "Repair instance", icon: "i-refresh", run: async () => {
+        try { const r = await API.instance.repair(inst.id); toast(`Repaired. ${(r.cleared || []).length} cached file(s) cleared; they re-download on next launch.`); }
+        catch (e) { toast(e.message); } } },
+    { label: "Update all mods", icon: "i-download", run: async () => {
+        try { const r = await API.instance.updateAll(inst.id); toast(r.updated && r.updated.length ? `Updated ${r.updated.length} mod(s).` : "Everything is up to date."); renderInstanceDetail(inst.id); }
+        catch (e) { toast(e.message); } } },
+    { separator: true },
+    { label: "Delete instance", icon: "i-trash", danger: true, run: async () => {
+        if (!confirm(`Delete ${inst.name}? This removes its mods, worlds and configs permanently.`)) return;
+        try { await API.deleteInstance(inst.id); toast("Instance deleted."); navigate("instances"); }
+        catch (e) { toast(e.message); } } },
+  ], { alignRight: true, width: 230 });
   const mixBtn = document.getElementById("detail-mixins");
   if (mixBtn) mixBtn.onclick = () => openMixinSheet(inst);
   const seedBtn = document.getElementById("detail-seed");
@@ -805,7 +880,13 @@ function fileURL(p) {
   return "file://" + encodeURI(s);
 }
 const fmtDate = (ms) => (ms ? new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "unknown");
-const fmtSize = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : n >= 1024 ? Math.round(n / 1024) + " KB" : (n || 0) + " B");
+// Instance folders run to tens of gigabytes, so this has to carry past MB or
+// the disk footer reads "19930.4 MB".
+const fmtSize = (n) => (
+  n >= 1073741824 ? (n / 1073741824).toFixed(1) + " GB"
+  : n >= 1048576 ? (n / 1048576).toFixed(1) + " MB"
+  : n >= 1024 ? Math.round(n / 1024) + " KB"
+  : (n || 0) + " B");
 
 const worldRow = (w) => `
   <div class="glass world-row">
@@ -2027,27 +2108,55 @@ async function renderKeybinds() {
     if (!action || !action.trim()) return;
     API.setup.setKeybind({ action: action.trim(), value: "key.keyboard.unknown" }).then(refresh).catch((e) => toast(e.message));
   };
-  document.getElementById("kb-preset").onclick = async () => {
-    const names = data.presets.map((p, i) => `${i + 1}. ${p.name}${p.base ? " (base)" : ""}`).join("\n");
-    const pick = prompt(`Switch preset:\n${names}\n\nType a number:`);
-    const idx = Number(pick) - 1;
-    if (!Number.isInteger(idx) || !data.presets[idx]) return;
-    try { await API.setup.keybindPreset({ verb: "select", id: data.presets[idx].id }); refresh(); }
+  const presetCall = async (payload) => {
+    try { await API.setup.keybindPreset(payload); refresh(); }
     catch (e) { toast(e.message); }
   };
-  document.getElementById("kb-preset-more").onclick = async () => {
-    const verb = prompt("Preset action: new / duplicate / rename / delete");
-    if (!verb) return;
-    const v = verb.trim().toLowerCase();
-    let name = null;
-    if (v === "new" || v === "rename") { name = prompt("Name:"); if (!name) return; }
-    try { await API.setup.keybindPreset({ verb: v === "new" ? "create" : v, name }); refresh(); }
-    catch (e) { toast(e.message); }
-  };
-  document.getElementById("kb-mods").onclick = () => {
-    const off = data.rows.filter((r) => r.disabled);
-    toast(off.length ? `${off.length} bind${off.length === 1 ? "" : "s"} won't be applied: ${off.slice(0, 3).map((r) => r.label).join(", ")}${off.length > 3 ? "\u2026" : ""}`
-                     : "Every discovered bind is being applied.");
+  const presetBtn = document.getElementById("kb-preset");
+  presetBtn.onclick = () => openMenu(presetBtn, data.presets.map((p) => ({
+    label: p.base ? `${p.name}  (base)` : p.name,
+    checked: p.id === data.activeId,
+    run: () => presetCall({ verb: "select", id: p.id }),
+  })), { width: 230 });
+
+  const moreP = document.getElementById("kb-preset-more");
+  moreP.onclick = () => openMenu(moreP, [
+    { label: "New preset", icon: "i-plus", run: () => {
+        const name = prompt("Name the new preset:"); if (name && name.trim()) presetCall({ verb: "create", name });
+      } },
+    { label: "Duplicate this preset", icon: "i-stack", run: () => presetCall({ verb: "duplicate" }) },
+    { label: "Rename\u2026", icon: "i-gear", run: () => {
+        const name = prompt("New name:", preset.name); if (name && name.trim()) presetCall({ verb: "rename", name });
+      } },
+    { separator: true },
+    { label: "Clear every bind in this preset", icon: "i-slash", run: async () => {
+        if (!confirm("Clear every bind in this preset? Instances keep their own.")) return;
+        try { await API.setup.resetKeybinds(); refresh(); } catch (e) { toast(e.message); }
+      } },
+    { label: "Delete preset", icon: "i-trash", danger: true, run: () => {
+        if (confirm(`Delete the preset "${preset.name}"?`)) presetCall({ verb: "delete" });
+      } },
+  ], { width: 260 });
+  const modsBtn = document.getElementById("kb-mods");
+  modsBtn.onclick = () => {
+    // One entry per mod group, with a tick when every bind in it is applied.
+    const groups = [...new Set(data.rows.map((r) => r.category))].map((cat) => {
+      const rows = data.rows.filter((r) => r.category === cat);
+      const off = rows.filter((r) => r.disabled).length;
+      return { cat, rows, off };
+    });
+    openMenu(modsBtn, groups.map((g) => ({
+      label: g.off ? `${g.cat}  (${g.off} off)` : g.cat,
+      checked: g.off === 0,
+      run: async () => {
+        const turnOn = g.off > 0;   // if any are off, turn the whole group back on
+        for (const r of g.rows) {
+          try { await API.setup.setKeybindDisabled({ action: r.action, disabled: !turnOn ? true : false }); }
+          catch (e) { toast(e.message); break; }
+        }
+        refresh();
+      },
+    })), { width: 280, alignRight: true });
   };
 }
 
@@ -2129,6 +2238,53 @@ async function renderSkins() {
     try { await API.setup.skinReset(); toast("Skin reset."); renderSkins(); }
     catch (e) { toast(e.message); }
   };
+}
+
+// ---------- Popover menu ----------
+// One anchored dropdown used by the instance ... button and the keybind preset
+// selector, so both behave like the Mac's ForgeMenu instead of a browser
+// prompt(). Closes on outside click, Escape, or picking an item.
+function openMenu(anchor, items, opts = {}) {
+  document.querySelectorAll(".pop-menu").forEach((m) => m.remove());
+  const menu = document.createElement("div");
+  menu.className = "pop-menu";
+  menu.style.minWidth = (opts.width || 210) + "px";
+  menu.innerHTML = items.map((it, i) => it.separator
+    ? `<div class="pop-sep"></div>`
+    : `<button class="pop-item${it.danger ? " danger" : ""}${it.checked ? " is-on" : ""}" data-i="${i}">
+         ${it.icon ? ico(it.icon) : ""}<span>${esc(it.label)}</span>
+         ${it.checked ? `<span class="pop-check">\u2713</span>` : ""}
+       </button>`).join("");
+  document.body.appendChild(menu);
+
+  const r = anchor.getBoundingClientRect();
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  // Flip when it would run off the window rather than being clipped.
+  let left = opts.alignRight ? r.right - mw : r.left;
+  left = Math.max(8, Math.min(left, window.innerWidth - mw - 8));
+  let top = r.bottom + 6;
+  if (top + mh > window.innerHeight - 8) top = Math.max(8, r.top - mh - 6);
+  menu.style.left = left + "px";
+  menu.style.top = top + "px";
+
+  const close = () => {
+    menu.remove();
+    document.removeEventListener("mousedown", onDoc, true);
+    document.removeEventListener("keydown", onKey, true);
+  };
+  const onDoc = (e) => { if (!menu.contains(e.target) && e.target !== anchor) close(); };
+  const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); close(); } };
+  setTimeout(() => {
+    document.addEventListener("mousedown", onDoc, true);
+    document.addEventListener("keydown", onKey, true);
+  }, 0);
+
+  menu.querySelectorAll("[data-i]").forEach((b) => b.onclick = () => {
+    const it = items[Number(b.dataset.i)];
+    close();
+    if (it && it.run) it.run();
+  });
+  return close;
 }
 
 // ---------- Command palette (Ctrl/Cmd-K) ----------

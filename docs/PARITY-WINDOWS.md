@@ -12,8 +12,8 @@ one is generated from the Mac source so it cannot drift.
 |---|---|
 | done | 82 |
 | partial | 0 |
-| missing | 7 |
-| n/a | 1 |
+| missing | 5 |
+| n/a | 3 |
 
 | Mac view | Status | Notes |
 |---|---|---|
@@ -23,7 +23,7 @@ one is generated from the Mac source so it cannot drift.
 | AppSettingsView | done | preferences |
 | BackupSettingsSheet | done | interval + keep count, skips running instances, prunes old copies |
 | BrowseView | done | categories, sort, project pages |
-| ClipRecorder | missing | needs screen capture |
+| ClipRecorder | n/a | josi's call 2026-08-03: not wanted on Windows |
 | CloudHostingSheet | missing | needs a hosting provider |
 | CommandPalette | done | Ctrl/Cmd-K |
 | ConfigManagerSheet | done | every editable config |
@@ -54,7 +54,7 @@ one is generated from the Mac source so it cannot drift.
 | LaunchOverlay | done | launch progress |
 | LaunchStatusBar | done | launch state |
 | LinkTabView | done | per-instance links |
-| LiveStatsOverlay | missing | needs an in-game overlay |
+| LiveStatsOverlay | n/a | josi's call 2026-08-03: not wanted on Windows |
 | LogConsole | done | tail, level filter, find, copy |
 | MixinConflictsSheet | done | static scanner |
 | ModpackEditor | done | pick what leaves the machine, export .mrpack |
@@ -106,6 +106,13 @@ one is generated from the Mac source so it cannot drift.
 | WorldMapView | done | explored map from region files |
 | WorldStatisticsView | done | biomes, structures, player |
 | WrappedSheet | done | year summary |
+
+## Deliberately not built
+
+ClipRecorder and LiveStatsOverlay were dropped from the Windows scope by josi
+on 2026-08-03. Both were buildable — Electron has desktopCapturer and
+transparent always-on-top windows — so this is a scope decision, not a
+limitation.
 
 ## What the missing ones need
 

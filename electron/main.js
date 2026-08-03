@@ -125,6 +125,8 @@ handle("cloud:sync:status", (a) => engine.cloudSyncStatus(a));
 handle("pack:share", (a) => engine.packShare(a));
 handle("pack:join", (a) => engine.packJoin(a));
 handle("pack:publish", (a) => engine.packPublish(a));
+// One-way public modpack page (distinct from the shared-pack sync above).
+handle("publish:instance", (a) => engine.publishInstance(a));
 handle("pack:list", () => engine.packList());
 handle("pack:status", (a) => engine.packStatus(a));
 handle("pack:setMode", (a) => engine.packSetMode(a));

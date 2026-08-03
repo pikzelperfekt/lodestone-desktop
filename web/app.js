@@ -859,6 +859,83 @@ async function copyText(text, sourceEl) {
   }
 }
 
+// Publish an instance as a PUBLIC modpack page — the one-way sibling of Share &
+// Sync above. Sharing gives friends a live-syncing copy behind a code; publishing
+// puts a .lodepack on Lodestone's backend behind a /p/:id page anyone can open
+// with no account and no code. Mirrors the Mac app's PublishSheet.
+async function openPublishModal(inst) {
+  const mods = (inst.content || []).filter((c) => (c.kind || "mod") === "mod").length;
+
+  const form = `
+    <p class="share-sub">Creates a public install page anyone can open — no account needed to download.</p>
+    <p class="share-note">${esc(inst.mcVersion || "")} ${esc(inst.loader || "")} · ${mods} mod${mods === 1 ? "" : "s"}</p>
+
+    <div class="share-label">SHORT DESCRIPTION</div>
+    <input id="pub-summary" class="inp" placeholder="e.g. Cozy farming + magic, tuned for 8GB" maxlength="140">
+    <p class="share-note">Uploads a .lodepack of your enabled mods &amp; configs — <b>worlds are never included</b>.</p>
+
+    <div class="np-actions">
+      <button class="btn-ghost" id="pub-close">Close</button>
+      <button class="btn-accent share-btn" id="pub-go">${ico("i-globe")} Publish publicly</button>
+    </div>`;
+
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-globe")} Publish &ldquo;${esc(inst.name)}&rdquo;</div>
+      ${form}
+    </div>`);
+
+  document.getElementById("pub-close").onclick = hideModal;
+
+  document.getElementById("pub-go").onclick = async (e) => {
+    const btn = e.currentTarget;
+    const summary = (document.getElementById("pub-summary").value || "").trim();
+    btn.disabled = true;
+
+    // The engine reports exporting -> uploading -> publishing; label the button
+    // with the real step rather than one opaque spinner, because uploading a
+    // large pack is the slow part and silence there reads as a hang.
+    const labels = { exporting: "Exporting…", uploading: "Uploading…", publishing: "Publishing…" };
+    const off = API.on && API.on("publish:phase", (p) => {
+      if (!p || p.instanceId !== inst.id) return;
+      btn.innerHTML = `<span class="spinner"></span> ${labels[p.phase] || "Working…"}`;
+    });
+    btn.innerHTML = `<span class="spinner"></span> Exporting…`;
+
+    try {
+      const res = await API.publishInstance(inst.id, summary);
+      const url = res.pageURL;
+      showModal(`
+        <div class="share-card">
+          <div class="share-h">${ico("i-globe")} Published</div>
+          <p class="share-sub">Anyone can install <b>${esc(inst.name)}</b> from this link:</p>
+          <div class="share-code-row">
+            <input id="pub-url" class="share-box" readonly value="${esc(url)}">
+            <button class="btn-accent share-btn" id="pub-copy">${ico("i-link")} Copy link</button>
+          </div>
+          <p class="share-note">${res.mods} mod${res.mods === 1 ? "" : "s"} · ${(res.size / 1048576).toFixed(1)} MB uploaded.</p>
+          <div class="np-actions">
+            <button class="btn-ghost" id="pub-done">Done</button>
+            <button class="btn-soft" id="pub-open">${ico("i-arrow-right")} Open page</button>
+          </div>
+        </div>`);
+      document.getElementById("pub-done").onclick = hideModal;
+      document.getElementById("pub-copy").onclick = () => {
+        const el = document.getElementById("pub-url");
+        el.select(); document.execCommand("copy");
+        toast("Link copied.");
+      };
+      document.getElementById("pub-open").onclick = () => API.openExternal(url);
+    } catch (err) {
+      btn.disabled = false;
+      btn.innerHTML = `${ico("i-globe")} Publish publicly`;
+      toast("Couldn't publish: " + err.message);
+    } finally {
+      if (typeof off === "function") off();
+    }
+  };
+}
+
 // Share modal for an instance: shows the pasteable share code (+ Copy), an "Export .mrpack
 // file" button, and a "Sync from a code" box that reconciles this instance's mods to a code.
 async function openShareModal(inst) {
@@ -894,6 +971,7 @@ async function openShareModal(inst) {
     <div class="np-actions">
       <button class="btn-ghost" id="share-close">Close</button>
       <button class="btn-soft" id="share-mrpack">${ico("i-download")} Export .mrpack file</button>
+      <button class="btn-soft" id="share-publish">${ico("i-globe")} Publish publicly</button>
       <button class="btn-accent share-btn" id="share-create">${ico("i-link")} Create share code</button>
     </div>`;
 
@@ -928,6 +1006,7 @@ async function openShareModal(inst) {
     <div class="np-actions">
       <button class="btn-ghost" id="share-close">Close</button>
       <button class="btn-soft" id="share-mrpack">${ico("i-download")} Export .mrpack file</button>
+      <button class="btn-soft" id="share-publish">${ico("i-globe")} Publish publicly</button>
       <button class="btn-soft danger" id="share-leave">${isOwner ? "Stop sharing" : "Leave pack"}</button>
     </div>`;
 
@@ -938,6 +1017,8 @@ async function openShareModal(inst) {
     </div>`);
 
   document.getElementById("share-close").onclick = hideModal;
+
+  document.getElementById("share-publish").onclick = () => openPublishModal(inst);
 
   document.getElementById("share-mrpack").onclick = async (e) => {
     const btn = e.currentTarget; const original = btn.innerHTML;

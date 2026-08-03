@@ -69,6 +69,10 @@
       ];
     },
     async importModpack() { return bridge ? unwrap(await bridge.importModpack()) : null; },
+    async publishInstance(instanceId, summary) {
+      if (!bridge) throw new Error("Publishing needs the desktop app.");
+      return unwrap(await bridge.publishInstance(instanceId, summary));
+    },
 
     // Power tools: repair (clear cached game files) + update all Modrinth content.
     async listMods(instanceId) {

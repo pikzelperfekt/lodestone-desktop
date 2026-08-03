@@ -807,7 +807,27 @@ function serverHostingInfo(id) { return serverEngine.hostingInfo(DATA_DIR, id); 
 function setServerOnlineMode({ id, on }) { return serverEngine.setOnlineMode(DATA_DIR, id, on); }
 function removeServer(id) { return serverEngine.remove(DATA_DIR, id); }
 
+// ---- Publish an instance as a public modpack ----
+// Distinct from packPublish/pack:* above, which is the shared-pack (live sync)
+// feature. This one makes a one-way public install page anyone can open with
+// no account, on the same worker the Mac app publishes to.
+function publishInstance(a) {
+  const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+  if (!inst) throw new Error("Instance not found.");
+  const acct = auth.account();   // { name, uuid } of the signed-in Minecraft account
+  return publish.publishInstance({
+    dataDir: DATA_DIR,
+    instance: inst,
+    account: acct,
+    summary: a && a.summary,
+    backend: (getSettings() || {}).socialBackendURL,
+    onPhase: (phase) => emit("publish:phase", { instanceId: inst.id, phase }),
+    onLog: (line) => emit("publish:log", { instanceId: inst.id, line }),
+  });
+}
+
 module.exports = {
+  publishInstance,
   init, setEmitter, setTrash, dataDir, info,   // [wave0] setTrash
   getSettings, setSettings,
   listInstances, createInstance, deleteInstance, updateInstance,
@@ -1572,6 +1592,7 @@ Object.assign(module.exports, {
 // import path accepts .lodepack too and picks up pack icons.
 const iconsEngine = require("./icons");
 const lodepack = require("./lodepack");
+const publish = require("./publish");
 
 // ---- Instance icons ----
 function setInstanceIcon({ id, dataBase64, ext }) {

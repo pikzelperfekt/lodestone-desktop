@@ -10,14 +10,14 @@ one is generated from the Mac source so it cannot drift.
 
 | status | count |
 |---|---|
-| done | 82 |
+| done | 83 |
 | partial | 0 |
-| missing | 5 |
-| n/a | 3 |
+| missing | 3 |
+| n/a | 4 |
 
 | Mac view | Status | Notes |
 |---|---|---|
-| AIPackBuilderSheet | missing | needs an AI backend |
+| AIPackBuilderSheet | n/a | dead code on Mac too: unreferenced, AI entry points pulled |
 | AchievementsSheet | done | Play history screen |
 | AddWorldSheet | done | folder or .zip import |
 | AppSettingsView | done | preferences |
@@ -71,7 +71,7 @@ one is generated from the Mac source so it cannot drift.
 | PluginsView | missing | needs a plugin runtime |
 | PregenSheet | done | headless server on the pack's own loader, driven through Chunky |
 | ProfileSheet | done | account + profile |
-| PublishSheet | missing | needs a publish target |
+| PublishSheet | done | publishes to Lodestone's own worker, same as Mac |
 | RepairSheet | done | offered against the finding |
 | ResourcePackManagerSheet | done | packs vertical |
 | RootView | done | shell + sidebar |

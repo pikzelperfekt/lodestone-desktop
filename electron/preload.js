@@ -57,6 +57,8 @@ contextBridge.exposeInMainWorld("lodestone", {
     remove: (opts) => call("content:remove", opts),
   },
   importModpack: (path) => call("import:mrpack", { path }),
+  // Publish an instance as a public install page anyone can open.
+  publishInstance: (instanceId, summary) => call("publish:instance", { instanceId, summary }),
   share: {
     code: (id) => call("share:code", { id }),
     mrpack: (id, name) => call("share:mrpack", { id, name }),
@@ -199,7 +201,8 @@ contextBridge.exposeInMainWorld("lodestone", {
     const allowed = ["launch:progress", "launch:log", "launch:state", "update:state", "content:log", "server:log", "server:state",
       "cloud:auth", "cloud:friends", "cloud:presence", "cloud:message", "cloud:sync",
       "pack:shared", "pack:joined", "pack:published", "pack:applied", "pack:left", "pack:error",
-      "seed:progress", "notify", "lan:found", "pregen:log", "pregen:state"];
+      "seed:progress", "notify", "lan:found", "pregen:log", "pregen:state",
+      "publish:phase", "publish:log"];
     if (!allowed.includes(channel)) return () => {};
     const handler = (_e, payload) => fn(payload);
     ipcRenderer.on(channel, handler);

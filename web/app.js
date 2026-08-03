@@ -921,8 +921,7 @@ async function openPublishModal(inst) {
         </div>`);
       document.getElementById("pub-done").onclick = hideModal;
       document.getElementById("pub-copy").onclick = () => {
-        const el = document.getElementById("pub-url");
-        el.select(); document.execCommand("copy");
+        copyText(document.getElementById("pub-url").value);
         toast("Link copied.");
       };
       document.getElementById("pub-open").onclick = () => API.openExternal(url);
@@ -934,6 +933,307 @@ async function openPublishModal(inst) {
       if (typeof off === "function") off();
     }
   };
+}
+
+// ---------- Where to host ----------
+// Ports the Mac's CloudHostingSheet. Self-hosting is what almost everyone wants,
+// so it IS the default view; tunnels and third-party clouds sit behind a
+// collapsed "Advanced hosting" disclosure so they stop reading as peers of the
+// common path. exaroton is fully wired (token -> start/stop/console/push mods);
+// playit drives the official agent; Oracle is a guided link.
+let hostAdvancedOpen = false;
+
+async function openHostingSheet() {
+  showModal(`
+    <div class="share-card host-sheet">
+      <div class="share-h">${ico("i-server")} Where to host</div>
+      <div class="share-loading"><span class="spinner"></span> Checking…</div>
+    </div>`);
+
+  const [exa, pl] = await Promise.all([API.exaroton.status(), API.playit.status()]);
+  // Someone already using an advanced route shouldn't have to go hunting for it.
+  if (exa.connected || pl.running || pl.secret) hostAdvancedOpen = true;
+  renderHostingSheet(exa, pl);
+}
+
+function renderHostingSheet(exa, pl) {
+  const inUse = exa.connected || pl.running || pl.secret;
+
+  const selfHost = `
+    <div class="host-card">
+      <div class="host-card-h">
+        <span class="host-ico">${ico("i-home")}</span>
+        <b>Self-host</b>
+        <span class="host-badge accent">Recommended</span>
+      </div>
+      <p class="host-blurb">This PC runs the server — free, full control, and the proven path.
+        Your servers are the list on this page.</p>
+      <div class="host-steps">
+        <div class="host-step">
+          <span class="host-step-ico">${ico("i-pulse")}</span>
+          <div><b>On your network</b><span>Friends on the same Wi-Fi — or on your Tailscale tailnet — join at the address on the server's card.</span></div>
+        </div>
+        <div class="host-step">
+          <span class="host-step-ico">${ico("i-globe")}</span>
+          <div><b>Over the internet</b><span>Press “Port forward” on a running server and Lodestone asks your router (UPnP/NAT-PMP) to open the port.</span></div>
+        </div>
+      </div>
+    </div>`;
+
+  const disclosure = `
+    <button class="host-disclosure${hostAdvancedOpen ? " is-open" : ""}" id="host-adv">
+      <span class="host-chev">${ico("i-chevron")}</span>
+      <span class="kick">ADVANCED HOSTING</span>
+      <span class="host-sub2">playit.gg · exaroton · Oracle Cloud</span>
+      ${inUse && !hostAdvancedOpen ? `<span class="host-dot"></span>` : ""}
+      <span class="host-badge">Beta</span>
+    </button>`;
+
+  const playitCard = `
+    <div class="host-card">
+      <div class="host-card-h">
+        <span class="host-ico">${ico("i-link")}</span>
+        <b>playit.gg</b>
+        <span class="host-badge">Free</span>
+      </div>
+      <p class="host-blurb">Make your self-hosted server joinable by anyone — no port forwarding, no router
+        changes. Lodestone runs the free playit agent and hands your server a public address.</p>
+      ${!pl.installed ? `
+        <div class="host-row">
+          <span class="host-note">Needs the playit agent installed on this PC.</span>
+          <button class="btn-soft" id="pl-get">Get playit</button>
+        </div>`
+      : pl.running ? `
+        <div class="host-row">
+          <span class="host-dot live"></span>
+          ${pl.publicAddress
+            ? `<code class="host-addr">${esc(pl.publicAddress)}</code>
+               <button class="btn-soft" id="pl-copy">${ico("i-link")} Copy</button>`
+            : `<span class="host-note">Tunnel running — the address appears on playit.gg.</span>`}
+          <span class="host-spacer"></span>
+          <button class="btn-soft danger" id="pl-stop">Stop</button>
+        </div>`
+      : !pl.secret ? `
+        <div class="host-row">
+          <input id="pl-secret" class="inp" type="password" placeholder="playit secret key">
+          <button class="btn-accent share-btn" id="pl-save">Save</button>
+        </div>
+        <button class="linkish" id="pl-agent">Create an agent + get your secret key</button>`
+      : `
+        <div class="host-row">
+          <button class="btn-soft" id="pl-start">${ico("i-play")} Start tunnel</button>
+          <span class="host-spacer"></span>
+          <button class="btn-ghost" id="pl-forget">Forget key</button>
+        </div>`}
+      ${pl.statusText ? `<p class="host-note">${esc(pl.statusText)}</p>` : ""}
+    </div>`;
+
+  const exaCard = `
+    <div class="host-card">
+      <div class="host-card-h">
+        <span class="host-ico">${ico("i-bolt")}</span>
+        <b>exaroton</b>
+        <span class="host-badge">Cloud · pay-per-use</span>
+      </div>
+      <p class="host-blurb">On-demand cloud servers you control right here — start and stop them from this
+        window. Billed by the minute only while people play (free auto-sleep), a few cents an hour.</p>
+      ${exa.connected ? exarotonConnectedBody(exa) : `
+        <div class="host-row">
+          <input id="exa-token" class="inp" type="password" placeholder="exaroton API token">
+          <button class="btn-accent share-btn" id="exa-connect">Connect</button>
+        </div>
+        <button class="linkish" id="exa-get">Get your token at exaroton.com → Account → API</button>`}
+      ${exa.error ? `<p class="host-err">${esc(exa.error)}</p>` : ""}
+    </div>`;
+
+  const oracle = `
+    <div class="host-card">
+      <div class="host-card-h">
+        <span class="host-ico">${ico("i-stack")}</span>
+        <b>Oracle Cloud</b>
+        <span class="host-badge">Always Free</span>
+      </div>
+      <p class="host-blurb">Oracle's free tier includes an ARM VM big enough for a real modded server, at no
+        cost, forever. It's a manual setup — you rent the machine and install the server yourself.</p>
+      <div class="host-row"><button class="btn-soft" id="or-open">Open Oracle's free tier</button></div>
+    </div>`;
+
+  showModal(`
+    <div class="share-card host-sheet">
+      <div class="share-h">${ico("i-server")} Where to host</div>
+      <p class="share-sub">This PC hosts the server. Tunnels and cloud hosts are tucked under Advanced.</p>
+      ${selfHost}
+      ${disclosure}
+      ${hostAdvancedOpen ? playitCard + exaCard + oracle : ""}
+      <div class="np-actions"><button class="btn-ghost" id="host-close">Done</button></div>
+    </div>`);
+
+  wireHostingSheet(exa, pl);
+}
+
+function exarotonConnectedBody(exa) {
+  const a = exa.account || {};
+  const servers = exa.servers || [];
+  return `
+    <div class="host-row">
+      <b>${esc(a.name || "exaroton")}</b>
+      ${a.credits != null ? `<span class="host-badge">${Math.round(a.credits)} credits</span>` : ""}
+      <span class="host-spacer"></span>
+      <button class="btn-soft" id="exa-refresh">${ico("i-refresh")} Refresh</button>
+      <button class="btn-ghost" id="exa-disconnect">Disconnect</button>
+    </div>
+    ${servers.length ? servers.map(exarotonRow).join("") : `
+      <p class="host-note">No servers on this account yet — create one at exaroton.com.</p>`}`;
+}
+
+function exarotonRow(s) {
+  const dot = s.isOnline ? "live" : s.isBusy ? "busy" : "";
+  return `
+    <div class="exa-row">
+      <span class="host-dot ${dot}"></span>
+      <div class="exa-id">
+        <b>${esc(s.name)}</b>
+        <code>${esc(s.statusLabel)} · ${esc(s.address || "")}</code>
+      </div>
+      <span class="host-spacer"></span>
+      <button class="btn-ghost" data-exacopy="${esc(s.address || "")}" title="Copy address">${ico("i-link")}</button>
+      <button class="btn-ghost" data-exapush="${esc(s.id)}" title="Push an instance's mods to this server">${ico("i-arrow-right")}</button>
+      <button class="btn-ghost" data-exalogs="${esc(s.id)}" title="Live console">${ico("i-server")}</button>
+      ${s.isOnline
+        ? `<button class="btn-soft danger" data-exastop="${esc(s.id)}" ${s.isBusy ? "disabled" : ""}>Stop</button>`
+        : `<button class="btn-soft" data-exastart="${esc(s.id)}" ${s.isBusy ? "disabled" : ""}>${s.isBusy ? esc(s.statusLabel) : "Start"}</button>`}
+    </div>`;
+}
+
+function wireHostingSheet(exa, pl) {
+  const $ = (id) => document.getElementById(id);
+  const reload = async () => renderHostingSheet(await API.exaroton.status(), await API.playit.status());
+
+  $("host-close").onclick = hideModal;
+  $("host-adv").onclick = () => { hostAdvancedOpen = !hostAdvancedOpen; renderHostingSheet(exa, pl); };
+  if (!hostAdvancedOpen) return;
+
+  $("or-open").onclick = () => API.openExternal("https://www.oracle.com/cloud/free/");
+
+  // ---- playit ----
+  if ($("pl-get")) $("pl-get").onclick = () => API.openExternal("https://playit.gg/download");
+  if ($("pl-agent")) $("pl-agent").onclick = () => API.openExternal("https://playit.gg/account/agents/new-docker");
+  if ($("pl-save")) $("pl-save").onclick = async () => {
+    const v = $("pl-secret").value.trim();
+    if (!v) return;
+    await API.playit.setSecret(v); toast("Secret saved."); reload();
+  };
+  if ($("pl-forget")) $("pl-forget").onclick = async () => { await API.playit.setSecret(""); reload(); };
+  if ($("pl-start")) $("pl-start").onclick = async () => {
+    try { await API.playit.start(); toast("Starting the tunnel…"); reload(); }
+    catch (e) { toast(e.message); }
+  };
+  if ($("pl-stop")) $("pl-stop").onclick = async () => { await API.playit.stop(); reload(); };
+  if ($("pl-copy")) $("pl-copy").onclick = () => { copyText(pl.publicAddress); toast("Address copied."); };
+
+  // ---- exaroton ----
+  if ($("exa-get")) $("exa-get").onclick = () => API.openExternal("https://exaroton.com/account/");
+  if ($("exa-connect")) $("exa-connect").onclick = async (e) => {
+    const token = $("exa-token").value.trim();
+    if (!token) return;
+    const btn = e.currentTarget; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span>`;
+    try { await API.exaroton.connect(token); toast("exaroton connected."); reload(); }
+    catch (err) { btn.disabled = false; btn.textContent = "Connect"; toast(err.message); }
+  };
+  if ($("exa-disconnect")) $("exa-disconnect").onclick = async () => { await API.exaroton.disconnect(); reload(); };
+  if ($("exa-refresh")) $("exa-refresh").onclick = reload;
+
+  document.querySelectorAll("[data-exacopy]").forEach((b) => b.onclick = () => {
+    copyText(b.dataset.exacopy); toast("Address copied.");
+  });
+  document.querySelectorAll("[data-exastart]").forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    try { await API.exaroton.start(b.dataset.exastart); toast("Starting…"); reload(); }
+    catch (e) { b.disabled = false; toast(e.message); }
+  });
+  document.querySelectorAll("[data-exastop]").forEach((b) => b.onclick = async () => {
+    b.disabled = true;
+    try { await API.exaroton.stop(b.dataset.exastop); toast("Stopping…"); reload(); }
+    catch (e) { b.disabled = false; toast(e.message); }
+  });
+  document.querySelectorAll("[data-exalogs]").forEach((b) => b.onclick = () => openExarotonConsole(b.dataset.exalogs));
+  document.querySelectorAll("[data-exapush]").forEach((b) => b.onclick = () => openExarotonPush(b.dataset.exapush));
+}
+
+// Live console for a cloud server: exaroton has no log stream on the REST API,
+// so this polls latest.log while open and stops the moment the sheet closes.
+async function openExarotonConsole(serverId) {
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-server")} Console</div>
+      <pre class="console-log" id="exa-console">Loading…</pre>
+      <div class="console-input">
+        <input id="exa-cmd" placeholder="Type a command and press Enter (e.g. say hello)">
+        <button class="btn-soft" id="exa-send">Send</button>
+      </div>
+      <div class="np-actions"><button class="btn-ghost" id="exa-cclose">Close</button></div>
+    </div>`);
+
+  let alive = true;
+  const pane = document.getElementById("exa-console");
+  const pull = async () => {
+    if (!alive) return;
+    try {
+      const text = await API.exaroton.logs(serverId);
+      if (!alive) return;
+      // Only autoscroll if the reader is already at the bottom, so scrolling
+      // back through a crash isn't yanked away every poll.
+      const atBottom = pane.scrollTop + pane.clientHeight >= pane.scrollHeight - 40;
+      pane.textContent = text || "(no output yet — the server may be offline)";
+      if (atBottom) pane.scrollTop = pane.scrollHeight;
+    } catch (e) { if (alive) pane.textContent = e.message; }
+    if (alive) setTimeout(pull, 4000);
+  };
+  pull();
+
+  const send = async () => {
+    const box = document.getElementById("exa-cmd");
+    const cmd = box.value.trim();
+    if (!cmd) return;
+    box.value = "";
+    try { await API.exaroton.command(serverId, cmd); } catch (e) { toast(e.message); }
+  };
+  document.getElementById("exa-send").onclick = send;
+  document.getElementById("exa-cmd").onkeydown = (e) => { if (e.key === "Enter") send(); };
+  document.getElementById("exa-cclose").onclick = () => { alive = false; hideModal(); };
+}
+
+// Push an instance's mods to a cloud server.
+async function openExarotonPush(serverId) {
+  const instances = await API.instances();
+  if (!instances.length) { toast("No instances to push."); return; }
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-arrow-right")} Push mods from</div>
+      <p class="share-sub">Client-only mods (Sodium, shaders, minimaps) are skipped — they'd break a dedicated server.</p>
+      <div class="host-picks">
+        ${instances.map((i) => `<button class="host-pick" data-push="${esc(i.id)}">
+          <b>${esc(i.name)}</b><span>${esc(i.mcVersion || "")} ${esc(i.loader || "")}</span></button>`).join("")}
+      </div>
+      <div class="np-actions"><button class="btn-ghost" id="push-close">Cancel</button></div>
+    </div>`);
+  document.getElementById("push-close").onclick = hideModal;
+  document.querySelectorAll("[data-push]").forEach((b) => b.onclick = async () => {
+    b.disabled = true; b.innerHTML = `<span class="spinner"></span> Uploading…`;
+    try {
+      const res = await API.exaroton.pushMods(serverId, b.dataset.push);
+      hideModal(); toast(res.message);
+    } catch (e) { b.disabled = false; toast(e.message); }
+  });
+}
+
+// Clipboard without the deprecated execCommand dance, falling back to it when
+// the async API isn't available (older Electron / non-secure context).
+function copyText(text) {
+  try { navigator.clipboard.writeText(String(text)); return; } catch { /* fall through */ }
+  const el = document.createElement("textarea");
+  el.value = String(text); document.body.appendChild(el); el.select();
+  try { document.execCommand("copy"); } finally { el.remove(); }
 }
 
 // Share modal for an instance: shows the pasteable share code (+ Copy), an "Export .mrpack
@@ -1753,20 +2053,7 @@ async function renderServers() {
   // game, so this points at the instances that actually have worlds rather than
   // pretending to scan the network.
   document.getElementById("lan-worlds").onclick = () => openLanSheet();
-  document.getElementById("where-host").onclick = () => {
-    showModal(`
-    <div class="share-card">
-      <div class="share-h">${ico("i-server")} Where to host</div>
-      <p class="share-sub">Three ways to get friends onto your world, cheapest first.</p>
-      <div class="host-opts">
-        <div class="host-opt"><b>This machine (LAN)</b><span>Free. Same network only, or over a VPN like Tailscale. Your PC has to stay on.</span></div>
-        <div class="host-opt"><b>This machine + port forward</b><span>Free, reachable from anywhere. Needs a router change and exposes your IP.</span></div>
-        <div class="host-opt"><b>Rented host</b><span>Costs money, always on, no router fiddling. Worth it once more than a couple of people play.</span></div>
-      </div>
-      <div class="np-actions"><button class="btn-ghost" id="wh-close">Close</button></div>
-    </div>`);
-    document.getElementById("wh-close").onclick = hideModal;
-  };
+  document.getElementById("where-host").onclick = () => openHostingSheet();
 
   el().querySelectorAll("[data-srvstart]").forEach((b) => b.onclick = async (e) => {
     e.stopPropagation();

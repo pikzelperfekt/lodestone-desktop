@@ -1730,3 +1730,72 @@ textarea.inp, .share-box {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fw-live { font-style: normal; font-family: var(--font-pixel); font-size: 9px;
   color: var(--live); margin-left: 7px; text-transform: uppercase; }
+
+/* ---------- Where to host (CloudHostingSheet parity) ---------- */
+/* Hard corners + bevel throughout: these are cards in the voxel system, not
+   rounded panels. Self-host reads as the answer; the advanced routes sit
+   behind a disclosure so they never look like peers of it. */
+.host-sheet { max-height: 78vh; overflow-y: auto; }
+
+.host-card { background: var(--voxel-elev); border: 1px solid var(--stroke); border-radius: 0;
+  box-shadow: var(--voxel-bevel); padding: 13px 14px; margin-top: 12px; }
+.host-card-h { display:flex; align-items:center; gap:9px; }
+.host-card-h b { font-family: var(--font-display); font-weight:600; font-size:13.5px; color: var(--text-primary); }
+.host-ico { display:inline-flex; color: var(--accent); font-size:14px; }
+.host-blurb { font-size:11.8px; line-height:1.55; color: var(--text-secondary); margin:7px 0 0; }
+.host-note { font-size:11.5px; line-height:1.5; color: var(--text-tertiary); margin:6px 0 0; }
+.host-err  { font-size:11.5px; line-height:1.5; color: var(--danger); margin:6px 0 0; }
+
+.host-badge { font-family: var(--font-pixel); font-size:9px; text-transform:uppercase; letter-spacing:.02em;
+  color: var(--text-secondary); border:1px solid var(--stroke); padding:3px 7px; border-radius:0; }
+.host-badge.accent { color: var(--voxel-ink); background: var(--accent); border-color: var(--accent); }
+
+.host-steps { margin-top:10px; }
+.host-step { display:flex; align-items:flex-start; gap:9px; padding:9px 0; }
+.host-step + .host-step { border-top:1px solid var(--stroke); }
+.host-step-ico { color: var(--accent); font-size:12px; width:18px; flex:0 0 18px; padding-top:1px; }
+.host-step b { display:block; font-size:12.5px; font-weight:600; color: var(--text-primary); }
+.host-step span { display:block; font-size:11.5px; line-height:1.5; color: var(--text-secondary); }
+
+.host-disclosure { display:flex; align-items:center; gap:9px; width:100%; margin-top:14px; padding:9px 0;
+  background:none; border:0; cursor:pointer; text-align:left; color: var(--text-secondary); }
+.host-disclosure:hover .kick { color: var(--text-primary); }
+.host-chev { display:inline-flex; color: var(--text-tertiary); font-size:10px;
+  transition: transform .16s ease; }
+.host-disclosure.is-open .host-chev { transform: rotate(90deg); }
+.host-sub2 { font-size:11.5px; color: var(--text-tertiary); white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; }
+
+/* Square status dots — this theme has no circles. */
+.host-dot { width:7px; height:7px; flex:0 0 7px; background: var(--text-tertiary); border-radius:0;
+  margin-left:auto; }
+.host-dot.live { background: var(--accent); }
+.host-dot.busy { background: var(--warn, #E0A32E); }
+
+.host-row { display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.host-row .inp { flex:1 1 180px; min-width:0; }
+.host-spacer { flex:1 1 auto; }
+.host-addr { font-family: var(--font-mono); font-size:12px; color: var(--text-primary);
+  background: var(--deepslate-1); border:1px solid var(--stroke); padding:5px 8px; }
+
+.linkish { display:inline-block; margin-top:7px; padding:0; background:none; border:0; cursor:pointer;
+  font-size:11px; color: var(--accent); text-align:left; }
+.linkish:hover { text-decoration: underline; }
+
+.exa-row { display:flex; align-items:center; gap:9px; margin-top:9px; padding:9px 11px;
+  background: var(--voxel-elev); border:1px solid var(--stroke); border-radius:0;
+  box-shadow: var(--voxel-bevel); }
+.exa-row .host-dot { margin-left:0; }
+.exa-id { min-width:0; }
+.exa-id b { display:block; font-size:12.5px; font-weight:600; color: var(--text-primary); }
+.exa-id code { display:block; font-family: var(--font-mono); font-size:11px; color: var(--text-tertiary);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+.host-picks { display:flex; flex-direction:column; gap:7px; margin-top:12px; }
+.host-pick { display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%;
+  padding:10px 12px; cursor:pointer; text-align:left;
+  background: var(--voxel-elev); border:1px solid var(--stroke); border-radius:0;
+  box-shadow: var(--voxel-bevel); color: var(--text-primary); }
+.host-pick:hover { background: var(--fill-hover); border-color: var(--accent); }
+.host-pick b { font-size:12.5px; font-weight:600; }
+.host-pick span { font-size:11px; color: var(--text-tertiary); }

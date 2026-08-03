@@ -10,9 +10,9 @@ one is generated from the Mac source so it cannot drift.
 
 | status | count |
 |---|---|
-| done | 83 |
+| done | 84 |
 | partial | 0 |
-| missing | 3 |
+| missing | 2 |
 | n/a | 4 |
 
 | Mac view | Status | Notes |
@@ -24,7 +24,7 @@ one is generated from the Mac source so it cannot drift.
 | BackupSettingsSheet | done | interval + keep count, skips running instances, prunes old copies |
 | BrowseView | done | categories, sort, project pages |
 | ClipRecorder | n/a | josi's call 2026-08-03: not wanted on Windows |
-| CloudHostingSheet | missing | needs a hosting provider |
+| CloudHostingSheet | done | self-host + playit agent + exaroton (wired) + Oracle |
 | CommandPalette | done | Ctrl/Cmd-K |
 | ConfigManagerSheet | done | every editable config |
 | CrashDoctorSheet | done | crash scan + wired fixes |

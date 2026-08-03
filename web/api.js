@@ -73,6 +73,25 @@
       if (!bridge) throw new Error("Publishing needs the desktop app.");
       return unwrap(await bridge.publishInstance(instanceId, summary));
     },
+    // exaroton cloud hosting. status() is safe to call unconditionally: it answers
+    // { connected:false } when no token is stored rather than throwing.
+    exaroton: {
+      async status() { if (!bridge) return { connected: false }; try { return unwrap(await bridge.exaroton.status()); } catch { return { connected: false }; } },
+      async connect(token) { return unwrap(await bridge.exaroton.connect(token)); },
+      async disconnect() { return unwrap(await bridge.exaroton.disconnect()); },
+      async start(id) { return unwrap(await bridge.exaroton.start(id)); },
+      async stop(id) { return unwrap(await bridge.exaroton.stop(id)); },
+      async restart(id) { return unwrap(await bridge.exaroton.restart(id)); },
+      async command(id, c) { return unwrap(await bridge.exaroton.command(id, c)); },
+      async logs(id) { return unwrap(await bridge.exaroton.logs(id)); },
+      async pushMods(serverId, instanceId) { return unwrap(await bridge.exaroton.pushMods(serverId, instanceId)); },
+    },
+    playit: {
+      async status() { if (!bridge) return { installed: false, running: false, secret: false }; return unwrap(await bridge.playit.status()); },
+      async setSecret(s) { return unwrap(await bridge.playit.setSecret(s)); },
+      async start() { return unwrap(await bridge.playit.start()); },
+      async stop() { return unwrap(await bridge.playit.stop()); },
+    },
 
     // Power tools: repair (clear cached game files) + update all Modrinth content.
     async listMods(instanceId) {

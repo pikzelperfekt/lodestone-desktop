@@ -127,6 +127,23 @@ handle("pack:join", (a) => engine.packJoin(a));
 handle("pack:publish", (a) => engine.packPublish(a));
 // One-way public modpack page (distinct from the shared-pack sync above).
 handle("publish:instance", (a) => engine.publishInstance(a));
+
+// ---- exaroton cloud hosting ----
+handle("exaroton:connect", (a) => engine.exarotonConnect(a));
+handle("exaroton:disconnect", () => engine.exarotonDisconnect());
+handle("exaroton:status", () => engine.exarotonStatus());
+handle("exaroton:start", (a) => engine.exarotonStart(a));
+handle("exaroton:stop", (a) => engine.exarotonStop(a));
+handle("exaroton:restart", (a) => engine.exarotonRestart(a));
+handle("exaroton:command", (a) => engine.exarotonCommand(a));
+handle("exaroton:logs", (a) => engine.exarotonLogs(a));
+handle("exaroton:pushMods", (a) => engine.exarotonPushMods(a));
+
+// ---- playit.gg tunnel ----
+handle("playit:status", () => engine.playitStatus());
+handle("playit:setSecret", (a) => engine.playitSetSecret(a));
+handle("playit:start", () => engine.playitStart());
+handle("playit:stop", () => engine.playitStop());
 handle("pack:list", () => engine.packList());
 handle("pack:status", (a) => engine.packStatus(a));
 handle("pack:setMode", (a) => engine.packSetMode(a));

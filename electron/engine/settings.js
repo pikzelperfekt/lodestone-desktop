@@ -16,6 +16,9 @@ const DEFAULTS = {
   confirmDelete: true,    // ask before deleting an instance
   autoUpdate: true,       // download launcher updates in the background
   concurrentDownloads: 8, // parallel file downloads during install
+  exarotonToken: "",      // exaroton API token (exaroton.com -> Account -> API); "" = cloud hosting not connected
+  playitSecret: "",       // playit.gg agent secret; "" = no tunnel configured
+  socialBackendURL: "",   // override Lodestone's hosted worker with your own relay; "" = use Lodestone's
 };
 
 function init(dataDir) { DATA_DIR = dataDir || path.join(os.homedir(), ".lodestone"); }
@@ -37,6 +40,9 @@ function normalize(raw) {
   // Out-of-range values would either stall installs or hammer the CDN.
   s.concurrentDownloads = Number.isFinite(cd) ? Math.max(1, Math.min(16, Math.round(cd))) : 8;
   s.curseforgeKey = typeof s.curseforgeKey === "string" ? s.curseforgeKey.trim() : "";
+  s.exarotonToken = typeof s.exarotonToken === "string" ? s.exarotonToken.trim() : "";
+  s.playitSecret = typeof s.playitSecret === "string" ? s.playitSecret.trim() : "";
+  s.socialBackendURL = typeof s.socialBackendURL === "string" ? s.socialBackendURL.trim() : "";
   return s;
 }
 

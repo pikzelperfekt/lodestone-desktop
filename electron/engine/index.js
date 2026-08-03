@@ -91,7 +91,7 @@ function init(userDataPath) {
 // ---- App settings (memory / Java override / launcher behavior) ----
 function getSettings() { return settings.getSettings(); }
 function setSettings(patch) { return settings.setSettings(patch); }
-function setEmitter(fn) { emit = fn || (() => {}); cloud.setEmitter(emit); sync.setEmitter(emit); social.setEmitter(emit); chat.setEmitter(emit); packsync.setEmitter(emit); }
+function setEmitter(fn) { emit = fn || (() => {}); playit.setEmitter(emit); cloud.setEmitter(emit); sync.setEmitter(emit); social.setEmitter(emit); chat.setEmitter(emit); packsync.setEmitter(emit); }
 // [wave0] Trash-tier deletes: Electron main injects shell.trashItem so world /
 // resource-pack / shader / datapack deletes are recoverable (Mac parity).
 // Headless runs never call this and those deletes stay permanent (flagged).
@@ -826,8 +826,64 @@ function publishInstance(a) {
   });
 }
 
+// ---- exaroton cloud hosting ----
+// The token lives in settings; every call reads it fresh so disconnecting takes
+// effect immediately rather than at the next restart.
+function exaTok() {
+  const t = (getSettings() || {}).exarotonToken;
+  if (!t) throw new Error("Connect your exaroton account first.");
+  return t;
+}
+async function exarotonConnect(a) {
+  const token = String((a && a.token) || "").trim();
+  if (!token) throw new Error("Paste your exaroton API token.");
+  // Verify before saving, so a bad token never gets stored as if it worked.
+  const acct = await exaroton.account(token);
+  setSettings({ exarotonToken: token });
+  return { account: acct, servers: await exaroton.servers(token) };
+}
+function exarotonDisconnect() { setSettings({ exarotonToken: "" }); return { connected: false }; }
+async function exarotonStatus() {
+  const token = (getSettings() || {}).exarotonToken;
+  if (!token) return { connected: false };
+  try {
+    return { connected: true, account: await exaroton.account(token), servers: await exaroton.servers(token) };
+  } catch (e) {
+    return { connected: true, error: e.message, servers: [] };
+  }
+}
+function exarotonRefresh() { return exarotonStatus(); }
+function exarotonStart(a) { return exaroton.start(exaTok(), a.id); }
+function exarotonStop(a) { return exaroton.stop(exaTok(), a.id); }
+function exarotonRestart(a) { return exaroton.restart(exaTok(), a.id); }
+function exarotonCommand(a) { return exaroton.command(exaTok(), a.id, a.command); }
+function exarotonLogs(a) { return exaroton.logs(exaTok(), a.id); }
+function exarotonPushMods(a) {
+  const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+  if (!inst) throw new Error("Instance not found.");
+  // Client-only content would crash or no-op on a dedicated server.
+  const clientOnly = (inst.content || [])
+    .filter((c) => c && (c.side === "client" || c.clientOnly === true))
+    .map((c) => c.fileName)
+    .filter(Boolean);
+  return exaroton.pushMods({
+    token: exaTok(), serverId: a.serverId, clientOnly,
+    modsDir: path.join(install.paths(DATA_DIR).instanceDir(inst.id), "mods"),
+    onLog: (line) => emit("exaroton:log", { serverId: a.serverId, line }),
+  });
+}
+
+// ---- playit.gg tunnel ----
+function playitStatus() { return { ...playit.status(), secret: !!(getSettings() || {}).playitSecret }; }
+function playitSetSecret(a) { setSettings({ playitSecret: String((a && a.secret) || "").trim() }); return playitStatus(); }
+function playitStart() { playit.start((getSettings() || {}).playitSecret); return playitStatus(); }
+function playitStop() { playit.stop(); return playitStatus(); }
+
 module.exports = {
   publishInstance,
+  playitStatus, playitSetSecret, playitStart, playitStop,
+  exarotonConnect, exarotonDisconnect, exarotonStatus, exarotonRefresh,
+  exarotonStart, exarotonStop, exarotonRestart, exarotonCommand, exarotonLogs, exarotonPushMods,
   init, setEmitter, setTrash, dataDir, info,   // [wave0] setTrash
   getSettings, setSettings,
   listInstances, createInstance, deleteInstance, updateInstance,
@@ -1593,6 +1649,8 @@ Object.assign(module.exports, {
 const iconsEngine = require("./icons");
 const lodepack = require("./lodepack");
 const publish = require("./publish");
+const exaroton = require("./exaroton");
+const playit = require("./playit");
 
 // ---- Instance icons ----
 function setInstanceIcon({ id, dataBase64, ext }) {

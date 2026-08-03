@@ -2155,8 +2155,9 @@ async function renderWorldDetail(instanceId, folder) {
     </section>` : ""}
 
     <section class="vsec">
-      <div class="vsec-head"><span class="kick">Explored map</span>
-        <button class="gh gh-sm" id="wd-scan">Scan region files</button></div>
+      <div class="vsec-head"><span class="kick">Map</span>
+        <button class="gh gh-sm" id="wd-scan">Explored (region files)</button>
+        <button class="gh gh-sm" id="wd-seedmap"${w.seed ? "" : " disabled"}>Predicted (from seed)</button></div>
       <div id="wd-map"><div class="empty-line">Scan to read this world's region files and draw what has generated.</div></div>
     </section>
 
@@ -2206,6 +2207,55 @@ async function renderWorldDetail(instanceId, folder) {
       }
     } catch (err) { host.innerHTML = `<div class="empty-line">${esc(err.message)}</div>`; }
     b.disabled = false; b.innerHTML = "Scan region files";
+  };
+
+  // The predicted map shows terrain the seed WOULD generate, whether or not it
+  // has been visited — the counterpart to the explored map, which shows only
+  // what exists on disk.
+  document.getElementById("wd-seedmap").onclick = async (e) => {
+    const b = e.currentTarget; b.disabled = true; b.innerHTML = `<span class="spinner"></span> Generating\u2026`;
+    const host = document.getElementById("wd-map");
+    host.innerHTML = `<div class="empty-line">Generating terrain from seed ${esc(w.seed)}\u2026</div>`;
+    try {
+      const m = await API.worldTools.seedMap({ instanceId, seed: w.seed, radius: 2048, step: 32 });
+      const counts = {};
+      for (const row of m.rows) for (const id of row) counts[id] = (counts[id] || 0) + 1;
+      const total = m.rows.length * (m.rows[0] ? m.rows[0].length : 1) || 1;
+      const top = Object.entries(counts)
+        .map(([id, n]) => ({ name: m.legend[id] || `biome ${id}`, share: n / total }))
+        .sort((x, y) => y.share - x.share).slice(0, 14);
+      host.innerHTML = `
+        <div class="wm-wrap">
+          <canvas id="sm-canvas" class="wm-canvas"></canvas>
+          <div class="wm-legend">
+            <div class="kick">${m.side}\u00d7${m.side} samples \u00b7 \u00b1${m.radius} blocks \u00b7 every ${m.step}</div>
+            ${top.map((t) => `
+              <div class="wm-row">
+                <span class="wm-dot" style="background:${biomeColor(t.name)}"></span>
+                <span class="wm-name">${esc(biomeLabel(t.name))}</span>
+                <span class="wm-share">${(t.share * 100).toFixed(1)}%</span>
+              </div>`).join("")}
+            <div class="wm-more kick">Predicted from the seed \u2014 vanilla generation only</div>
+          </div>
+        </div>`;
+      // Draw straight from the grid; the centre of the canvas is 0,0.
+      const cv = document.getElementById("sm-canvas");
+      const side = m.rows.length;
+      const scale = Math.max(1, Math.min(8, Math.floor(520 / side)));
+      cv.width = side * scale; cv.height = side * scale;
+      const ctx = cv.getContext("2d");
+      for (let z = 0; z < side; z++) {
+        for (let x = 0; x < m.rows[z].length; x++) {
+          ctx.fillStyle = biomeColor(m.legend[m.rows[z][x]] || "");
+          ctx.fillRect(x * scale, z * scale, scale, scale);
+        }
+      }
+      // Mark the origin so the map is orientable.
+      ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = 1;
+      const c = Math.floor(side / 2) * scale;
+      ctx.strokeRect(c - 2, c - 2, scale + 4, scale + 4);
+    } catch (err) { host.innerHTML = `<div class="empty-line">${esc(err.message)}</div>`; }
+    b.disabled = false; b.innerHTML = "Predicted (from seed)";
   };
 
   const posBtn = document.getElementById("wd-copy-pos");

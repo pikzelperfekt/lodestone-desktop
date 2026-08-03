@@ -46,7 +46,7 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 | WorldDetailView | done | facts from level.dat (both save formats) + actions |
 | WorldMapView | done | .mca reader + canvas biome map of generated chunks |
 | WorldStatisticsView | done | biomes, structures, player position/health/XP and inventory |
-| SeedMapView / SeedInfoSheet | missing | biome map from a seed |
+| SeedMapView / SeedInfoSheet | done | predicted biome map from the seed, beside the explored map |
 | SeedFinderSheet | done | native cubiomes helper |
 | PregenSheet | missing | chunk pregeneration via Chunky |
 | NewForeverWorldSheet / DeleteForeverWorldSheet | missing | Forever Worlds |

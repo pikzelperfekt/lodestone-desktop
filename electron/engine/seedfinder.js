@@ -96,4 +96,49 @@ function search({ mcVersion, biomes, radius = 1500, count = 5, spacing = 32, sta
   });
 }
 
-module.exports = { search, available, detectWorldgenMods, WORLDGEN_MODS };
+// Render one seed's biome grid. Same worldgen-mod refusal as search: a preview
+// for a Terralith pack would be fiction with a picture attached.
+function map({ mcVersion, seed, radius = 2048, step = 32, modsDir }) {
+  return new Promise((resolve, reject) => {
+    const blockers = modsDir ? detectWorldgenMods(modsDir) : [];
+    if (blockers.length) {
+      reject(new Error(
+        `This pack changes world generation (${blockers.slice(0, 3).join(", ")}${blockers.length > 3 ? ", …" : ""}), `
+        + "so a preview wouldn't match the terrain you'd actually get."));
+      return;
+    }
+    const bin = helperPath();
+    if (!bin) { reject(new Error("The seed helper isn't bundled in this build.")); return; }
+    if (seed === null || seed === undefined || seed === "") { reject(new Error("This world has no readable seed.")); return; }
+
+    const child = spawn(bin, ["map", String(mcVersion || "1.21.1"), String(seed), String(radius), String(step)],
+      { stdio: ["ignore", "pipe", "pipe"] });
+    let out = "", err = "";
+    child.stdout.on("data", (c) => { out += c.toString("utf8"); });
+    child.stderr.on("data", (c) => { err += c.toString("utf8"); });
+    child.on("error", (e) => reject(new Error("Couldn't run the seed helper: " + e.message)));
+    child.on("close", (code) => {
+      if (code !== 0) { reject(new Error(err.trim() || `Seed map exited with code ${code}.`)); return; }
+      const lines = out.split(/\r?\n/);
+      let header = null;
+      try { header = JSON.parse(lines[0]); } catch { reject(new Error("Unexpected output from the seed helper.")); return; }
+      const rows = [];
+      const legend = {};
+      let inLegend = false;
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line) continue;
+        if (line === "LEGEND") { inLegend = true; continue; }
+        if (inLegend) {
+          const eq = line.indexOf("=");
+          if (eq > 0) legend[line.slice(0, eq)] = line.slice(eq + 1);
+        } else {
+          rows.push(line.split(",").map(Number));
+        }
+      }
+      resolve({ ...header, rows, legend });
+    });
+  });
+}
+
+module.exports = { search, map, available, detectWorldgenMods, WORLDGEN_MODS };

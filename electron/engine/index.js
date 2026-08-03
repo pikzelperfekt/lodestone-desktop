@@ -991,6 +991,14 @@ module.exports = {
       onEvent: (e) => emit("seed:progress", { instanceId: inst.id, ...e }),
     });
   },
+  seedMap: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    const modsDir = inst ? path.join(install.paths(DATA_DIR).instanceDir(inst.id), "mods") : null;
+    return seedfinder.map({
+      mcVersion: (inst && inst.mcVersion) || a.mcVersion,
+      seed: a && a.seed, radius: a && a.radius, step: a && a.step, modsDir,
+    });
+  },
   // ---- Mixin conflicts: find mods patching the same method, without launching ----
   scanMixins: (a) => {
     const inst = readInstances().find((i) => i.id === (a && a.instanceId));

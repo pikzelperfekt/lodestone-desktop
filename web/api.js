@@ -387,6 +387,10 @@
         if (bridge) return unwrap(await bridge.worlds.seedSearch(opts));
         throw new Error("Seed search runs in the desktop app.");
       },
+      async seedMap(opts) {
+        if (bridge) return unwrap(await bridge.worlds.seedMap(opts));
+        throw new Error("Seed maps run in the desktop app.");
+      },
       async scanMixins(instanceId) {
         if (bridge) return unwrap(await bridge.worlds.scanMixins(instanceId));
         throw new Error("Mixin scanning runs in the desktop app.");

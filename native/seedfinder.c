@@ -37,10 +37,66 @@ static int resolve_mc(const char *version)
     return MC_NEWEST;
 }
 
+// map mode: emit a biome grid for ONE seed so the UI can draw a preview of
+// terrain that does not exist on disk yet. One line per row, biome ids
+// comma-separated, preceded by a legend mapping id -> name. Ids rather than
+// names keeps a 256x256 grid to a few tens of KB instead of megabytes.
+static int run_map(int argc, char **argv)
+{
+    /* argv: seedfinder map <mcVersion> <seed> <radius> <step>  -> argc 6 */
+    if (argc < 6) {
+        fprintf(stderr, "usage: seedfinder map <mcVersion> <seed> <radius> <step>\n");
+        return 2;
+    }
+    const char *version = argv[2];
+    uint64_t seed = strtoull(argv[3], NULL, 10);
+    int radius = atoi(argv[4]);
+    int step   = atoi(argv[5]);
+
+    if (radius < 64) radius = 64;
+    if (radius > 12288) radius = 12288;
+    if (step < 4) step = 4;
+
+    int mc = resolve_mc(version);
+    Generator g;
+    setupGenerator(&g, mc, 0);
+    applySeed(&g, DIM_OVERWORLD, seed);
+
+    /* Collect the ids present so the legend only names what is actually used. */
+    int used[256];
+    memset(used, 0, sizeof(used));
+
+    int side = (radius * 2) / step + 1;
+    printf("{\"side\":%d,\"step\":%d,\"radius\":%d}\n", side, step, radius);
+
+    for (int z = -radius; z <= radius; z += step) {
+        int first = 1;
+        for (int x = -radius; x <= radius; x += step) {
+            int b = getBiomeAt(&g, 4, x >> 2, 63 >> 2, z >> 2);
+            if (b >= 0 && b < 256) used[b] = 1;
+            printf(first ? "%d" : ",%d", b);
+            first = 0;
+        }
+        printf("\n");
+    }
+
+    printf("LEGEND\n");
+    for (int id = 0; id < 256; id++) {
+        if (!used[id]) continue;
+        const char *nm = biome2str(mc, id);
+        if (nm) printf("%d=%s\n", id, nm);
+    }
+    fflush(stdout);
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
+    if (argc >= 2 && strcmp(argv[1], "map") == 0) return run_map(argc, argv);
+
     if (argc < 7) {
         fprintf(stderr, "usage: seedfinder <mcVersion> <radius> <wanted> <spacing> <startSeed> <biome,...>\n");
+        fprintf(stderr, "       seedfinder map <mcVersion> <seed> <radius> <step>\n");
         return 2;
     }
 

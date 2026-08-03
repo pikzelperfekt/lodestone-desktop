@@ -11,7 +11,8 @@ const importer = require("./import");
 const share = require("./share");
 const curseforge = require("./curseforge");
 const worlds = require("./worlds");
-const mixins = require("./mixins"); // static mixin conflict detection
+const mixins = require("./mixins");
+const seedfinder = require("./seedfinder"); // native cubiomes seed search // static mixin conflict detection
 const worldcreate = require("./worldcreate"); // world creation + import (26.1 split format aware)
 const auth = require("./auth");
 const cloud = require("./cloud");
@@ -586,6 +587,22 @@ module.exports = {
   cloudProfile, cloudUpdateProfile, cloudLinkMinecraft, cloudSearchProfiles,
   // [Cloud Sync — Vertical A]
   cloudSyncPush, cloudSyncList, cloudSyncPull, cloudSyncRemove, cloudSyncStatus,
+  // ---- Seed search (native cubiomes helper; vanilla worldgen only) ----
+  seedSearchAvailable: () => seedfinder.available(),
+  seedSearch: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    const modsDir = path.join(install.paths(DATA_DIR).instanceDir(inst.id), "mods");
+    return seedfinder.search({
+      mcVersion: inst.mcVersion,
+      biomes: a && a.biomes,
+      radius: a && a.radius,
+      count: a && a.count,
+      startSeed: a && a.startSeed,
+      modsDir,
+      onEvent: (e) => emit("seed:progress", { instanceId: inst.id, ...e }),
+    });
+  },
   // ---- Mixin conflicts: find mods patching the same method, without launching ----
   scanMixins: (a) => {
     const inst = readInstances().find((i) => i.id === (a && a.instanceId));

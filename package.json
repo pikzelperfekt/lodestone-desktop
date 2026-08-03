@@ -1,7 +1,7 @@
 {
   "name": "lodestone-desktop",
   "version": "0.6.0",
-  "description": "Lodestone — cross-platform Minecraft launcher (Windows/Electron build)",
+  "description": "Lodestone \u2014 cross-platform Minecraft launcher (Windows/Electron build)",
   "main": "electron/main.js",
   "author": "KingEstel",
   "license": "MIT",
@@ -50,6 +50,15 @@
         "owner": "pikzelperfekt",
         "repo": "lodestone-desktop",
         "releaseType": "release"
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "native",
+        "to": "native",
+        "filter": [
+          "seedfinder*"
+        ]
       }
     ]
   }

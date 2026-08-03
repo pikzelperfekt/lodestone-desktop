@@ -289,6 +289,7 @@ async function renderInstanceDetail(id) {
           <button class="btn-soft" id="detail-add">${ico("i-plus")} Browse mods</button>
           <button class="btn-soft" id="detail-share">${ico("i-bolt")} Share &amp; Sync</button>
           <button class="btn-soft" id="detail-mixins">${ico("i-pulse")} Mixin conflicts</button>
+          <button class="btn-soft" id="detail-seed">${ico("i-globe")} Find a seed</button>
         </div>
       </div>
     </div>
@@ -339,6 +340,8 @@ async function renderInstanceDetail(id) {
   document.getElementById("detail-share").onclick = () => openShareModal(inst);
   const mixBtn = document.getElementById("detail-mixins");
   if (mixBtn) mixBtn.onclick = () => openMixinSheet(inst);
+  const seedBtn = document.getElementById("detail-seed");
+  if (seedBtn) seedBtn.onclick = () => openSeedSheet(inst);
   el().querySelectorAll("[data-remove]").forEach((b) => b.onclick = async () => {
     b.disabled = true;
     await API.content.remove({ instanceId: id, projectId: b.dataset.remove });
@@ -1375,6 +1378,104 @@ async function renderPinned() {
   });
 }
 
+
+// ---------- Seed finder sheet ----------
+// Searches for a seed whose spawn area holds the biomes you picked. Refuses
+// outright on packs that change world generation: cubiomes models vanilla
+// terrain only, so a prediction there would be fiction with a seed attached.
+const SEED_BIOMES = [
+  ["jungle", "Jungle"], ["desert", "Desert"], ["badlands", "Badlands"],
+  ["mushroom_fields", "Mushroom Fields"], ["ice_spikes", "Ice Spikes"],
+  ["cherry_grove", "Cherry Grove"], ["bamboo_jungle", "Bamboo Jungle"],
+  ["swamp", "Swamp"], ["savanna", "Savanna"], ["taiga", "Taiga"],
+  ["flower_forest", "Flower Forest"], ["lush_caves", "Lush Caves"],
+  ["deep_dark", "Deep Dark"], ["ocean", "Ocean"],
+];
+async function openSeedSheet(inst) {
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-globe")} Find a seed</div>
+      <p class="share-sub">Searches for a seed with the biomes you want near spawn, for
+        <b>${esc(inst.name)}</b> (${esc(inst.mcVersion)}). Terrain is computed, not guessed.</p>
+
+      <div class="share-label">BIOMES NEAR SPAWN</div>
+      <div class="seed-biomes">
+        ${SEED_BIOMES.map(([id, label]) => `
+          <label class="seed-chip"><input type="checkbox" value="${id}"> ${esc(label)}</label>`).join("")}
+      </div>
+
+      <div class="np-grid">
+        <label class="np-field"><span>SEARCH RADIUS</span>
+          <select class="inp" id="sd-radius">
+            <option value="800">800 blocks (fast)</option>
+            <option value="1500" selected>1500 blocks</option>
+            <option value="3000">3000 blocks (slow)</option>
+          </select></label>
+        <label class="np-field"><span>HOW MANY</span>
+          <select class="inp" id="sd-count">
+            <option value="3">3 seeds</option>
+            <option value="5" selected>5 seeds</option>
+            <option value="10">10 seeds</option>
+          </select></label>
+      </div>
+
+      <div id="sd-status" class="seed-status"></div>
+      <div id="sd-results" class="seed-results"></div>
+
+      <div class="np-actions">
+        <button class="btn-ghost" id="sd-close">Close</button>
+        <button class="btn-accent share-btn" id="sd-go">${ico("i-search")} Search</button>
+      </div>
+    </div>`);
+
+  document.getElementById("sd-close").onclick = hideModal;
+
+  const off = API.on ? API.on("seed:progress", (e) => {
+    const st = document.getElementById("sd-status");
+    if (!st || !e) return;
+    if (e.type === "progress") st.textContent = `Checked ${e.checked.toLocaleString()} seeds, found ${e.found}…`;
+    if (e.type === "seed") {
+      const box = document.getElementById("sd-results");
+      if (box) box.insertAdjacentHTML("beforeend",
+        `<button class="seed-hit" data-seed="${esc(e.seed)}" title="Copy">${esc(e.seed)}</button>`);
+    }
+  }) : () => {};
+
+  document.getElementById("sd-go").onclick = async (e) => {
+    const picked = [...document.querySelectorAll(".seed-biomes input:checked")].map((i) => i.value);
+    if (!picked.length) { toast("Pick at least one biome."); return; }
+    const btn = e.currentTarget;
+    btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Searching…`;
+    document.getElementById("sd-results").innerHTML = "";
+    document.getElementById("sd-status").textContent = "Starting…";
+    try {
+      const r = await API.worldTools.seedSearch({
+        instanceId: inst.id, biomes: picked,
+        radius: Number(document.getElementById("sd-radius").value),
+        count: Number(document.getElementById("sd-count").value),
+        startSeed: Math.floor(Math.random() * 1e12) + 1,
+      });
+      document.getElementById("sd-status").textContent =
+        r.seeds.length ? `Found ${r.seeds.length}. Click one to copy it.` : "No seeds matched — try fewer biomes or a bigger radius.";
+    } catch (err) {
+      document.getElementById("sd-status").textContent = "";
+      toast(err.message);
+    }
+    btn.disabled = false; btn.innerHTML = `${ico("i-search")} Search`;
+  };
+
+  // Clicking a result copies it, ready to paste into New World.
+  document.getElementById("sd-results").onclick = async (ev) => {
+    const b = ev.target.closest("[data-seed]");
+    if (!b) return;
+    const ok = await copyText(b.dataset.seed);
+    toast(ok ? `Copied ${b.dataset.seed}. Paste it into New world.` : "Couldn't copy.");
+  };
+
+  const prevHide = hideModal;
+  // Stop listening when the sheet closes so a later search can't paint here.
+  document.getElementById("sd-close").onclick = () => { try { off(); } catch {} prevHide(); };
+}
 
 // ---------- Mixin conflicts sheet ----------
 // Finds mods patching the same game method by reading the jars — no launch,

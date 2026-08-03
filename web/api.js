@@ -273,6 +273,14 @@
 
     // Global SETUP profiles: Game settings, Keybinds, Skins.
     worldTools: {
+      async seedAvailable() {
+        if (!bridge) return false;
+        try { return unwrap(await bridge.worlds.seedAvailable()); } catch { return false; }
+      },
+      async seedSearch(opts) {
+        if (bridge) return unwrap(await bridge.worlds.seedSearch(opts));
+        throw new Error("Seed search runs in the desktop app.");
+      },
       async scanMixins(instanceId) {
         if (bridge) return unwrap(await bridge.worlds.scanMixins(instanceId));
         throw new Error("Mixin scanning runs in the desktop app.");

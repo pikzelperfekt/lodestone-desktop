@@ -3,3 +3,7 @@ dist-electron/
 *.log
 .DS_Store
 .claude/
+
+# Compiled native helpers (built by CI / build script)
+native/seedfinder
+native/seedfinder.exe

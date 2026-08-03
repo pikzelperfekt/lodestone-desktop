@@ -1222,3 +1222,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .mx-mod em { color: var(--voxel-accent); font-style: normal; }
 .mx-mod b { color: var(--voxel-muted); font-weight: 400; }
 .mx-why { font-size: 12px; color: var(--voxel-muted); line-height: 1.5; }
+
+/* ---- Seed finder ---- */
+.seed-biomes { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 4px; }
+.seed-chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px;
+  background: var(--voxel-elev); box-shadow: var(--voxel-bevel); font-size: 12px;
+  color: var(--text-secondary); cursor: pointer; }
+.seed-chip:hover { background: var(--voxel-raised); color: var(--text-primary); }
+.seed-chip input { accent-color: var(--voxel-accent); }
+.seed-status { font-size: 12px; color: var(--voxel-muted); min-height: 18px; margin-top: 12px; }
+.seed-results { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.seed-hit { font-family: var(--font-pixel); font-size: 13px; letter-spacing: .04em;
+  color: var(--voxel-accent); background: var(--voxel-side); box-shadow: var(--voxel-recess);
+  border: 0; padding: 8px 12px; cursor: pointer; }
+.seed-hit:hover { box-shadow: var(--voxel-recess), inset 0 0 0 2px var(--voxel-accent); }

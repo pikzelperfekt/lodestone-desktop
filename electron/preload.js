@@ -41,6 +41,8 @@ contextBridge.exposeInMainWorld("lodestone", {
     remove: (opts) => call("worlds:remove", opts),
     create: (opts) => call("worlds:create", opts),
     scanMixins: (instanceId) => call("mixins:scan", { instanceId }),
+    seedAvailable: () => call("seed:available"),
+    seedSearch: (opts) => call("seed:search", opts),
     import: (opts) => call("worlds:import", opts),
   },
   launch: (id) => call("launch", { id }),
@@ -144,7 +146,8 @@ contextBridge.exposeInMainWorld("lodestone", {
   on: (channel, fn) => {
     const allowed = ["launch:progress", "launch:log", "launch:state", "update:state", "content:log", "server:log", "server:state",
       "cloud:auth", "cloud:friends", "cloud:presence", "cloud:message", "cloud:sync",
-      "pack:shared", "pack:joined", "pack:published", "pack:applied", "pack:left", "pack:error"];
+      "pack:shared", "pack:joined", "pack:published", "pack:applied", "pack:left", "pack:error",
+      "seed:progress"];
     if (!allowed.includes(channel)) return () => {};
     const handler = (_e, payload) => fn(payload);
     ipcRenderer.on(channel, handler);

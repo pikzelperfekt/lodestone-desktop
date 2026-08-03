@@ -24,6 +24,17 @@ jobs:
 
       - run: npm ci
 
+      # cubiomes is C. Compiling it natively on the runner beats shipping a
+      # hand-port: the real library reproduces vanilla terrain at ~99.97%, and
+      # a reimplementation would need that validation redone from scratch.
+      - name: Build the native seed-search helper
+        shell: bash
+        run: |
+          gcc --version
+          gcc -O2 -o native/seedfinder.exe native/seedfinder.c native/cubiomes/*.c \
+            -Inative/cubiomes/include -lm
+          ls -la native/seedfinder.exe
+
       - name: Build & publish Windows installer
         run: npx electron-builder --win nsis --publish always
         env:

@@ -141,6 +141,8 @@ handle("setup:skin:upload", (a) => engine.skinUpload(a));
 handle("setup:skin:reset", () => engine.skinReset());
 // Worlds: create a fresh world, or import a folder / .zip of one.
 handle("mixins:scan", (a) => engine.scanMixins(a));
+handle("seed:available", () => engine.seedSearchAvailable());
+handle("seed:search", (a) => engine.seedSearch(a));
 handle("worlds:create", (a) => engine.createWorld(a));
 handle("worlds:import", async (a) => {
   let source = a && a.source;

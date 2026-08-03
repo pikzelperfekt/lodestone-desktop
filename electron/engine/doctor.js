@@ -19,6 +19,8 @@ const settings = require("./settings");
 // ---------------------------------------------------------------------------
 // Filesystem helpers
 // ---------------------------------------------------------------------------
+const planner = require("./bisectplanner");
+
 function modsDir(dataDir, instanceId) { return path.join(paths(dataDir).instanceDir(instanceId), "mods"); }
 function crashReportsDir(dataDir, instanceId) { return path.join(paths(dataDir).instanceDir(instanceId), "crash-reports"); }
 function latestLogFile(dataDir, instanceId) { return path.join(paths(dataDir).instanceDir(instanceId), "logs", "latest.log"); }
@@ -721,6 +723,10 @@ function clearBisect(dataDir, instanceId) {
 // skipped gracefully.
 function applyBisect(dataDir, instanceId, state) {
   const off = new Set(state.candidates.filter((f) => !state.testing.includes(f)));
+  // Pinned libraries stay enabled no matter what. Disabling one produces a
+  // DIFFERENT crash (missing dependency), the user reports "crashed", and the
+  // hunt then chases the library instead of the real culprit.
+  for (const f of state.pinned || []) off.delete(f);
   for (const f of state.all) setModEnabled(dataDir, instanceId, f, !off.has(f));
   state.disabled = [...off];
 }
@@ -755,6 +761,8 @@ function bisectSummary(dataDir, instance, state) {
     suspectCount: state.candidates.length,
     testingCount: state.testing.length,
     disabledCount: (state.disabled || []).length,
+    phase: state.phase || "all",
+    pinnedCount: (state.pinned || []).length,
     disabled: state.disabled || [],
     roundsLeft: state.candidates.length > 1 ? Math.ceil(Math.log2(state.candidates.length)) : 0,
     culprit: culpritRef,
@@ -764,7 +772,12 @@ function bisectSummary(dataDir, instance, state) {
       ? (state.culprit
         ? `Culprit isolated: ${state.culprit}. Everything else is re-enabled; the culprit stays disabled.`
         : "Bisect finished without isolating a single mod — the crash may involve several mods interacting, or not be mod-related.")
-      : `Round ${state.round} — ${state.candidates.length} mod${state.candidates.length === 1 ? "" : "s"} suspected, ${(state.disabled || []).length} disabled for this test. Launch the instance, then report what happened.`,
+      : state.control
+        ? `Control round — all ${state.candidates.length} ordinary mods are off and only the ${(state.pinned || []).length} libraries are loaded. `
+          + "Launch it: if it still crashes, the problem is a library and we'll hunt those instead."
+      : `Round ${state.round}${state.phase === "libraries" ? " (libraries)" : ""} — ${state.candidates.length} mod${state.candidates.length === 1 ? "" : "s"} suspected, ${(state.disabled || []).length} disabled for this test`
+        + `${(state.pinned || []).length ? `, ${state.pinned.length} librar${state.pinned.length === 1 ? "y" : "ies"} held enabled so they can't poison the result` : ""}. `
+        + "Launch the instance, then report what happened.",
   };
 }
 
@@ -779,13 +792,20 @@ function bisectStart({ dataDir, instance }) {
   try { names = fs.readdirSync(modsDir(dataDir, instance.id)); } catch { names = []; }
   const jars = names.filter((f) => /\.jar$/i.test(f)).sort((a, b) => a.localeCompare(b));
   if (jars.length < 2) throw new Error("Bisecting needs at least two enabled mods.");
+  // Plan the hunt: pin libraries, and order the rest so known mixin fighters
+  // are split apart first.
+  let opening;
+  try { opening = planner.plan({ modsDir: modsDir(dataDir, instance.id), jars }); }
+  catch { opening = { candidates: jars.slice(), pinned: [], phase: "all" }; }
   const state = {
-    version: 1,
+    version: 2,
     instanceId: instance.id,
     startedAt: Date.now(),
     round: 0,
     all: jars,
-    candidates: jars.slice(),
+    candidates: opening.candidates,
+    pinned: opening.pinned,
+    phase: opening.phase,
     testing: [],
     disabled: [],
     history: [],
@@ -793,7 +813,17 @@ function bisectStart({ dataDir, instance }) {
     culprit: null,
     inconclusive: false,
   };
-  nextRound(state);
+  // When libraries were pinned, round 1 is a CONTROL round: every ordinary mod
+  // off, libraries on. If it still crashes, no candidate can be responsible and
+  // the culprit is among the libraries — which also proves pinning them is safe
+  // rather than merely assumed.
+  if (state.pinned.length) {
+    state.control = true;
+    state.round = 1;
+    state.testing = [];
+  } else {
+    nextRound(state);
+  }
   applyBisect(dataDir, instance.id, state);
   writeBisect(dataDir, instance.id, state);
   return bisectSummary(dataDir, instance, state);
@@ -804,7 +834,37 @@ function bisectReport({ dataDir, instance, crashed }) {
   if (!state || state.status !== "active") throw new Error("No mod bisect is running for this instance.");
   pruneMissing(dataDir, instance.id, state);
 
-  state.history.push({ round: state.round, testing: state.testing.slice(), disabled: state.disabled.slice(), crashed: !!crashed });
+  state.history.push({ round: state.round, testing: state.testing.slice(), disabled: state.disabled.slice(), crashed: !!crashed, control: !!state.control });
+
+  if (state.control) {
+    state.control = false;
+    if (crashed) {
+      // Still crashing with every ordinary mod disabled → it's a library.
+      const next = planner.libraryPhase({ modsDir: modsDir(dataDir, instance.id), pinned: state.pinned });
+      if (next) {
+        state.phase = "libraries";
+        state.candidates = next.candidates;
+        state.pinned = [];
+        nextRound(state);
+        applyBisect(dataDir, instance.id, state);
+        writeBisect(dataDir, instance.id, state);
+        return bisectSummary(dataDir, instance, state);
+      }
+      // Only one library, or none readable: it is the culprit by elimination.
+      state.status = "done";
+      state.culprit = (state.pinned && state.pinned[0]) || null;
+      state.inconclusive = !state.culprit;
+      for (const f of state.all) setModEnabled(dataDir, instance.id, f, f !== state.culprit);
+      state.disabled = state.culprit ? [state.culprit] : [];
+      writeBisect(dataDir, instance.id, state);
+      return bisectSummary(dataDir, instance, state);
+    }
+    // Clean without the ordinary mods: the culprit is among them. Start halving.
+    nextRound(state);
+    applyBisect(dataDir, instance.id, state);
+    writeBisect(dataDir, instance.id, state);
+    return bisectSummary(dataDir, instance, state);
+  }
   // Crashed with the "testing" half enabled → culprit is in there. Ran fine → the
   // culprit was among the disabled half.
   state.candidates = crashed ? state.testing.slice() : state.candidates.filter((f) => !state.testing.includes(f));
@@ -817,6 +877,20 @@ function bisectReport({ dataDir, instance, crashed }) {
     state.disabled = [state.culprit];
     writeBisect(dataDir, instance.id, state);
     return bisectSummary(dataDir, instance, state);
+  }
+  if (state.candidates.length === 0 && state.phase === "mods") {
+    // Every ordinary mod came up clean, so the culprit is among the libraries
+    // we pinned. Escalate rather than ending the hunt in a shrug.
+    const next = planner.libraryPhase({ modsDir: modsDir(dataDir, instance.id), pinned: state.pinned });
+    if (next) {
+      state.phase = "libraries";
+      state.candidates = next.candidates;
+      state.pinned = [];
+      nextRound(state);
+      applyBisect(dataDir, instance.id, state);
+      writeBisect(dataDir, instance.id, state);
+      return bisectSummary(dataDir, instance, state);
+    }
   }
   if (state.candidates.length === 0) {
     // Only reachable when jars vanished mid-hunt — nothing left to blame.

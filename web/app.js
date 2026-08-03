@@ -1086,7 +1086,8 @@ const instCard = (i) => instGridCard(i, true);
 // ---------- DISCOVER ----------
 let searchTimer = null;
 let discoverTarget = null;   // instance id to add mods to, when Discover is opened from a detail page
-let discoverSource = "modrinth";   // which catalog to browse: "modrinth" | "curseforge"
+let discoverSource = "modrinth";
+const discoverCats = new Set();   // active Modrinth category filters   // which catalog to browse: "modrinth" | "curseforge"
 async function renderDiscover() {
   const [instances, settings] = await Promise.all([API.instances(), API.settings.get()]);
   const target = discoverTarget ? instances.find((i) => i.id === discoverTarget) : null;
@@ -1101,6 +1102,17 @@ async function renderDiscover() {
     <div class="source-toggle"><div class="seg" id="disc-source">${sources.map(([id, label]) =>
       `<button data-src="${id}" class="${id === discoverSource ? "on" : ""}">${label}</button>`).join("")}</div></div>
     <div class="searchbar glass">${ico("i-search")}<input id="q" placeholder="Search mods on ${discoverSource === "curseforge" ? "CurseForge" : "Modrinth"}…" autofocus /></div>
+    ${discoverSource === "modrinth" ? `
+      <div class="disc-filters">
+        <select class="inp disc-sort" id="disc-sort">
+          <option value="relevance">Relevance</option>
+          <option value="downloads">Most downloaded</option>
+          <option value="follows">Most followed</option>
+          <option value="updated">Recently updated</option>
+          <option value="newest">Newest</option>
+        </select>
+        <div class="disc-cats" id="disc-cats"></div>
+      </div>` : ""}
     <div id="results" class="results"></div>`;
   if (target) document.getElementById("clear-target").onclick = () => { discoverTarget = null; renderDiscover(); };
   const q = document.getElementById("q");
@@ -1114,11 +1126,27 @@ async function renderDiscover() {
     }
     box.innerHTML = `<div class="empty-line">Searching…</div>`;
     try {
-      const hits = discoverSource === "curseforge"
-        ? await API.searchCurseforge({ query: q.value, type: "mod", ...scope })
-        : await API.search({ query: q.value, type: "mod", ...scope });
-      box.innerHTML = hits.map(hitRow).join("") || `<div class="empty-line">No results.</div>`;
+      let hits, meta = null;
+      if (discoverSource === "curseforge") {
+        hits = await API.searchCurseforge({ query: q.value, type: "mod", ...scope });
+      } else {
+        const sortEl = document.getElementById("disc-sort");
+        meta = await API.search({
+          query: q.value, type: "mod", ...scope,
+          categories: [...discoverCats], sort: sortEl ? sortEl.value : "relevance",
+        });
+        hits = meta.hits;
+        paintCategories(meta.categories);
+      }
+      box.innerHTML = (meta ? `<div class="disc-count kick">${meta.total} result${meta.total === 1 ? "" : "s"}</div>` : "")
+        + (hits.map(hitRow).join("") || `<div class="empty-line">No results.</div>`);
       bindAdd(box);
+      // Opening a hit shows the full project rather than installing blind.
+      box.querySelectorAll("[data-hit]").forEach((n) => n.addEventListener("click", (e) => {
+        if (e.target.closest("[data-add]")) return;
+        if (discoverSource !== "modrinth") return;
+        openProjectSheet(n.dataset.hit, scope);
+      }));
     } catch (e) { box.innerHTML = `<div class="empty-line">Search failed: ${esc(e.message)}</div>`; }
   };
   document.querySelectorAll("#disc-source button").forEach((b) => b.onclick = () => {
@@ -1127,11 +1155,110 @@ async function renderDiscover() {
     renderDiscover();
   });
   q.oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(run, 280); };
+  const sortEl = document.getElementById("disc-sort");
+  if (sortEl) sortEl.onchange = run;
+
+  // Category chips are painted from whatever the API offered, so the list can
+  // never drift from what the server will actually accept.
+  function paintCategories(cats) {
+    const host = document.getElementById("disc-cats");
+    if (!host || host.dataset.painted) return;
+    host.dataset.painted = "1";
+    host.innerHTML = cats.map((c) => `
+      <button class="gh gh-sm cat${discoverCats.has(c) ? " is-on" : ""}" data-cat="${esc(c)}">${esc(c.replace(/-/g, " "))}</button>`).join("");
+    host.querySelectorAll("[data-cat]").forEach((b) => b.onclick = () => {
+      const c = b.dataset.cat;
+      if (discoverCats.has(c)) discoverCats.delete(c); else discoverCats.add(c);
+      b.classList.toggle("is-on", discoverCats.has(c));
+      run();
+    });
+  }
   run();
 }
 
+// The full project: what it is, what it looks like, and every build that fits
+// this instance — so a specific version can be installed rather than whatever
+// "latest" happens to be.
+async function openProjectSheet(projectId, scope) {
+  showModal(`
+    <div class="share-card wide-card">
+      <div class="share-h">${ico("i-grid")} Loading\u2026</div>
+      <div class="share-loading"><span class="spinner"></span> Reading the project\u2026</div>
+    </div>`);
+  let p;
+  try { p = await API.project({ projectId, loader: scope.loader, mc: scope.mc }); }
+  catch (e) { hideModal(); toast(e.message); return; }
+
+  const versions = p.versions.filter((v) => v.compatible).slice(0, 40);
+  const shown = versions.length ? versions : p.versions.slice(0, 40);
+
+  showModal(`
+    <div class="share-card wide-card">
+      <div class="pj-head">
+        ${p.icon ? `<img class="pj-icon" src="${esc(p.icon)}" alt="">` : `<span class="pj-icon ph">${ico("i-grid")}</span>`}
+        <div class="pj-meta">
+          <div class="pj-title">${esc(p.title)}</div>
+          <div class="pj-sub">${esc(p.description)}</div>
+          <div class="pj-tags">
+            <span class="vchip">${fmtCount(p.downloads)} downloads</span>
+            ${p.license ? `<span class="vchip">${esc(p.license)}</span>` : ""}
+            ${p.categories.slice(0, 4).map((c) => `<span class="vchip">${esc(c)}</span>`).join("")}
+          </div>
+        </div>
+      </div>
+
+      ${p.gallery.length ? `<div class="pj-gallery">${p.gallery.map((g) =>
+        `<img src="${esc(g.url)}" alt="${esc(g.title)}" title="${esc(g.title)}" loading="lazy">`).join("")}</div>` : ""}
+
+      <div class="share-label">VERSIONS ${versions.length ? `\u00b7 ${versions.length} fit this instance` : "\u00b7 none match, showing all"}</div>
+      <div class="pj-versions">
+        ${shown.map((v) => `
+          <div class="pj-ver${v.compatible ? "" : " is-off"}">
+            <span class="pj-vmeta">
+              <span class="pj-vname">${esc(v.versionNumber)} <em class="pj-vtype ${esc(v.type)}">${esc(v.type)}</em></span>
+              <span class="pj-vsub">${esc(v.gameVersions.slice(0, 4).join(", "))}${v.gameVersions.length > 4 ? "\u2026" : ""} \u00b7 ${esc(fmtDate(Date.parse(v.published)))}</span>
+            </span>
+            ${v.changelog ? `<button class="kb-icon" data-chg="${esc(v.id)}" title="Changelog">${ico("i-pulse")}</button>` : ""}
+            <button class="gh gh-sm" data-install="${esc(v.id)}">Install</button>
+          </div>
+          ${v.changelog ? `<div class="pj-changelog" id="chg-${esc(v.id)}" hidden>${esc(v.changelog).slice(0, 4000)}</div>` : ""}`).join("")}
+      </div>
+
+      <div class="np-actions">
+        <button class="btn-ghost" id="pj-close">Close</button>
+        ${p.source ? `<button class="gh" id="pj-source">${ico("i-link")} Source</button>` : ""}
+        <button class="btn-accent share-btn" id="pj-latest">${ico("i-plus")} Install latest that fits</button>
+      </div>
+    </div>`);
+
+  document.getElementById("pj-close").onclick = hideModal;
+  const src = document.getElementById("pj-source");
+  if (src) src.onclick = () => (API.openExternal ? API.openExternal(p.source) : toast(p.source));
+
+  document.querySelectorAll("[data-chg]").forEach((b) => b.onclick = () => {
+    const box = document.getElementById("chg-" + b.dataset.chg);
+    if (box) box.hidden = !box.hidden;
+  });
+
+  const install = async (versionId, btn) => {
+    if (!discoverTarget) { toast("Open Discover from an instance, or pick one first."); return; }
+    const original = btn.innerHTML;
+    btn.disabled = true; btn.innerHTML = `<span class="spinner"></span>`;
+    try {
+      await API.content.install({ instanceId: discoverTarget, projectId: p.id, versionId });
+      toast(`Added ${p.title}.`); hideModal();
+    } catch (e) { btn.disabled = false; btn.innerHTML = original; toast("Couldn't add: " + e.message); }
+  };
+  document.querySelectorAll("[data-install]").forEach((b) => b.onclick = () => install(b.dataset.install, b));
+  document.getElementById("pj-latest").onclick = (e) => {
+    const v = versions[0] || p.versions[0];
+    if (!v) { toast("No versions available."); return; }
+    install(v.id, e.currentTarget);
+  };
+}
+
 const hitRow = (h) => `
-  <div class="glass hit-row">
+  <div class="glass hit-row" data-hit="${esc(h.id)}">
     ${h.icon ? `<img class="hit-icon" src="${esc(h.icon)}" />` : `<div class="hit-icon ph">${ico("i-grid")}</div>`}
     <div class="hit-meta">
       <div class="hit-title">${esc(h.title)} <span class="hit-author">by ${esc(h.author || "—")}</span></div>

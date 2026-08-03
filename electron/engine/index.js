@@ -230,17 +230,74 @@ async function listVersions(opts) {
 }
 
 // ---- Modrinth search ----
-async function modrinthSearch({ query, type, loader, mc }) {
+const MODRINTH_UA = "Lodestone/1.0 (github.com/pikzelperfekt/lodestone-desktop)";
+async function modrinthJSON(url) {
+  const res = await fetch(url, { headers: { "User-Agent": MODRINTH_UA } });
+  if (!res.ok) throw new Error(`Modrinth ${res.status}`);
+  return res.json();
+}
+
+// Categories worth filtering by, kept short deliberately: Modrinth exposes
+// dozens and a wall of checkboxes is worse than none.
+const MODRINTH_CATEGORIES = [
+  "adventure", "cursed", "decoration", "economy", "equipment", "food",
+  "game-mechanics", "library", "magic", "management", "minigame", "mobs",
+  "optimization", "social", "storage", "technology", "transportation", "utility", "worldgen",
+];
+
+async function modrinthSearch({ query, type, loader, mc, categories, sort, offset }) {
   const facets = [[`project_type:${type || "mod"}`]];
   if ((type || "mod") === "mod" && loader && loader !== "vanilla") facets.push([`categories:${loader}`]);
   if ((type || "mod") !== "modpack" && mc) facets.push([`versions:${mc}`]);
+  // Each extra category is its own AND group, so several narrow rather than widen.
+  for (const c of (categories || [])) if (MODRINTH_CATEGORIES.includes(c)) facets.push([`categories:${c}`]);
+
   const url = new URL("https://api.modrinth.com/v2/search");
-  url.searchParams.set("query", query || ""); url.searchParams.set("limit", "30");
+  url.searchParams.set("query", query || "");
+  url.searchParams.set("limit", "30");
+  url.searchParams.set("offset", String(Math.max(0, Number(offset) || 0)));
+  url.searchParams.set("index", ["relevance", "downloads", "follows", "newest", "updated"].includes(sort) ? sort : "relevance");
   url.searchParams.set("facets", JSON.stringify(facets));
-  const res = await fetch(url, { headers: { "User-Agent": "Lodestone/0.1 (prototype)" } });
-  if (!res.ok) throw new Error(`Modrinth ${res.status}`);
-  const json = await res.json();
-  return json.hits.map((h) => ({ id: h.project_id, title: h.title, author: h.author, description: h.description, downloads: h.downloads, icon: h.icon_url, type: h.project_type }));
+  const json = await modrinthJSON(url);
+  return {
+    total: json.total_hits,
+    offset: json.offset,
+    categories: MODRINTH_CATEGORIES,
+    hits: json.hits.map((h) => ({
+      id: h.project_id, title: h.title, author: h.author, description: h.description,
+      downloads: h.downloads, follows: h.follows, icon: h.icon_url, type: h.project_type,
+      categories: (h.categories || []).filter((c) => MODRINTH_CATEGORIES.includes(c)),
+      updated: h.date_modified,
+    })),
+  };
+}
+
+// One project's full detail: long description, gallery, and every version that
+// fits this instance, so a specific build can be chosen rather than "latest".
+async function modrinthProject({ projectId, loader, mc }) {
+  const [proj, versions] = await Promise.all([
+    modrinthJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}`),
+    modrinthJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}/version`),
+  ]);
+  const fits = (v) =>
+    (!mc || (v.game_versions || []).includes(mc)) &&
+    (!loader || loader === "vanilla" || (v.loaders || []).includes(loader));
+  const rows = (versions || []).map((v) => ({
+    id: v.id, name: v.name, versionNumber: v.version_number, type: v.version_type,
+    published: v.date_published, downloads: v.downloads,
+    gameVersions: v.game_versions || [], loaders: v.loaders || [],
+    changelog: v.changelog || "", compatible: fits(v),
+    size: (v.files && v.files[0] && v.files[0].size) || 0,
+  }));
+  return {
+    id: proj.id, title: proj.title, description: proj.description, body: proj.body || "",
+    icon: proj.icon_url, downloads: proj.downloads, follows: proj.followers,
+    categories: proj.categories || [], license: (proj.license && proj.license.id) || null,
+    source: proj.source_url || null, issues: proj.issues_url || null, wiki: proj.wiki_url || null,
+    gallery: (proj.gallery || []).slice(0, 12).map((g) => ({ url: g.url, title: g.title || "" })),
+    versions: rows,
+    compatibleCount: rows.filter((r) => r.compatible).length,
+  };
 }
 
 // ---- CurseForge search ----
@@ -637,6 +694,7 @@ module.exports = {
   listInstances, createInstance, deleteInstance, updateInstance,
   listVersions, modrinthSearch, curseforgeSearch,
   installContent, installCurseforgeContent, listContent, removeContent,
+  modrinthProject,
   importModpack,
   exportInstanceCode, exportInstanceMrpack, syncInstanceFromCode, createInstanceFromCode,
   worldList, worldBackups, worldBackup, worldRestore, worldRename, worldRemove,

@@ -46,12 +46,16 @@
       sample.instances = sample.instances.filter((i) => i.id !== id); return true;
     },
     async versions(opts) { return bridge ? unwrap(await bridge.versions(opts)) : sample.versions; }, // [wave0] opts.channels
+    async project(opts) {
+      if (bridge) return unwrap(await bridge.modrinthProject(opts));
+      throw new Error("Project details run in the desktop app.");
+    },
     async search(opts) {
       if (bridge) return unwrap(await bridge.modrinthSearch(opts));
-      return [
-        { id: "AANobbMI", title: "Sodium", author: "jellysquid3", description: "Modern rendering engine + huge FPS boost.", downloads: 12000000, icon: null, type: "mod" },
-        { id: "YL57xq9U", title: "Iris Shaders", author: "coderbot", description: "Shader support on Fabric.", downloads: 8000000, icon: null, type: "mod" },
-      ];
+      return { total: 2, offset: 0, categories: ["optimization", "utility"], hits: [
+        { id: "AANobbMI", title: "Sodium", author: "jellysquid3", description: "Modern rendering engine + huge FPS boost.", downloads: 12000000, icon: null, type: "mod", categories: ["optimization"] },
+        { id: "YL57xq9U", title: "Iris Shaders", author: "coderbot", description: "Shader support on Fabric.", downloads: 8000000, icon: null, type: "mod", categories: ["optimization"] },
+      ] };
     },
     async searchCurseforge(opts) {
       if (bridge) return unwrap(await bridge.curseforgeSearch(opts));

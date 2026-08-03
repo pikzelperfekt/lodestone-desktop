@@ -1633,3 +1633,36 @@ textarea.inp, .share-box {
 .ob-n { width: 22px; height: 22px; flex: none; display: grid; place-items: center;
   background: var(--voxel-accent); color: var(--voxel-ink); font-weight: 700; font-size: 12px;
   box-shadow: var(--voxel-bevel); }
+
+/* ---- Discover filters + project sheet ---- */
+.disc-filters { display: flex; align-items: flex-start; gap: 12px; margin: 12px 0 14px; flex-wrap: wrap; }
+.disc-filters .inp.disc-sort { width: 190px; flex: 0 0 190px; }
+.disc-cats { display: flex; flex-wrap: wrap; gap: 7px; flex: 1; }
+.disc-cats .cat { text-transform: capitalize; }
+.disc-count { margin-bottom: 10px; }
+
+.pj-head { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 12px; }
+.pj-icon { width: 56px; height: 56px; flex: none; object-fit: cover; box-shadow: var(--voxel-recess);
+  background: var(--voxel-side); image-rendering: pixelated; }
+.pj-icon.ph { display: grid; place-items: center; color: var(--voxel-muted); font-size: 22px; }
+.pj-meta { flex: 1; min-width: 0; }
+.pj-title { font-size: 17px; font-weight: 600; color: var(--text-primary); }
+.pj-sub { font-size: 12.5px; color: var(--voxel-muted); margin-top: 3px; line-height: 1.5; }
+.pj-tags { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 9px; }
+.pj-gallery { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 6px; }
+.pj-gallery img { height: 108px; flex: none; box-shadow: var(--voxel-bevel); }
+.pj-versions { display: flex; flex-direction: column; max-height: 40vh; overflow-y: auto; }
+.pj-ver { display: flex; align-items: center; gap: 10px; padding: 9px 4px;
+  border-bottom: 1px solid var(--voxel-hair); }
+.pj-ver.is-off { opacity: .5; }
+.pj-vmeta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pj-vname { font-size: 12.5px; color: var(--text-primary); }
+.pj-vtype { font-style: normal; font-size: 9.5px; font-family: var(--font-pixel);
+  color: var(--voxel-muted); margin-left: 6px; text-transform: uppercase; }
+.pj-vtype.release { color: var(--live); }
+.pj-vtype.beta { color: var(--warn); }
+.pj-vtype.alpha { color: var(--danger); }
+.pj-vsub { font-size: 11px; color: var(--voxel-muted); }
+.pj-changelog { padding: 10px 12px; background: var(--voxel-side); box-shadow: var(--voxel-recess);
+  font: 400 11.5px/1.6 var(--font-mono); color: var(--text-secondary); white-space: pre-wrap;
+  max-height: 220px; overflow-y: auto; margin-bottom: 8px; }

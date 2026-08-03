@@ -66,7 +66,7 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 ## Content & sharing
 | Mac view | Status | Notes |
 |---|---|---|
-| BrowseView | partial | search + install; **no categories, versions, changelog, gallery** |
+| BrowseView | done | categories, sort, project page with gallery, versions and changelogs |
 | CurseForge* (4 views) | partial | search + install only |
 | ModpacksView / ModpackEditor | missing | pack authoring |
 | ResourcePackManagerSheet / DatapacksSheet | done | via packs vertical |

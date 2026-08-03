@@ -120,6 +120,16 @@ handle("cloud:sync:list", () => engine.cloudSyncList());
 handle("cloud:sync:pull", (a) => engine.cloudSyncPull(a));
 handle("cloud:sync:remove", (a) => engine.cloudSyncRemove(a));
 handle("cloud:sync:status", (a) => engine.cloudSyncStatus(a));
+// Shared packs — one permanent code, live propagation to every member.
+handle("pack:share", (a) => engine.packShare(a));
+handle("pack:join", (a) => engine.packJoin(a));
+handle("pack:publish", (a) => engine.packPublish(a));
+handle("pack:list", () => engine.packList());
+handle("pack:status", (a) => engine.packStatus(a));
+handle("pack:setMode", (a) => engine.packSetMode(a));
+handle("pack:invite", (a) => engine.packInvite(a));
+handle("pack:members", (a) => engine.packMembers(a));
+handle("pack:leave", (a) => engine.packLeave(a));
 // Friends + Presence (Vertical B — social.js).
 handle("cloud:friends:list", () => engine.friendsList());
 handle("cloud:friends:search", (a) => engine.friendsSearch(a));

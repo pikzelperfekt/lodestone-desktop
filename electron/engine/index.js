@@ -14,6 +14,7 @@ const worlds = require("./worlds");
 const auth = require("./auth");
 const cloud = require("./cloud");
 const sync = require("./sync"); // [Cloud Sync — Vertical A]
+const packsync = require("./packsync"); // Shared packs — permanent code + live propagation
 const social = require("./social"); // Vertical B — Friends + Presence
 const chat = require("./chat");   // Vertical C — Chat + Squads
 const doctor = require("./doctor"); // [Crash Doctor] scan + fixes + mod bisect
@@ -41,6 +42,16 @@ function init(userDataPath) {
     syncFromCode: (a) => syncInstanceFromCode(a),
     createFromCode: (code) => createInstanceFromCode(code),
   });
+  // Shared packs use the same store contract + reconcile path.
+  packsync.init({
+    dataDir: DATA_DIR,
+    store: {
+      getInstance: (id) => readInstances().find((i) => i.id === id),
+      listInstances: () => readInstances(),
+      syncFromCode: (a) => syncInstanceFromCode(a),
+      createFromCode: (code) => createInstanceFromCode(code),
+    },
+  });
   // Open sync + chat realtime if a session was restored from disk at boot.
   startVerticalRealtime();
 }
@@ -48,7 +59,7 @@ function init(userDataPath) {
 // ---- App settings (memory / Java override / launcher behavior) ----
 function getSettings() { return settings.getSettings(); }
 function setSettings(patch) { return settings.setSettings(patch); }
-function setEmitter(fn) { emit = fn || (() => {}); cloud.setEmitter(emit); sync.setEmitter(emit); social.setEmitter(emit); chat.setEmitter(emit); }
+function setEmitter(fn) { emit = fn || (() => {}); cloud.setEmitter(emit); sync.setEmitter(emit); social.setEmitter(emit); chat.setEmitter(emit); packsync.setEmitter(emit); }
 // [wave0] Trash-tier deletes: Electron main injects shell.trashItem so world /
 // resource-pack / shader / datapack deletes are recoverable (Mac parity).
 // Headless runs never call this and those deletes stay permanent (flagged).
@@ -101,8 +112,14 @@ function chatSend(a) { return chat.send(a); }
 // One place to open/close every vertical's realtime around the auth boundary.
 // social manages its own via an internal auth listener; sync + chat are driven
 // here. All are guarded, so a signed-out / unconfigured launcher is unaffected.
-function startVerticalRealtime() { sync.start().catch(() => {}); if (chat.start) chat.start().catch(() => {}); }
-function stopVerticalRealtime() { sync.stop(); if (chat.stop) chat.stop(); }
+function startVerticalRealtime() {
+  sync.start().catch(() => {});
+  if (chat.start) chat.start().catch(() => {});
+  // Shared packs: open the live channel, then reconcile anything that
+  // changed while this machine was closed (realtime only covers uptime).
+  packsync.start().then(() => packsync.catchUp()).catch(() => {});
+}
+function stopVerticalRealtime() { sync.stop(); if (chat.stop) chat.stop(); packsync.stop(); }
 
 function info() {
   return {
@@ -226,6 +243,9 @@ async function installContent({ instanceId, projectId, versionId }) {
   }
   inst.mods = inst.content.filter((c) => c.kind === "mod").length;
   writeInstances(list);
+  // If this instance is a shared pack, the change goes out to every member
+  // automatically. No new code, no re-share: that is the whole point.
+  packsync.publish(instanceId).catch(() => {});
   return { installed: records, content: inst.content };
 }
 // Install a single CurseForge mod into an instance (the CurseForge counterpart of
@@ -260,6 +280,7 @@ function removeContent({ instanceId, projectId }) {
   inst.content = inst.content.filter((c) => c.projectId !== projectId);
   inst.mods = inst.content.filter((c) => c.kind === "mod").length;
   writeInstances(list);
+  packsync.publish(instanceId).catch(() => {});
   return true;
 }
 
@@ -557,6 +578,16 @@ module.exports = {
   cloudProfile, cloudUpdateProfile, cloudLinkMinecraft, cloudSearchProfiles,
   // [Cloud Sync — Vertical A]
   cloudSyncPush, cloudSyncList, cloudSyncPull, cloudSyncRemove, cloudSyncStatus,
+  // ---- Shared packs (permanent code + live propagation) ----
+  packShare: (a) => packsync.createShare(a),
+  packJoin: (a) => packsync.joinByCode(a && a.code),
+  packPublish: (a) => packsync.publish(a && a.instanceId, { silent: false }),
+  packList: () => packsync.listShares(),
+  packStatus: (a) => packsync.statusFor(a && a.instanceId),
+  packSetMode: (a) => packsync.setMode(a),
+  packInvite: (a) => packsync.inviteFriend(a),
+  packMembers: (a) => packsync.members(a && a.packId),
+  packLeave: (a) => packsync.leave(a && a.packId),
   // [Friends + Presence — Vertical B]
   friendsList, friendsSearch, friendsRequest, friendsRespond, friendsRemove, friendsBlock, friendsSetActivity,
   // [Chat + Squads — Vertical C]

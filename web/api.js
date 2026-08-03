@@ -103,6 +103,47 @@
       // [Cloud Sync — Vertical A] mirror an instance's manifest to the cloud +
       // rebuild it on another machine. Browser preview has no engine, so status
       // reports "not configured", lists are empty, and actions explain themselves.
+      // Shared packs — one permanent code, edits propagate live to members.
+      // Reads fail soft (empty / not-shared) so the UI renders fine offline;
+      // actions throw one clean line.
+      sharedPacks: {
+        async status(instanceId) {
+          if (!bridge) return { shared: false };
+          try { return unwrap(await bridge.cloud.sharedPacks.status(instanceId)); } catch { return { shared: false }; }
+        },
+        async list() {
+          if (!bridge) return [];
+          try { return unwrap(await bridge.cloud.sharedPacks.list()); } catch { return []; }
+        },
+        async members(packId) {
+          if (!bridge) return [];
+          try { return unwrap(await bridge.cloud.sharedPacks.members(packId)); } catch { return []; }
+        },
+        async share(instanceId, mode) {
+          if (bridge) return unwrap(await bridge.cloud.sharedPacks.share(instanceId, mode));
+          throw new Error("Sharing runs in the desktop app.");
+        },
+        async join(code) {
+          if (bridge) return unwrap(await bridge.cloud.sharedPacks.join(code));
+          throw new Error("Sharing runs in the desktop app.");
+        },
+        async publish(instanceId) {
+          if (bridge) return unwrap(await bridge.cloud.sharedPacks.publish(instanceId));
+          throw new Error("Sharing runs in the desktop app.");
+        },
+        async setMode(packId, mode) {
+          if (bridge) return unwrap(await bridge.cloud.sharedPacks.setMode(packId, mode));
+          throw new Error("Sharing runs in the desktop app.");
+        },
+        async invite(packId, memberId) {
+          if (bridge) return unwrap(await bridge.cloud.sharedPacks.invite(packId, memberId));
+          throw new Error("Sharing runs in the desktop app.");
+        },
+        async leave(packId) {
+          if (bridge) return unwrap(await bridge.cloud.sharedPacks.leave(packId));
+          throw new Error("Sharing runs in the desktop app.");
+        },
+      },
       sync: {
         async status(instanceId) { return bridge ? unwrap(await bridge.cloud.sync.status(instanceId)) : { configured: false, signedIn: false, row: null }; },
         async list() { return bridge ? unwrap(await bridge.cloud.sync.list()) : []; },

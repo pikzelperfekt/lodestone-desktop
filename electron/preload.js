@@ -78,6 +78,20 @@ contextBridge.exposeInMainWorld("lodestone", {
       remove: (id) => call("cloud:sync:remove", { id }),
       status: (instanceId) => call("cloud:sync:status", { instanceId }),
     },
+    // Shared packs: a permanent code, and edits that propagate live.
+    // Named sharedPacks, NOT packs — the top-level `packs` bridge below is the
+    // resource-pack / shader / datapack manager and means something else.
+    sharedPacks: {
+      share: (instanceId, mode) => call("pack:share", { instanceId, mode }),
+      join: (code) => call("pack:join", { code }),
+      publish: (instanceId) => call("pack:publish", { instanceId }),
+      list: () => call("pack:list"),
+      status: (instanceId) => call("pack:status", { instanceId }),
+      setMode: (packId, mode) => call("pack:setMode", { packId, mode }),
+      invite: (packId, memberId) => call("pack:invite", { packId, memberId }),
+      members: (packId) => call("pack:members", { packId }),
+      leave: (packId) => call("pack:leave", { packId }),
+    },
     // Friends + Presence (Vertical B). Event channels cloud:friends / cloud:presence
     // are already in the `on` allowlist below.
     friends: {
@@ -126,7 +140,8 @@ contextBridge.exposeInMainWorld("lodestone", {
   // Launch + update lifecycle events.
   on: (channel, fn) => {
     const allowed = ["launch:progress", "launch:log", "launch:state", "update:state", "content:log", "server:log", "server:state",
-      "cloud:auth", "cloud:friends", "cloud:presence", "cloud:message", "cloud:sync"];
+      "cloud:auth", "cloud:friends", "cloud:presence", "cloud:message", "cloud:sync",
+      "pack:shared", "pack:joined", "pack:published", "pack:applied", "pack:left", "pack:error"];
     if (!allowed.includes(channel)) return () => {};
     const handler = (_e, payload) => fn(payload);
     ipcRenderer.on(channel, handler);

@@ -398,42 +398,79 @@ async function openShareModal(inst) {
   showModal(`
     <div class="share-card">
       <div class="share-h">${ico("i-bolt")} Share &amp; Sync</div>
-      <p class="share-sub">A code or <b>.mrpack</b> file shares <b>${esc(inst.name)}</b>'s mod list so a friend can rebuild the same pack. Live auto-sync across machines is coming with accounts.</p>
-      <div class="share-loading"><span class="spinner"></span> Building share code…</div>
+      <div class="share-loading"><span class="spinner"></span> Checking share status…</div>
     </div>`);
-  let code = "";
-  try { code = await API.share.code(inst.id); }
-  catch (e) { toast("Couldn't build a share code: " + e.message); hideModal(); return; }
+
+  const status = await API.cloud.sharedPacks.status(inst.id);
+  const shared = !!status.shared;
+  const isOwner = !!status.isOwner;
+  const canEditMode = shared && isOwner;
+
+  // Not shared yet: choose who may change it, then mint the permanent code.
+  const setupBody = `
+    <p class="share-sub">Share <b>${esc(inst.name)}</b> with friends. They get their own copy, and
+      from then on <b>every mod change syncs automatically</b> — the code never changes, so you only
+      ever send it once.</p>
+
+    <div class="share-label">WHO CAN CHANGE THE PACK</div>
+    <div class="mode-picker">
+      <label class="mode-opt">
+        <input type="radio" name="pack-mode" value="owner" checked>
+        <span class="mode-body"><b>Only me</b><span>Your changes reach everyone. Theirs stay local and are overwritten on the next sync.</span></span>
+      </label>
+      <label class="mode-opt">
+        <input type="radio" name="pack-mode" value="everyone">
+        <span class="mode-body"><b>Anyone in the pack</b><span>Any member can add or remove mods, and it reaches everyone else.</span></span>
+      </label>
+    </div>
+
+    <div class="np-actions">
+      <button class="btn-ghost" id="share-close">Close</button>
+      <button class="btn-soft" id="share-mrpack">${ico("i-download")} Export .mrpack file</button>
+      <button class="btn-accent share-btn" id="share-create">${ico("i-link")} Create share code</button>
+    </div>`;
+
+  // Already shared: the permanent code, who may edit, and the member list.
+  const sharedBody = `
+    <p class="share-sub">${esc(inst.name)} is shared. Send this code once — it stays the same
+      forever, and every change you make reaches everyone automatically.</p>
+
+    <div class="share-label">PERMANENT SHARE CODE</div>
+    <div class="share-code-row">
+      <input id="share-code" class="share-box code-strong" readonly value="${esc(status.code || "")}">
+      <button class="btn-accent share-btn" id="share-copy">${ico("i-download")} Copy</button>
+    </div>
+    <p class="share-note">Anyone with this code can join the pack, so share it the way you'd share an invite link.</p>
+
+    <div class="share-label">WHO CAN CHANGE THE PACK</div>
+    <div class="mode-picker${canEditMode ? "" : " is-locked"}">
+      <label class="mode-opt">
+        <input type="radio" name="pack-mode" value="owner" ${status.mode !== "everyone" ? "checked" : ""} ${canEditMode ? "" : "disabled"}>
+        <span class="mode-body"><b>Only ${isOwner ? "me" : "the owner"}</b><span>Owner edits reach everyone; member edits stay local.</span></span>
+      </label>
+      <label class="mode-opt">
+        <input type="radio" name="pack-mode" value="everyone" ${status.mode === "everyone" ? "checked" : ""} ${canEditMode ? "" : "disabled"}>
+        <span class="mode-body"><b>Anyone in the pack</b><span>Every member's changes reach everyone.</span></span>
+      </label>
+    </div>
+    ${canEditMode ? "" : `<p class="share-note">Only the pack owner can change this.</p>`}
+
+    <div class="share-label">MEMBERS</div>
+    <div id="pack-members" class="pack-members"><span class="spinner"></span></div>
+
+    <div class="np-actions">
+      <button class="btn-ghost" id="share-close">Close</button>
+      <button class="btn-soft" id="share-mrpack">${ico("i-download")} Export .mrpack file</button>
+      <button class="btn-soft danger" id="share-leave">${isOwner ? "Stop sharing" : "Leave pack"}</button>
+    </div>`;
 
   showModal(`
     <div class="share-card">
       <div class="share-h">${ico("i-bolt")} Share &amp; Sync</div>
-      <p class="share-sub">A code or <b>.mrpack</b> file shares <b>${esc(inst.name)}</b>'s mod list so a friend can rebuild the same pack. Live auto-sync across machines is coming with accounts.</p>
-
-      <div class="share-label">SHARE CODE</div>
-      <textarea id="share-code" class="share-box" readonly rows="3">${esc(code)}</textarea>
-      <div class="share-row">
-        <button class="btn-accent share-btn" id="share-copy">${ico("i-download")} Copy code</button>
-        <button class="btn-soft" id="share-mrpack">${ico("i-download")} Export .mrpack file</button>
-      </div>
-
-      <div class="share-divider"></div>
-
-      <div class="share-label">SYNC FROM A CODE</div>
-      <p class="share-note">Paste a code to make this instance match it: missing mods are installed, changed ones updated, and mods it doesn't include are removed.</p>
-      <textarea id="sync-code" class="share-box" rows="3" placeholder="Paste a Lodestone share code…"></textarea>
-      <div class="np-actions">
-        <button class="btn-ghost" id="share-close">Close</button>
-        <button class="btn-accent share-btn" id="sync-now">${ico("i-bolt")} Sync now</button>
-      </div>
+      ${shared ? sharedBody : setupBody}
     </div>`);
 
   document.getElementById("share-close").onclick = hideModal;
-
-  document.getElementById("share-copy").onclick = async () => {
-    const ok = await copyText(code, document.getElementById("share-code"));
-    toast(ok ? "Share code copied to the clipboard." : "Couldn't copy. Select the code and copy it by hand.");
-  };
 
   document.getElementById("share-mrpack").onclick = async (e) => {
     const btn = e.currentTarget; const original = btn.innerHTML;
@@ -441,30 +478,62 @@ async function openShareModal(inst) {
     try {
       const res = await API.share.mrpack(inst.id, inst.name);
       if (res) toast(`Exported ${res.files} mod${res.files === 1 ? "" : "s"} to ${res.path}${res.skipped ? ` (${res.skipped} skipped)` : ""}.`);
-      btn.disabled = false; btn.innerHTML = original;
-    } catch (err) {
-      toast("Couldn't export: " + err.message);
-      btn.disabled = false; btn.innerHTML = original;
-    }
+    } catch (err) { toast("Couldn't export: " + err.message); }
+    btn.disabled = false; btn.innerHTML = original;
   };
 
-  document.getElementById("sync-now").onclick = async (e) => {
-    const value = document.getElementById("sync-code").value.trim();
-    if (!value) { toast("Paste a share code to sync from."); return; }
-    const btn = e.currentTarget; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Syncing…`;
-    try {
-      const r = await API.share.syncFromCode({ id: inst.id, code: value });
-      hideModal();
-      const parts = [];
-      if (r.added) parts.push(`${r.added} added`);
-      if (r.removed) parts.push(`${r.removed} removed`);
-      toast(parts.length ? `Synced ${inst.name}: ${parts.join(", ")}.` : `${inst.name} already matches that pack.`);
-      renderInstanceDetail(inst.id);
-    } catch (err) {
-      btn.disabled = false; btn.innerHTML = `${ico("i-bolt")} Sync now`;
-      toast("Couldn't sync: " + err.message);
-    }
+  if (!shared) {
+    document.getElementById("share-create").onclick = async (e) => {
+      const btn = e.currentTarget; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Creating…`;
+      const mode = (document.querySelector('input[name="pack-mode"]:checked') || {}).value || "owner";
+      try {
+        await API.cloud.sharedPacks.share(inst.id, mode);
+        toast("Shared. Copy the code and send it once — it never changes.");
+        openShareModal(inst);
+      } catch (err) {
+        btn.disabled = false; btn.innerHTML = `${ico("i-link")} Create share code`;
+        toast("Couldn't share: " + err.message);
+      }
+    };
+    return;
+  }
+
+  document.getElementById("share-copy").onclick = async () => {
+    const ok = await copyText(status.code, document.getElementById("share-code"));
+    toast(ok ? "Share code copied. It stays valid forever." : "Couldn't copy. Select the code and copy it by hand.");
   };
+
+  document.querySelectorAll('input[name="pack-mode"]').forEach((r) => r.onchange = async () => {
+    try {
+      await API.cloud.sharedPacks.setMode(status.id, r.value);
+      toast(r.value === "everyone" ? "Anyone in the pack can change it now." : "Only you can change it now.");
+    } catch (err) { toast(err.message); openShareModal(inst); }
+  });
+
+  document.getElementById("share-leave").onclick = async () => {
+    const msg = isOwner
+      ? "Stop sharing this pack? Everyone who joined stops receiving your changes. Their copies stay."
+      : "Leave this pack? Your copy stays, it just stops receiving updates.";
+    if (!confirm(msg)) return;
+    try {
+      await API.cloud.sharedPacks.leave(status.id);
+      toast(isOwner ? "Stopped sharing." : "Left the pack.");
+      hideModal();
+    } catch (err) { toast(err.message); }
+  };
+
+  // Members load after the modal paints so a slow network never blocks it.
+  API.cloud.sharedPacks.members(status.id).then((list) => {
+    const host = document.getElementById("pack-members");
+    if (!host) return;
+    host.innerHTML = list.length
+      ? list.map((m) => {
+          const p = m.profiles || {};
+          const label = p.display_name || p.username || p.minecraft_name || "Member";
+          return `<span class="pack-member">${ico("i-user")} ${esc(label)}</span>`;
+        }).join("")
+      : `<span class="muted-line">Nobody has joined yet.</span>`;
+  });
 }
 
 // "Add from code" on the Instances page: paste a share code to spin up a new instance
@@ -473,8 +542,9 @@ function openAddFromCodeModal() {
   showModal(`
     <div class="share-card">
       <div class="share-h">${ico("i-bolt")} Add from code</div>
-      <p class="share-sub">Paste a Lodestone share code to create a new instance with the same mods. A code shares the pack; live auto-sync across machines is coming with accounts.</p>
-      <textarea id="add-code" class="share-box" rows="3" placeholder="Paste a Lodestone share code…"></textarea>
+      <p class="share-sub">Paste a Lodestone share code. A <b>LODE-</b> code joins a shared pack, so you
+        keep receiving every mod change automatically. Older one-off codes still work as a plain copy.</p>
+      <textarea id="add-code" class="share-box" rows="3" placeholder="LODE-XXXX-XXXX"></textarea>
       <div class="np-actions">
         <button class="btn-ghost" id="add-close">Cancel</button>
         <button class="btn-accent share-btn" id="add-create">${ico("i-plus")} Create instance</button>
@@ -486,13 +556,21 @@ function openAddFromCodeModal() {
     if (!value) { toast("Paste a share code first."); return; }
     const btn = e.currentTarget; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Creating…`;
     try {
-      const r = await API.share.createFromCode(value);
-      hideModal();
-      toast(`Created ${r.instance ? r.instance.name : "instance"}${r.added ? ` with ${r.added} mod${r.added === 1 ? "" : "s"}` : ""}.`);
+      // A LODE- code is a durable pointer: join it and stay subscribed. Anything
+      // else is a legacy base64 manifest, which can only ever be a one-off copy.
+      if (/^LODE-/i.test(value)) {
+        const pack = await API.cloud.sharedPacks.join(value);
+        hideModal();
+        toast(`Joined ${pack.name}. Changes from the pack now arrive automatically.`);
+      } else {
+        const r = await API.share.createFromCode(value);
+        hideModal();
+        toast(`Created ${r.instance ? r.instance.name : "instance"}${r.added ? ` with ${r.added} mod${r.added === 1 ? "" : "s"}` : ""}. This is a one-off copy — ask for a LODE- code to stay in sync.`);
+      }
       renderInstances();
     } catch (err) {
       btn.disabled = false; btn.innerHTML = `${ico("i-plus")} Create instance`;
-      toast("Couldn't create from code: " + err.message);
+      toast("Couldn't add from code: " + err.message);
     }
   };
 }
@@ -2464,6 +2542,24 @@ navigate("home");
 // to refresh whenever a session ends or an instance is created/removed rather
 // than only at boot.
 if (window.API && API.on) { try { API.on("launch:state", (s) => { if (s && s.status === "idle") { renderPinned(); } }); } catch { /* non-desktop build */ } }
+
+// ---- Shared packs: someone else changed the pack, and it just landed here ----
+// This is the payoff of the whole rework, so it has to be visible: the user
+// gets told what changed rather than silently finding different mods later.
+if (window.API && API.on) {
+  try {
+    API.on("pack:applied", (p) => {
+      if (!p) return;
+      const bits = [];
+      if (p.added) bits.push(`${p.added} mod${p.added === 1 ? "" : "s"} added`);
+      if (p.removed) bits.push(`${p.removed} removed`);
+      toast(bits.length ? `${p.name} updated: ${bits.join(", ")}.` : `${p.name} is up to date.`);
+      const open = document.querySelector(`[data-open="${p.instanceId}"]`);
+      if (open) renderInstanceDetail(p.instanceId);
+    });
+    API.on("pack:error", (p) => { if (p && p.message) toast(p.message); });
+  } catch { /* non-desktop build */ }
+}
 
 // ========================================================================
 // [Crash Doctor] — diagnosis cards + the mod bisect flow (instance detail).

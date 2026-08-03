@@ -1088,3 +1088,29 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .vserver-dot { width: 9px; height: 9px; border-radius: 0; flex: none;
   background: var(--voxel-muted); opacity: .45; }
 .vserver-dot.on { background: var(--live); opacity: 1; box-shadow: 0 0 8px var(--live); }
+
+/* ---- Shared-pack sharing UI ---- */
+.share-code-row { display: flex; gap: 10px; align-items: stretch; }
+.share-code-row .share-box { flex: 1; }
+/* The permanent code is the thing to read and read back aloud, so it gets the
+   pixel face and real tracking rather than being buried in a textarea. */
+.code-strong { font-family: var(--font-pixel); font-size: 16px; letter-spacing: .06em;
+  text-align: center; color: var(--voxel-accent); height: auto; padding: 12px; }
+
+.mode-picker { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 4px; }
+.mode-picker.is-locked { opacity: .6; }
+.mode-opt { display: flex; align-items: flex-start; gap: 10px; padding: 11px 13px;
+  background: var(--voxel-elev); box-shadow: var(--voxel-bevel); cursor: pointer; }
+.mode-opt:hover { background: var(--voxel-raised); }
+.mode-picker.is-locked .mode-opt { cursor: default; }
+.mode-opt input { margin-top: 3px; accent-color: var(--voxel-accent); }
+.mode-body { display: flex; flex-direction: column; gap: 3px; }
+.mode-body b { font-size: 13px; color: var(--text-primary); font-weight: 600; }
+.mode-body span { font-size: 11.5px; color: var(--voxel-muted); line-height: 1.45; }
+
+.pack-members { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 2px; }
+.pack-member { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px;
+  background: var(--voxel-elev); box-shadow: var(--voxel-bevel); font-size: 12px; }
+.pack-member .ico { font-size: 13px; color: var(--voxel-accent); }
+.muted-line { font-size: 12px; color: var(--voxel-muted); }
+.btn-soft.danger { color: var(--danger); border-color: rgba(224,112,95,.4); }

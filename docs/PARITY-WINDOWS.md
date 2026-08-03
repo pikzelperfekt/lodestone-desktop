@@ -34,8 +34,8 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 | HealthView / PerfInsightsBanner | partial | chip only; **no health screen, no perf insights** |
 | InstanceHistorySheet | missing | per-instance session history |
 | InstanceIconMaker | missing | generate an icon |
-| FileBrowserTab | missing | browse the instance folder in-app |
-| ConfigManagerSheet | missing | edit mod configs |
+| FileBrowserTab | done | breadcrumb browser + text editor, path-escape guarded |
+| ConfigManagerSheet | done | every editable config, grouped by folder |
 | RepairSheet | partial | menu action; no dedicated sheet |
 
 ## Worlds
@@ -74,7 +74,7 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 | SyncedModpacksSheet | partial | list only |
 | PublishSheet / ScreenshotShare | missing | publishing |
 | AIPackBuilderSheet | missing | AI pack builder |
-| StorageView | missing | disk breakdown + reclaim |
+| StorageView | done | breakdown by bucket + biggest instances; only caches clearable |
 
 ## Social & account
 | Mac view | Status | Notes |

@@ -575,6 +575,12 @@ async function renderInstanceDetail(id) {
       <button class="gh gh-sm" id="log-reload">Reload</button></div>
     <div id="inst-log"></div>
 
+    <div class="section-head" data-tab="tools"><span class="section-title">CONFIGS</span></div>
+    <div id="config-list"></div>
+
+    <div class="section-head" data-tab="tools"><span class="section-title">FILES</span></div>
+    <div id="file-browser"></div>
+
     <!-- [Cloud Sync — Vertical A] filled async by renderInstanceCloudSync; hidden when the backend isn't set up. -->
     <div id="cloud-sync-panel"></div>
 
@@ -618,6 +624,8 @@ async function renderInstanceDetail(id) {
   renderLoaderBridge(id);
   renderScreenshots(id);
   renderInstanceLog(id);
+  renderConfigs(id);
+  renderFileBrowser(id);
 
   const moreBtn = document.getElementById("detail-more");
   if (moreBtn) moreBtn.onclick = () => openMenu(moreBtn, [
@@ -1054,7 +1062,6 @@ const instGridCard = (i, compact) => {
     ${instSelecting && !compact ? `<span class="sel-mark${instSelected.has(i.id) ? " on" : ""}">${instSelected.has(i.id) ? "\u2713" : ""}</span>` : ""}
     <div class="inst-art imgbox" data-art="${i.id}">
       ${i.iconPath ? "" : `<div class="art-invite">${ico("i-image")}<span>Drop an image</span><span class="art-browse">or <u>browse files</u></span></div>`}
-      <button class="card-del" data-del="${i.id}" title="Delete instance">${ico("i-trash")}</button>
       <button class="card-play" data-play="${i.id}" title="Play ${esc(i.name)}">${ico("i-play")}</button>
     </div>
     <div class="inst-body">
@@ -1723,7 +1730,7 @@ function navigate(section) {
   document.querySelectorAll(".nav-item").forEach((b) => b.classList.toggle("is-active", b.dataset.section === section));
   document.querySelectorAll(".pin-item").forEach((b) => b.classList.remove("is-active"));
   if (section === "discover") discoverTarget = null;   // Discover = browse for any instance
-  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, cloud: renderCloud, friends: renderFriends, squads: renderSquads, settings: renderSettings, game: renderGameSettings, keybinds: renderKeybinds, skins: renderSkins }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
+  ({ home: renderHome, instances: renderInstances, discover: renderDiscover, servers: renderServers, cloud: renderCloud, friends: renderFriends, squads: renderSquads, settings: renderSettings, game: renderGameSettings, keybinds: renderKeybinds, skins: renderSkins, storage: renderStorage }[section] || (() => el().innerHTML = placeholder(section[0].toUpperCase() + section.slice(1))))();
 }
 
 // ---- PINNED sidebar block ----
@@ -2306,6 +2313,137 @@ async function renderKeybinds() {
         refresh();
       },
     })), { width: 280, alignRight: true });
+  };
+}
+
+// ---------- Storage ----------
+// Where the disk went, and the only caches that are safe to clear. Instances
+// and world backups are your data and are deliberately never offered.
+async function renderStorage() {
+  el().innerHTML = `<div class="placeholder">${ico("i-server")}<h2>Measuring\u2026</h2></div>`;
+  const s = await API.storage();
+  const max = Math.max(...s.buckets.map((b) => b.bytes), 1);
+  const RECLAIMABLE = new Set(["assets", "runtimes", "libraries"]);
+
+  el().innerHTML = `
+    <div class="page-head">
+      <h1 class="page-title">Storage</h1>
+      <span class="page-count">${esc(fmtSize(s.total))} total</span>
+    </div>
+
+    <section class="vsec">
+      <div class="vsec-head"><span class="kick">Where it went</span></div>
+      <div class="st-list">
+        ${s.buckets.map((b) => `
+          <div class="st-row">
+            <div class="st-meta">
+              <div class="st-label">${esc(b.label)}</div>
+              <div class="st-hint">${esc(b.hint)}</div>
+            </div>
+            <div class="st-bar"><i style="width:${Math.max(1, Math.round(b.bytes / max * 100))}%"></i></div>
+            <span class="st-size">${esc(fmtSize(b.bytes))}</span>
+            ${RECLAIMABLE.has(b.id)
+              ? `<button class="gh gh-sm" data-reclaim="${b.id}"${b.bytes ? "" : " disabled"}>Clear</button>`
+              : `<span class="st-keep kick" title="This is your own data">keep</span>`}
+          </div>`).join("")}
+      </div>
+    </section>
+
+    <section class="vsec">
+      <div class="vsec-head"><span class="kick">Biggest instances</span></div>
+      <div class="st-list">
+        ${s.perInstance.slice(0, 10).map((i) => `
+          <div class="st-row">
+            <div class="st-meta"><div class="st-label">${esc(i.name)}</div></div>
+            <div class="st-bar"><i style="width:${Math.max(1, Math.round(i.bytes / (s.perInstance[0].bytes || 1) * 100))}%"></i></div>
+            <span class="st-size">${esc(fmtSize(i.bytes))}</span>
+          </div>`).join("") || `<div class="empty-line">No instances yet.</div>`}
+      </div>
+    </section>
+    <p class="share-note">Clearing a cache is safe: the launcher re-downloads what it needs on the next launch. Instances and world backups are never cleared from here.</p>`;
+
+  el().querySelectorAll("[data-reclaim]").forEach((b) => b.onclick = async () => {
+    const bucket = b.dataset.reclaim;
+    if (!confirm(`Clear the ${bucket} cache? It re-downloads next time it's needed.`)) return;
+    b.disabled = true;
+    try { const r = await API.reclaim(bucket); toast(`Freed ${fmtSize(r.cleared)}.`); renderStorage(); }
+    catch (e) { b.disabled = false; toast(e.message); }
+  });
+}
+
+// ---------- Instance file browser ----------
+const fileBrowseRel = {};   // instanceId -> current folder
+async function renderFileBrowser(id) {
+  const host = document.getElementById("file-browser");
+  if (!host) return;
+  const rel = fileBrowseRel[id] || "";
+  const { entries } = await API.browse({ instanceId: id, rel });
+  const parts = rel ? rel.split("/") : [];
+
+  host.innerHTML = `
+    <div class="fb-crumbs">
+      <button class="fb-crumb" data-fbgo="">instance</button>
+      ${parts.map((p, i) => `<span class="fb-sep">/</span><button class="fb-crumb" data-fbgo="${esc(parts.slice(0, i + 1).join("/"))}">${esc(p)}</button>`).join("")}
+    </div>
+    <div class="fb-list">
+      ${entries.map((e) => `
+        <button class="fb-row" data-fbopen="${esc(rel ? rel + "/" + e.name : e.name)}" data-isdir="${e.dir ? 1 : 0}">
+          <span class="fb-ico">${ico(e.dir ? "i-stack" : "i-image")}</span>
+          <span class="fb-name">${esc(e.name)}</span>
+          <span class="fb-size">${e.dir ? "" : esc(fmtSize(e.size))}</span>
+        </button>`).join("") || `<div class="empty-line">This folder is empty.</div>`}
+    </div>`;
+
+  host.querySelectorAll("[data-fbgo]").forEach((b) => b.onclick = () => {
+    fileBrowseRel[id] = b.dataset.fbgo; renderFileBrowser(id);
+  });
+  host.querySelectorAll("[data-fbopen]").forEach((b) => b.onclick = () => {
+    if (b.dataset.isdir === "1") { fileBrowseRel[id] = b.dataset.fbopen; renderFileBrowser(id); }
+    else openTextEditor(id, b.dataset.fbopen);
+  });
+}
+
+// ---------- Config manager ----------
+async function renderConfigs(id) {
+  const host = document.getElementById("config-list");
+  if (!host) return;
+  const { configs } = await API.configs(id);
+  host.innerHTML = configs.length ? `
+    <div class="fb-list">
+      ${configs.map((c) => `
+        <button class="fb-row" data-cfg="${esc(c.rel)}">
+          <span class="fb-ico">${ico("i-gear")}</span>
+          <span class="fb-name">${esc(c.name)}${c.folder ? `<em class="fb-folder">${esc(c.folder)}</em>` : ""}</span>
+          <span class="fb-size">${esc(fmtSize(c.size))}</span>
+        </button>`).join("")}
+    </div>`
+    : `<div class="empty-line">No configs yet. They appear after an instance has launched once.</div>`;
+  host.querySelectorAll("[data-cfg]").forEach((b) => b.onclick = () => openTextEditor(id, "config/" + b.dataset.cfg));
+}
+
+// A plain text editor for one file. Deliberately plain: this edits real game
+// configs, so it shows exactly what is on disk and writes back exactly what
+// you typed, with no reformatting.
+async function openTextEditor(id, rel) {
+  let data;
+  try { data = await API.readFile({ instanceId: id, rel }); }
+  catch (e) { toast(e.message); return; }
+  showModal(`
+    <div class="share-card wide-card">
+      <div class="share-h">${ico("i-gear")} ${esc(rel.split("/").pop())}</div>
+      <p class="share-sub">${esc(rel)} \u00b7 ${esc(fmtSize(data.size))}</p>
+      <textarea class="share-box cfg-edit" id="cfg-text" spellcheck="false">${esc(data.text)}</textarea>
+      <div class="np-actions">
+        <button class="btn-ghost" id="cfg-close">Close</button>
+        <button class="btn-accent share-btn" id="cfg-save">Save</button>
+      </div>
+    </div>`);
+  document.getElementById("cfg-close").onclick = hideModal;
+  document.getElementById("cfg-save").onclick = async (e) => {
+    const b = e.currentTarget; b.disabled = true; b.innerHTML = `<span class="spinner"></span> Saving\u2026`;
+    try { await API.writeFile({ instanceId: id, rel, text: document.getElementById("cfg-text").value });
+      toast("Saved. It takes effect next launch."); hideModal(); }
+    catch (err) { b.disabled = false; b.innerHTML = "Save"; toast(err.message); }
   };
 }
 

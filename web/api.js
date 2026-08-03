@@ -71,6 +71,30 @@
       if (bridge) return unwrap(await bridge.instances.toggleMod(opts));
       throw new Error("Toggling mods runs in the desktop app.");
     },
+    async storage() {
+      if (!bridge) return { buckets: [], perInstance: [], total: 0 };
+      try { return unwrap(await bridge.instances.storage()); } catch { return { buckets: [], perInstance: [], total: 0 }; }
+    },
+    async reclaim(bucket) {
+      if (bridge) return unwrap(await bridge.instances.reclaim(bucket));
+      throw new Error("Storage tools run in the desktop app.");
+    },
+    async browse(opts) {
+      if (!bridge) return { rel: "", entries: [] };
+      try { return unwrap(await bridge.instances.browse(opts)); } catch { return { rel: "", entries: [] }; }
+    },
+    async readFile(opts) {
+      if (bridge) return unwrap(await bridge.instances.readFile(opts));
+      throw new Error("Editing files runs in the desktop app.");
+    },
+    async writeFile(opts) {
+      if (bridge) return unwrap(await bridge.instances.writeFile(opts));
+      throw new Error("Editing files runs in the desktop app.");
+    },
+    async configs(instanceId) {
+      if (!bridge) return { root: "", configs: [] };
+      try { return unwrap(await bridge.instances.configs(instanceId)); } catch { return { root: "", configs: [] }; }
+    },
     async groups() {
       if (!bridge) return [];
       try { return unwrap(await bridge.instances.groups()); } catch { return []; }

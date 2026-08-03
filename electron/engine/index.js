@@ -14,7 +14,8 @@ const worlds = require("./worlds");
 const mixins = require("./mixins");
 const seedfinder = require("./seedfinder"); // native cubiomes seed search // static mixin conflict detection
 const worldcreate = require("./worldcreate");
-const worldinfo = require("./worldinfo"); // World detail: facts read out of level.dat // world creation + import (26.1 split format aware)
+const worldinfo = require("./worldinfo");
+const files = require("./files"); // Storage screen, file browser, config manager // World detail: facts read out of level.dat // world creation + import (26.1 split format aware)
 const auth = require("./auth");
 const cloud = require("./cloud");
 const sync = require("./sync"); // [Cloud Sync — Vertical A]
@@ -647,6 +648,30 @@ module.exports = {
     packsync.publish(inst.id).catch(() => {});
     return true;
   },
+  // ---- Storage / files / configs ----
+  storage: () => files.storage({ dataDir: DATA_DIR, instances: readInstances() }),
+  reclaim: (a) => files.reclaim({ dataDir: DATA_DIR, bucket: a && a.bucket }),
+  browseFiles: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    return files.listDir({ root: install.paths(DATA_DIR).instanceDir(inst.id), rel: a && a.rel });
+  },
+  readFile: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    return files.readText({ root: install.paths(DATA_DIR).instanceDir(inst.id), rel: a && a.rel });
+  },
+  writeFile: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    return files.writeText({ root: install.paths(DATA_DIR).instanceDir(inst.id), rel: a && a.rel, text: a && a.text });
+  },
+  listConfigs: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    return files.listConfigs({ instanceDir: install.paths(DATA_DIR).instanceDir(inst.id) });
+  },
+
   // ---- World detail ----
   worldInfo: (a) => {
     const inst = readInstances().find((i) => i.id === (a && a.instanceId));

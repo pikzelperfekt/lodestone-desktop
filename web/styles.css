@@ -285,11 +285,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .inst-card.wide { width:auto; }
 .inst-card.wide .inst-art { height: 118px; }
 .inst-art { position:relative; }
-.card-del { position:absolute; top:8px; right:8px; width:26px; height:26px; border:none; border-radius: 0;
-  background: rgba(8, 10, 15, .55); color: var(--text-primary); opacity:0; cursor:pointer;
-  display:flex; align-items:center; justify-content:center; transition: opacity .15s ease, background-color .12s ease; }
-.inst-card:hover .card-del, .inst-card:focus-within .card-del { opacity:1; }
-.card-del:hover { background: var(--danger); color: #fff; }
 
 /* New-instance panel */
 .new-panel { margin: var(--sp-4) 0 var(--sp-1); padding: var(--sp-4); }
@@ -1146,12 +1141,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   background: var(--voxel-accent); color: var(--voxel-ink); font-size: 12px;
   box-shadow: var(--voxel-bevel); opacity: 0; transition: opacity .14s ease; }
 .strip-card:hover .card-play { opacity: 1; }
-.strip-card .card-del { position: absolute; right: 7px; top: 7px; width: 26px; height: 26px;
-  display: grid; place-items: center; border: 0; border-radius: 0; cursor: pointer;
-  background: rgba(22,26,21,.72); color: var(--text-secondary); font-size: 12px;
-  opacity: 0; transition: opacity .14s ease; }
-.strip-card:hover .card-del { opacity: 1; }
-.strip-card .card-del:hover { color: var(--danger); }
+/* No delete on the card. The Mac hover overlay is Play only — a one-click
+   destroy sitting under the cursor on the home screen is an accident waiting
+   to happen. Deleting goes through multi-select or the instance's own menu. */
 
 /* The Home rail reuses the very same card. */
 .rail-cell { width: 178px; flex: none; }
@@ -1505,3 +1497,32 @@ textarea.inp, .share-box {
   gap: 10px; padding: 11px 14px; background: var(--voxel-elev);
   box-shadow: var(--voxel-bevel), 0 14px 32px rgba(0,0,0,.5); }
 .bulk-count { font-size: 12.5px; color: var(--text-secondary); margin-right: auto; }
+
+/* ---- Storage ---- */
+.st-list { display: flex; flex-direction: column; }
+.st-row { display: flex; align-items: center; gap: 16px; padding: 12px 4px;
+  border-bottom: 1px solid var(--voxel-hair); }
+.st-meta { width: 260px; flex: none; }
+.st-label { font-size: 13.5px; font-weight: 500; color: var(--text-primary); }
+.st-hint { font-size: 11px; color: var(--voxel-muted); margin-top: 2px; line-height: 1.45; }
+.st-bar { flex: 1; height: 8px; background: var(--voxel-side); box-shadow: var(--voxel-recess); }
+.st-bar i { display: block; height: 100%; background: var(--voxel-barfill); }
+.st-size { width: 84px; text-align: right; font-size: 12.5px; color: var(--text-secondary); flex: none; }
+.st-keep { width: 58px; text-align: right; flex: none; opacity: .7; }
+
+/* ---- File browser + config list ---- */
+.fb-crumbs { display: flex; align-items: center; gap: 5px; margin-bottom: 10px; flex-wrap: wrap; }
+.fb-crumb { border: 0; background: none; color: var(--voxel-accent); cursor: pointer;
+  font: 400 12.5px var(--font-body); padding: 0; }
+.fb-crumb:hover { text-decoration: underline; }
+.fb-sep { color: var(--voxel-muted); font-size: 12px; }
+.fb-list { display: flex; flex-direction: column; max-height: 46vh; overflow-y: auto; }
+.fb-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  border: 0; background: none; cursor: pointer; padding: 9px 6px; color: var(--text-secondary);
+  border-bottom: 1px solid var(--voxel-hair); font: 400 13px var(--font-body); }
+.fb-row:hover { background: var(--voxel-hover); color: var(--text-primary); }
+.fb-ico { color: var(--voxel-muted); font-size: 15px; display: grid; place-items: center; }
+.fb-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fb-folder { color: var(--voxel-muted); font-style: normal; font-size: 11px; margin-left: 8px; }
+.fb-size { font-size: 11.5px; color: var(--text-tertiary); flex: none; }
+.cfg-edit { min-height: 46vh; font-size: 12px; line-height: 1.55; }

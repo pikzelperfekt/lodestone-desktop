@@ -147,6 +147,8 @@ handle("setup:skin:reset", () => engine.skinReset());
 // Worlds: create a fresh world, or import a folder / .zip of one.
 handle("mixins:scan", (a) => engine.scanMixins(a));
 handle("instances:sizes", () => engine.instanceSizes());
+handle("mods:list", (a) => engine.listMods(a));
+handle("mods:toggle", (a) => engine.toggleMod(a));
 handle("seed:available", () => engine.seedSearchAvailable());
 handle("seed:search", (a) => engine.seedSearch(a));
 handle("worlds:create", (a) => engine.createWorld(a));

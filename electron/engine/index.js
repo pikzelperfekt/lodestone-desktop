@@ -588,6 +588,49 @@ module.exports = {
   cloudProfile, cloudUpdateProfile, cloudLinkMinecraft, cloudSearchProfiles,
   // [Cloud Sync — Vertical A]
   cloudSyncPush, cloudSyncList, cloudSyncPull, cloudSyncRemove, cloudSyncStatus,
+  // ---- Mods with their on-disk enabled state ----
+  // The instance's content records say what SHOULD be there; the mods folder
+  // says what actually is, and whether it's parked as .jar.disabled. Loose jars
+  // the user dropped in by hand are included too, or they'd be invisible here
+  // while still loading in game.
+  listMods: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    const dir = path.join(install.paths(DATA_DIR).instanceDir(inst.id), "mods");
+    let files = [];
+    try { files = fs.readdirSync(dir); } catch { files = []; }
+    const onDisk = new Map();
+    for (const f of files) {
+      if (/\.jar$/i.test(f)) onDisk.set(f, true);
+      else if (/\.jar\.disabled$/i.test(f)) onDisk.set(f.replace(/\.disabled$/i, ""), false);
+    }
+    const records = (inst.content || []).filter((c) => (c.kind || "mod") === "mod");
+    const seen = new Set();
+    const rows = records.map((c) => {
+      seen.add(c.fileName);
+      return {
+        projectId: c.projectId, title: c.title || c.fileName, fileName: c.fileName,
+        iconURL: c.iconURL || null, versionNumber: c.versionNumber || "", size: c.size || 0,
+        requiredBy: c.requiredBy || null,
+        enabled: onDisk.has(c.fileName) ? onDisk.get(c.fileName) : true,
+        missing: !onDisk.has(c.fileName),
+      };
+    });
+    for (const [file, enabled] of onDisk) {
+      if (seen.has(file)) continue;
+      rows.push({ projectId: null, title: file.replace(/\.jar$/i, ""), fileName: file,
+        iconURL: null, versionNumber: "", size: 0, requiredBy: null, enabled, missing: false, loose: true });
+    }
+    const enabledCount = rows.filter((r) => r.enabled && !r.missing).length;
+    return { mods: rows, total: rows.length, enabled: enabledCount };
+  },
+  toggleMod: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    doctor.setModEnabled(DATA_DIR, inst.id, a.fileName, !!a.enabled);
+    packsync.publish(inst.id).catch(() => {});
+    return true;
+  },
   // ---- Disk usage per instance (the Instances page footer) ----
   // Walking 70+ instance trees is not free, so results are cached for a minute;
   // the footer is a quiet fact, not something worth stalling a render for.

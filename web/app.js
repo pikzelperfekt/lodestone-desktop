@@ -271,6 +271,76 @@ async function renderInstances() {
   }));
 }
 
+// The mod list: real rows with the project's icon, its jar name, an enable
+// switch and a remove button — plus filter / state / sort, matching the Mac.
+const modFilters = {};   // instanceId -> { q, state, sort }
+async function renderModList(id) {
+  const host = document.getElementById("mods-list");
+  if (!host) return;
+  const f = modFilters[id] || (modFilters[id] = { q: "", state: "all", sort: "added" });
+  const data = await API.listMods(id);
+
+  let rows = data.mods.slice();
+  if (f.q) {
+    const q = f.q.toLowerCase();
+    rows = rows.filter((m) => m.title.toLowerCase().includes(q) || m.fileName.toLowerCase().includes(q));
+  }
+  if (f.state === "on") rows = rows.filter((m) => m.enabled);
+  if (f.state === "off") rows = rows.filter((m) => !m.enabled);
+  if (f.sort === "name") rows.sort((a, b) => a.title.localeCompare(b.title));
+  if (f.sort === "size") rows.sort((a, b) => (b.size || 0) - (a.size || 0));
+
+  host.innerHTML = rows.length ? rows.map((m) => `
+    <div class="mod-row${m.enabled ? "" : " is-off"}">
+      ${m.iconURL ? `<img class="mod-ico" src="${esc(m.iconURL)}" alt="">`
+                  : `<span class="mod-ico ph">${ico("i-stack")}</span>`}
+      <span class="mod-meta">
+        <span class="mod-title">${esc(m.title)}${m.loose ? ` <em class="mod-tag">manual</em>` : ""}${m.missing ? ` <em class="mod-tag warn">missing</em>` : ""}</span>
+        <span class="mod-file">${esc(m.fileName)}</span>
+      </span>
+      ${m.requiredBy ? `<span class="mod-req" title="Installed because ${esc(m.requiredBy)} needs it">needs ${esc(m.requiredBy)}</span>` : ""}
+      <button class="switch ${m.enabled ? "on" : ""}" data-mtoggle="${esc(m.fileName)}" aria-pressed="${m.enabled}"><span class="knob"></span></button>
+      <button class="kb-icon" data-mdel="${esc(m.projectId || m.fileName)}" title="Remove">${ico("i-trash")}</button>
+    </div>`).join("")
+    : `<div class="empty-line">${data.total ? "Nothing matches that filter." : "No mods yet. Hit + to add some from Modrinth."}</div>`;
+
+  const foot = document.getElementById("mods-foot");
+  if (foot) foot.textContent = data.total ? `${data.enabled} of ${data.total} enabled` : "";
+
+  host.querySelectorAll("[data-mtoggle]").forEach((b) => b.onclick = async () => {
+    const on = !b.classList.contains("on");
+    b.classList.toggle("on", on);
+    try { await API.toggleMod({ instanceId: id, fileName: b.dataset.mtoggle, enabled: on }); renderModList(id); }
+    catch (e) { toast(e.message); renderModList(id); }
+  });
+  host.querySelectorAll("[data-mdel]").forEach((b) => b.onclick = async () => {
+    if (!confirm("Remove this mod from the instance?")) return;
+    try { await API.content.remove({ instanceId: id, projectId: b.dataset.mdel }); toast("Removed."); renderInstanceDetail(id); }
+    catch (e) { toast(e.message); }
+  });
+
+  const q = document.getElementById("mod-filter");
+  if (q && !q.dataset.wired) {
+    q.dataset.wired = "1";
+    q.value = f.q;
+    q.oninput = () => { f.q = q.value; renderModList(id); };
+  }
+  const sort = document.getElementById("mod-sort");
+  if (sort && !sort.dataset.wired) {
+    sort.dataset.wired = "1"; sort.value = f.sort;
+    sort.onchange = () => { f.sort = sort.value; renderModList(id); };
+  }
+  document.querySelectorAll("[data-mstate]").forEach((b) => {
+    if (b.dataset.wired) return;
+    b.dataset.wired = "1";
+    b.onclick = () => {
+      f.state = b.dataset.mstate;
+      document.querySelectorAll("[data-mstate]").forEach((x) => x.classList.toggle("is-on", x === b));
+      renderModList(id);
+    };
+  });
+}
+
 // ---------- INSTANCE DETAIL (mods + worlds + settings) ----------
 async function renderInstanceDetail(id) {
   el().innerHTML = `<div class="placeholder">${ico("i-stack")}<h2>Loading…</h2></div>`;
@@ -288,26 +358,55 @@ async function renderInstanceDetail(id) {
     .map((r) => `<option${r === inst.mcVersion ? " selected" : ""}>${esc(r)}</option>`).join("");
 
   el().innerHTML = `
-    <div class="page-head"><button class="btn-ghost" data-goto="instances">${ico("i-arrow-right")} Instances</button></div>
-    <div class="detail-hero glass">
-      <div class="inst-art lg" style="background:${accentFor(inst.accent)}33">${ico("i-stack")}</div>
-      <div class="detail-meta">
-        <div class="detail-name">${esc(inst.name)}</div>
-        <div class="detail-sub">${esc(subtitle(inst))} · ${modCount} mod${modCount === 1 ? "" : "s"}</div>
-        <div class="detail-actions">
-          <button class="btn-accent" data-play="${inst.id}">${ico("i-play")} Play</button>
-          <button class="btn-soft" id="detail-add">${ico("i-plus")} Browse mods</button>
-          <button class="btn-soft" id="detail-share">${ico("i-bolt")} Share &amp; Sync</button>
-          <button class="btn-soft" id="detail-mixins">${ico("i-pulse")} Mixin conflicts</button>
-          <button class="btn-soft" id="detail-seed">${ico("i-globe")} Find a seed</button>
+    <section class="vhero detail-vhero${inst.iconPath ? "" : " no-art"}" data-art="${inst.id}">
+      ${inst.iconPath
+        ? `<div class="vhero-art" style="background-image:url('${fileURL(inst.iconPath)}?v=${inst.iconVersion || 0}')"></div>`
+        : `<div class="vhero-art vhero-art-empty"><div class="art-invite">${ico("i-image")}<span>Drop a screenshot</span><span class="art-browse">or <u>browse files</u></span></div></div>`}
+      <div class="vhero-scrim"></div>
+      <button class="gh ico-sq detail-back" data-goto="instances" title="Back to instances">${ico("i-back")}</button>
+      <div class="vhero-body">
+        <div class="kick">Played ${esc(relTime(inst.lastPlayed))}</div>
+        <h1 class="vhero-title">${esc(inst.name)}</h1>
+        <div class="vhero-row">
+          <div class="vchips">
+            <span class="vchip">${esc(inst.mcVersion)}</span>
+            <span class="vchip">${esc(loaderLabel(inst.loader))}</span>
+            <span class="vchip">${modCount} mod${modCount === 1 ? "" : "s"}</span>
+            <span class="vchip">${esc(fmtPlaytime(inst.playtimeMs))} played</span>
+            <span class="vchip health" id="detail-health">${ico("i-shield")} Healthy</span>
+          </div>
+          <div class="vhero-actions">
+            <button class="gh ico-btn" id="detail-add" title="Browse mods">${ico("i-plus")}</button>
+            <button class="play-btn" data-play="${inst.id}">${ico("i-play")} Play</button>
+            <button class="gh ico-btn" id="detail-more" title="More">\u22ef</button>
+          </div>
         </div>
       </div>
+    </section>
+    <!-- Reached from the hero's \u22ef menu; kept in the DOM so their existing
+         handlers below stay wired without restructuring every one of them. -->
+    <div class="detail-hidden-actions" id="detail-menu" hidden>
+      <button class="btn-soft" id="detail-share">${ico("i-bolt")} Share &amp; Sync</button>
+      <button class="btn-soft" id="detail-mixins">${ico("i-pulse")} Mixin conflicts</button>
+      <button class="btn-soft" id="detail-seed">${ico("i-globe")} Find a seed</button>
     </div>
 
-    <div class="section-head" style="margin-top:22px"><span class="section-title">CONTENT</span></div>
-    <div class="mods-list">
-      ${mods.length ? mods.map(modRow).join("") : `<div class="empty-line">No mods yet. Hit "Browse mods" to add some from Modrinth.</div>`}
+    <div class="section-head" style="margin-top:22px"><span class="section-title">All ${modCount}</span></div>
+    <div class="mod-toolbar">
+      <input class="inp mod-filter" id="mod-filter" placeholder="Filter all">
+      <div class="seg" id="mod-state">
+        <button class="seg-btn is-on" data-mstate="all">All</button>
+        <button class="seg-btn" data-mstate="on">Enabled</button>
+        <button class="seg-btn" data-mstate="off">Disabled</button>
+      </div>
+      <select class="inp mod-sort" id="mod-sort">
+        <option value="added">Date added</option>
+        <option value="name">Name</option>
+        <option value="size">Size</option>
+      </select>
     </div>
+    <div class="mods-list" id="mods-list"></div>
+    <div class="mods-foot kick" id="mods-foot"></div>
 
     <!-- [Cloud Sync — Vertical A] filled async by renderInstanceCloudSync; hidden when the backend isn't set up. -->
     <div id="cloud-sync-panel"></div>
@@ -348,6 +447,13 @@ async function renderInstanceDetail(id) {
   renderInstanceDoctor(inst);               // [Crash Doctor] fills #doctor-panel (async)
   document.getElementById("detail-add").onclick = () => openDiscoverFor(inst.id);
   document.getElementById("detail-share").onclick = () => openShareModal(inst);
+  renderModList(id);
+
+  const moreBtn = document.getElementById("detail-more");
+  if (moreBtn) moreBtn.onclick = () => {
+    const menu = document.getElementById("detail-menu");
+    if (menu) menu.hidden = !menu.hidden;
+  };
   const mixBtn = document.getElementById("detail-mixins");
   if (mixBtn) mixBtn.onclick = () => openMixinSheet(inst);
   const seedBtn = document.getElementById("detail-seed");
@@ -1023,18 +1129,56 @@ async function renderServers() {
   const servers = await API.servers.list();
   el().innerHTML = `
     <div class="page-head">
-      <h1 class="page-title">My servers</h1>
-      <span class="page-count">${servers.filter((s) => s.running).length} of ${servers.length} running</span>
+      <h1 class="page-title pix-title">My servers</h1>
+      ${servers.length ? `<span class="page-count">${servers.filter((s) => s.running).length} of ${servers.length} running</span>` : ""}
       <div class="head-actions">
-        <button class="gh" id="new-server">${ico("i-plus")} New Server</button>
+        <button class="gh" id="lan-worlds">${ico("i-globe")} LAN worlds</button>
+        <button class="gh" id="where-host">${ico("i-server")} Where to host</button>
+        <button class="gh" id="new-server">${ico("i-plus")} Host an instance</button>
       </div>
     </div>
     <div id="new-server-panel"></div>
-    <div class="servers-list">
-      ${servers.map(serverRow).join("") || `<div class="empty-line">No servers yet. Create one to host a world for your friends.</div>`}
-    </div>`;
-  document.getElementById("new-server").onclick = () => { serverCreating = !serverCreating; toggleServerPanel(); };
+    ${servers.length ? `<div class="servers-list">${servers.map(serverRow).join("")}</div>` : `
+      <div class="srv-empty">
+        <span class="srv-empty-ico">${ico("i-server")}</span>
+        <div class="kick">No servers yet</div>
+        <p>Create one from an instance or import a modpack, then start it and share the address.</p>
+        <button class="gh" id="new-server-2">${ico("i-plus")} Host an instance</button>
+      </div>`}`;
+  const startCreate = () => { serverCreating = !serverCreating; toggleServerPanel(); };
+  document.getElementById("new-server").onclick = startCreate;
+  const alt = document.getElementById("new-server-2");
+  if (alt) alt.onclick = startCreate;
   if (serverCreating) toggleServerPanel();
+
+  // LAN worlds: any world in any instance can be opened to the network from in
+  // game, so this points at the instances that actually have worlds rather than
+  // pretending to scan the network.
+  document.getElementById("lan-worlds").onclick = async () => {
+    const list = await API.instances();
+    const withWorlds = [];
+    for (const i of list.slice(0, 12)) {
+      try { const w = await API.worlds.list(i.id); if (w && w.length) withWorlds.push(`${i.name} (${w.length})`); }
+      catch { /* skip unreadable instances */ }
+    }
+    toast(withWorlds.length
+      ? `Open a world to LAN from inside the game (Esc \u2192 Open to LAN). Worlds in: ${withWorlds.slice(0, 3).join(", ")}${withWorlds.length > 3 ? "\u2026" : ""}`
+      : "No worlds yet — play an instance first, then Open to LAN from the pause menu.");
+  };
+  document.getElementById("where-host").onclick = () => {
+    showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-server")} Where to host</div>
+      <p class="share-sub">Three ways to get friends onto your world, cheapest first.</p>
+      <div class="host-opts">
+        <div class="host-opt"><b>This machine (LAN)</b><span>Free. Same network only, or over a VPN like Tailscale. Your PC has to stay on.</span></div>
+        <div class="host-opt"><b>This machine + port forward</b><span>Free, reachable from anywhere. Needs a router change and exposes your IP.</span></div>
+        <div class="host-opt"><b>Rented host</b><span>Costs money, always on, no router fiddling. Worth it once more than a couple of people play.</span></div>
+      </div>
+      <div class="np-actions"><button class="btn-ghost" id="wh-close">Close</button></div>
+    </div>`);
+    document.getElementById("wh-close").onclick = hideModal;
+  };
 
   el().querySelectorAll("[data-srvstart]").forEach((b) => b.onclick = async (e) => {
     e.stopPropagation();

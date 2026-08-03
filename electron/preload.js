@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld("lodestone", {
     repair: (id) => call("instance:repair", { id }),
     updateAll: (id) => call("instance:updateAll", { id }),
     sizes: () => call("instances:sizes"),
+    mods: (instanceId) => call("mods:list", { instanceId }),
+    toggleMod: (opts) => call("mods:toggle", opts),
   },
   versions: (opts) => call("versions:list", opts), // [wave0] opts.channels → snapshots/old versions
   modrinthSearch: (opts) => call("modrinth:search", opts),

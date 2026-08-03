@@ -63,6 +63,14 @@
     async importModpack() { return bridge ? unwrap(await bridge.importModpack()) : null; },
 
     // Power tools: repair (clear cached game files) + update all Modrinth content.
+    async listMods(instanceId) {
+      if (!bridge) return { mods: [], total: 0, enabled: 0 };
+      try { return unwrap(await bridge.instances.mods(instanceId)); } catch { return { mods: [], total: 0, enabled: 0 }; }
+    },
+    async toggleMod(opts) {
+      if (bridge) return unwrap(await bridge.instances.toggleMod(opts));
+      throw new Error("Toggling mods runs in the desktop app.");
+    },
     async instanceSizes() {
       if (!bridge) return { sizes: {}, total: 0 };
       try { return unwrap(await bridge.instances.sizes()); } catch { return { sizes: {}, total: 0 }; }

@@ -81,7 +81,7 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 |---|---|---|
 | SocialView / SignInSheet / ProfileSheet | done | friends, presence, auth |
 | SquadManagerSheet | partial | squads exist; no manager |
-| SkinsView | partial | upload/reset; **no library, no model preview** |
+| SkinsView | done | upload/reset, body render, and a local library you can re-wear from |
 | SettingsView / AppSettingsView | partial | core prefs only |
 | UpdatesSheet | partial | banner only |
 | PluginsView / PluginWebView | missing | launcher plugins |

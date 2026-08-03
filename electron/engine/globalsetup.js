@@ -382,6 +382,71 @@ async function uploadSkin({ token, dataBase64, variant }) {
   });
 }
 
+// ---- Skin library -----------------------------------------------------------
+// Skins you've worn, kept locally so switching back doesn't mean finding the
+// PNG again. Applying one re-uploads it to your Microsoft account, because
+// that is the only place a skin actually lives.
+function skinsDir() { return path.join(DATA_DIR, "skins"); }
+function skinManifest() { return path.join(skinsDir(), "skins.json"); }
+function readSkins() {
+  try { const j = JSON.parse(fs.readFileSync(skinManifest(), "utf8")); return Array.isArray(j) ? j : []; }
+  catch { return []; }
+}
+function writeSkins(list) {
+  fs.mkdirSync(skinsDir(), { recursive: true });
+  try { fs.writeFileSync(skinManifest(), JSON.stringify(list, null, 2)); } catch { /* best effort */ }
+}
+
+function listSkins() {
+  // Drop entries whose file has gone, so the library can't show a dead tile.
+  const rows = readSkins().filter((sk) => { try { return fs.existsSync(path.join(skinsDir(), sk.file)); } catch { return false; } });
+  if (rows.length !== readSkins().length) writeSkins(rows);
+  return rows.map((sk) => ({ ...sk, path: path.join(skinsDir(), sk.file) }));
+}
+
+function saveSkin({ dataBase64, variant, name }) {
+  const buf = Buffer.from(String(dataBase64 || ""), "base64");
+  if (!buf.length) throw new Error("That image was empty.");
+  if (buf.slice(0, 8).toString("hex") !== "89504e470d0a1a0a") throw new Error("Skins have to be PNG.");
+  fs.mkdirSync(skinsDir(), { recursive: true });
+  // Date.now() alone collides when two skins are saved in the same
+  // millisecond — the second overwrote the first's file, so deleting either
+  // destroyed both. The random suffix makes the id genuinely unique.
+  const id = "s" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const file = `${id}.png`;
+  fs.writeFileSync(path.join(skinsDir(), file), buf);
+  const rows = readSkins();
+  rows.unshift({ id, file, name: String(name || "Skin").slice(0, 60),
+                 variant: variant === "slim" ? "slim" : "classic", savedAt: Date.now() });
+  writeSkins(rows);
+  return listSkins();
+}
+
+function removeSkin({ id }) {
+  const rows = readSkins();
+  const hit = rows.find((sk) => sk.id === id);
+  if (hit) { try { fs.rmSync(path.join(skinsDir(), hit.file), { force: true }); } catch { /* already gone */ } }
+  writeSkins(rows.filter((sk) => sk.id !== id));
+  return listSkins();
+}
+
+function renameSkin({ id, name }) {
+  const rows = readSkins();
+  const hit = rows.find((sk) => sk.id === id);
+  if (!hit) throw new Error("Skin not found.");
+  hit.name = String(name || hit.name).slice(0, 60);
+  writeSkins(rows);
+  return listSkins();
+}
+
+// Apply one from the library: read it back off disk and upload it.
+async function applySkin({ token, id }) {
+  const hit = readSkins().find((sk) => sk.id === id);
+  if (!hit) throw new Error("Skin not found.");
+  const buf = fs.readFileSync(path.join(skinsDir(), hit.file));
+  return uploadSkin({ token, dataBase64: buf.toString("base64"), variant: hit.variant });
+}
+
 async function resetSkin(token) {
   if (!token) throw new Error("Sign in with Microsoft to change your skin.");
   return mcRequest({ method: "DELETE", pathname: "/minecraft/profile/skins/active", token });
@@ -392,4 +457,5 @@ module.exports = {
   getKeybindProfile, setKeybindProfile, resetKeybindProfile,
   setKeybindDisabled, setKeybindApply, keybindPreset, refreshDiscovered,
   applyToInstance, getProfile, uploadSkin, resetSkin, GAME_FIELDS,
+  listSkins, saveSkin, removeSkin, renameSkin, applySkin,
 };

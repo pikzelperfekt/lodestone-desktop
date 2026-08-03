@@ -1106,6 +1106,11 @@ module.exports = {
   skinProfile: async () => { const ses = await auth.currentSession(); return globalsetup.getProfile(ses && ses.accessToken); },
   skinUpload: async (a) => { const ses = await auth.currentSession(); return globalsetup.uploadSkin({ token: ses && ses.accessToken, dataBase64: a && a.dataBase64, variant: a && a.variant }); },
   skinReset: async () => { const ses = await auth.currentSession(); return globalsetup.resetSkin(ses && ses.accessToken); },
+  skinList: () => globalsetup.listSkins(),
+  skinSave: (a) => globalsetup.saveSkin(a),
+  skinRemove: (a) => globalsetup.removeSkin(a),
+  skinRename: (a) => globalsetup.renameSkin(a),
+  skinApply: async (a) => { const ses = await auth.currentSession(); return globalsetup.applySkin({ token: ses && ses.accessToken, id: a && a.id }); },
   // ---- Shared packs (permanent code + live propagation) ----
   packShare: (a) => packsync.createShare(a),
   packJoin: (a) => packsync.joinByCode(a && a.code),

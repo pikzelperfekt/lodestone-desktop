@@ -466,6 +466,23 @@
         if (bridge) return unwrap(await bridge.setup.skinUpload(dataBase64, variant));
         throw new Error("Skins run in the desktop app.");
       },
+      async skinList() { if (!bridge) return []; try { return unwrap(await bridge.setup.skinList()); } catch { return []; } },
+      async skinSave(opts) {
+        if (bridge) return unwrap(await bridge.setup.skinSave(opts));
+        throw new Error("Skins run in the desktop app.");
+      },
+      async skinRemove(id) {
+        if (bridge) return unwrap(await bridge.setup.skinRemove(id));
+        throw new Error("Skins run in the desktop app.");
+      },
+      async skinRename(opts) {
+        if (bridge) return unwrap(await bridge.setup.skinRename(opts));
+        throw new Error("Skins run in the desktop app.");
+      },
+      async skinApply(id) {
+        if (bridge) return unwrap(await bridge.setup.skinApply(id));
+        throw new Error("Skins run in the desktop app.");
+      },
       async skinReset() {
         if (bridge) return unwrap(await bridge.setup.skinReset());
         throw new Error("Skins run in the desktop app.");

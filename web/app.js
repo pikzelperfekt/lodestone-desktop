@@ -3107,8 +3107,11 @@ async function openTextEditor(id, rel) {
 }
 
 // ---------- SETUP: SKINS ----------
+// A skin lives on your Microsoft account, so applying one always means
+// uploading it. The library is a local copy of skins you have worn, so going
+// back to an old one doesn't mean finding the PNG again.
 async function renderSkins() {
-  el().innerHTML = `<div class="placeholder">${ico("i-user")}<h2>Loading…</h2></div>`;
+  el().innerHTML = `<div class="placeholder">${ico("i-user")}<h2>Loading\u2026</h2></div>`;
   const acc = await API.account.get().catch(() => null);
   if (!acc) {
     el().innerHTML = `
@@ -3120,31 +3123,53 @@ async function renderSkins() {
   }
 
   const uuid = String(acc.uuid || "").replace(/-/g, "");
+  const library = await API.setup.skinList();
+
   el().innerHTML = `
-    <div class="page-head"><h1 class="page-title">Skins</h1></div>
+    <div class="page-head">
+      <h1 class="page-title">Skins</h1>
+      <span class="page-count">${library.length} saved</span>
+    </div>
+
     <section class="vsec">
       <div class="skin-wrap">
         <div class="skin-render">
-          <img src="https://mc-heads.net/body/${esc(uuid)}/220" alt="Your current skin" class="skin-img">
+          <img src="https://mc-heads.net/body/${esc(uuid)}/240" alt="Your current skin" class="skin-img">
         </div>
         <div class="skin-side">
           <div class="kick">Signed in as</div>
           <div class="skin-name">${esc(acc.name)}</div>
-
           <div class="kick" style="margin-top:18px">Model</div>
           <div class="seg" id="skin-variant">
             <button class="seg-btn is-on" data-variant="classic">Classic</button>
             <button class="seg-btn" data-variant="slim">Slim</button>
           </div>
-
           <div class="skin-actions">
             <button class="play-btn" id="skin-upload">${ico("i-download")} Upload a skin</button>
             <button class="gh" id="skin-reset">Reset to default</button>
           </div>
           <p class="share-note">A skin is a 64x64 PNG. Drop one anywhere on this panel, or click Upload.
-            Changes go straight to your Microsoft account and show up in game.</p>
+            Uploading also saves it to your library below.</p>
         </div>
       </div>
+    </section>
+
+    <section class="vsec">
+      <div class="vsec-head"><span class="kick">Library</span></div>
+      ${library.length ? `
+        <div class="skin-grid">
+          ${library.map((sk) => `
+            <div class="skin-card">
+              <div class="skin-thumb"><img src="${fileURL(sk.path)}?v=${sk.savedAt}" alt=""></div>
+              <div class="skin-cname">${esc(sk.name)}<em>${esc(sk.variant)}</em></div>
+              <div class="skin-cacts">
+                <button class="gh gh-sm" data-skwear="${esc(sk.id)}">Wear</button>
+                <button class="kb-icon" data-skren="${esc(sk.id)}" title="Rename">${ico("i-gear")}</button>
+                <button class="kb-icon" data-skdel="${esc(sk.id)}" title="Remove">${ico("i-trash")}</button>
+              </div>
+            </div>`).join("")}
+        </div>`
+        : `<div class="empty-line">Nothing saved yet. Every skin you upload is kept here so you can switch back.</div>`}
     </section>
     <input type="file" id="skin-file" accept="image/png" hidden>`;
 
@@ -3157,9 +3182,13 @@ async function renderSkins() {
   const send = async (file) => {
     if (!file) return;
     if (!/\.png$/i.test(file.name)) { toast("Skins have to be PNG files."); return; }
-    toast("Uploading skin…");
+    toast("Uploading skin\u2026");
     try {
-      await API.setup.skinUpload(await fileToBase64(file), variant);
+      const b64 = await fileToBase64(file);
+      await API.setup.skinUpload(b64, variant);
+      // Keep a copy so it can be worn again without hunting for the file.
+      try { await API.setup.skinSave({ dataBase64: b64, variant, name: file.name.replace(/\.png$/i, "") }); }
+      catch { /* the upload is what matters; the library copy is a convenience */ }
       toast("Skin changed. It may take a minute to appear everywhere.");
       renderSkins();
     } catch (e) { toast(e.message); }
@@ -3184,6 +3213,23 @@ async function renderSkins() {
     try { await API.setup.skinReset(); toast("Skin reset."); renderSkins(); }
     catch (e) { toast(e.message); }
   };
+
+  el().querySelectorAll("[data-skwear]").forEach((b) => b.onclick = async () => {
+    b.disabled = true; b.textContent = "Applying\u2026";
+    try { await API.setup.skinApply(b.dataset.skwear); toast("Skin applied."); renderSkins(); }
+    catch (e) { b.disabled = false; b.textContent = "Wear"; toast(e.message); }
+  });
+  el().querySelectorAll("[data-skren]").forEach((b) => b.onclick = async () => {
+    const name = prompt("Name this skin:");
+    if (!name || !name.trim()) return;
+    try { await API.setup.skinRename({ id: b.dataset.skren, name: name.trim() }); renderSkins(); }
+    catch (e) { toast(e.message); }
+  });
+  el().querySelectorAll("[data-skdel]").forEach((b) => b.onclick = async () => {
+    if (!confirm("Remove this skin from your library? It stays on your account if you're wearing it.")) return;
+    try { await API.setup.skinRemove(b.dataset.skdel); renderSkins(); }
+    catch (e) { toast(e.message); }
+  });
 }
 
 // ---------- Popover menu ----------

@@ -219,6 +219,11 @@ contextBridge.exposeInMainWorld("lodestone", {
     skinProfile: () => call("setup:skin:profile"),
     skinUpload: (dataBase64, variant) => call("setup:skin:upload", { dataBase64, variant }),
     skinReset: () => call("setup:skin:reset"),
+    skinList: () => call("skins:list"),
+    skinSave: (opts) => call("skins:save", opts),
+    skinRemove: (id) => call("skins:remove", { id }),
+    skinRename: (opts) => call("skins:rename", opts),
+    skinApply: (id) => call("skins:apply", { id }),
   },
   keybinds: {
     list: (instanceId) => call("keybinds:list", { instanceId }),

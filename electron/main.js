@@ -144,6 +144,11 @@ handle("setup:keybinds:refresh", () => engine.keybindRefresh());
 handle("setup:skin:profile", () => engine.skinProfile());
 handle("setup:skin:upload", (a) => engine.skinUpload(a));
 handle("setup:skin:reset", () => engine.skinReset());
+handle("skins:list", () => engine.skinList());
+handle("skins:save", (a) => engine.skinSave(a));
+handle("skins:remove", (a) => engine.skinRemove(a));
+handle("skins:rename", (a) => engine.skinRename(a));
+handle("skins:apply", (a) => engine.skinApply(a));
 // Worlds: create a fresh world, or import a folder / .zip of one.
 handle("mixins:scan", (a) => engine.scanMixins(a));
 handle("instances:sizes", () => engine.instanceSizes());

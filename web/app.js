@@ -149,7 +149,7 @@ async function renderHome() {
         <button class="gh" data-goto="instances">All instances</button>
       </div>
       <div class="rail">
-        ${jump.map((i) => `<div class="rail-cell">${instGridCard(i)}</div>`).join("")}
+        ${jump.map((i) => `<div class="rail-cell">${instGridCard(i, true)}</div>`).join("")}
       </div>
     </section>
 
@@ -989,11 +989,18 @@ async function toggleNewPanel() {
 // the top. Hover and selection paint that border accent; a devoted-or-above
 // pack keeps a faint tier-coloured edge so the shelf shows which ones you
 // actually live in.
-const instGridCard = (i) => {
+// `compact` is the Home rail's variant: shorter art, smaller name, and the
+// subtitle becomes when you last played rather than the pack's facts — the
+// rail is about picking one up again, the grid is about telling them apart.
+const instGridCard = (i, compact) => {
   const t = playtimeTier(i.playtimeMs);
   const flair = t.flair && Number(i.playtimeMs) > 0;
+  const mods = i.mods || 0;
+  const facts = compact && i.lastPlayed
+    ? relTime(i.lastPlayed)
+    : `${esc(i.mcVersion)}${i.loader && i.loader !== "vanilla" ? ` \u00b7 ${esc(loaderLabel(i.loader))}` : ""} \u00b7 ${mods === 0 ? "no mods" : `${mods} mods`}`;
   return `
-  <div class="strip-card${flair ? " has-flair" : ""}" data-open="${i.id}"${flair ? ` style="--flair:${t.color}"` : ""}>
+  <div class="strip-card${compact ? " is-compact" : ""}${flair ? " has-flair" : ""}" data-open="${i.id}"${flair ? ` style="--flair:${t.color}"` : ""}>
     <div class="inst-art imgbox" data-art="${i.id}">
       ${i.iconPath ? "" : `<div class="art-invite">${ico("i-image")}<span>Drop an image</span><span class="art-browse">or <u>browse files</u></span></div>`}
       <button class="card-del" data-del="${i.id}" title="Delete instance">${ico("i-trash")}</button>
@@ -1001,7 +1008,7 @@ const instGridCard = (i) => {
     </div>
     <div class="inst-body">
       <div class="inst-name">${esc(i.name)}</div>
-      <div class="inst-facts">${esc(i.mcVersion)} \u00b7 ${esc(loaderLabel(i.loader))} \u00b7 ${i.mods || 0} mod${i.mods === 1 ? "" : "s"}</div>
+      <div class="inst-facts">${facts}</div>
       ${Number(i.playtimeMs) > 0 ? `
         <div class="rcard-foot">
           ${playBar(i.playtimeMs)}
@@ -1011,7 +1018,7 @@ const instGridCard = (i) => {
   </div>`;
 };
 
-const instCard = (i) => instGridCard(i);
+const instCard = (i) => instGridCard(i, true);
 
 // ---------- DISCOVER ----------
 let searchTimer = null;

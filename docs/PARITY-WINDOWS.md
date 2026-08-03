@@ -57,9 +57,9 @@ Mac · **missing** = not built · **n/a** = Mac-only for platform reasons.
 |---|---|---|
 | ServersView | done | list, empty state, LAN/where-to-host |
 | ServerConsoleSheet / ServerSettingsSheet | done | console + server.properties |
-| ServerDashboard / ServerHealthCard | missing | TPS, players, memory |
-| ServerAccessSheet | missing | whitelist / ops / bans |
-| ServerPluginsView | missing | plugin management |
+| ServerDashboard / ServerHealthCard | done | live status, players, TPS, uptime, memory |
+| ServerAccessSheet | done | whitelist/ops/bans, console when live, files when stopped |
+| ServerPluginsView | done | list + enable/disable for Paper servers |
 | CloudHostingSheet | missing | hosted-server flow |
 | LANWorldsSheet | partial | guidance only, no scan |
 

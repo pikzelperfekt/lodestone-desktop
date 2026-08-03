@@ -683,6 +683,13 @@ module.exports = {
     });
   },
 
+  // ---- Server ops: live stats, access lists, plugins ----
+  serverStats: (a) => serverEngine.stats(DATA_DIR, a && a.id),
+  serverAccess: (a) => serverEngine.accessList(DATA_DIR, a && a.id),
+  serverAccessChange: (a) => serverEngine.accessChange(DATA_DIR, a && a.id, a),
+  serverPlugins: (a) => serverEngine.plugins(DATA_DIR, a && a.id),
+  serverPluginToggle: (a) => serverEngine.setPluginEnabled(DATA_DIR, a && a.id, a),
+
   // ---- World map / statistics (reads the region files) ----
   worldScan: (a) => {
     const inst = readInstances().find((i) => i.id === (a && a.instanceId));

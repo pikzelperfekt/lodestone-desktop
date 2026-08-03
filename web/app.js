@@ -1332,7 +1332,8 @@ const SERVER_PLATFORMS = ["vanilla", "paper", "fabric"];
 const SERVER_LOG_MAX = 600;
 
 let serverCreating = false;
-let serverDetailId = null;          // the id of the server whose console is open
+let serverDetailId = null;
+let serverStatsTimer = null;   // polls live server stats while the detail page is open          // the id of the server whose console is open
 let serverLogBuffer = [];           // rolling console lines for the open server
 let serverSubs = [];                // active engine subscriptions (server:log / server:state)
 function clearServerSubs() { serverSubs.forEach((u) => { try { u(); } catch {} }); serverSubs = []; }
@@ -1496,8 +1497,118 @@ async function toggleServerPanel() {
 }
 
 // ---------- SERVER DETAIL (console + properties) ----------
+// Live server telemetry, refreshed while the page is open. Everything shown
+// here came out of the server's own console — a figure it has not printed yet
+// reads as unknown rather than being invented.
+async function renderServerDashboard(id) {
+  const host = document.getElementById("srv-dashboard");
+  if (!host) return;
+  const st = await API.servers.stats(id);
+  const up = (ms) => {
+    const m = Math.floor(ms / 60000);
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    return h < 24 ? `${h}h ${m % 60}m` : `${Math.floor(h / 24)}d ${h % 24}h`;
+  };
+  const stat = (label, value, tone) =>
+    `<div class="srv-stat"><span class="kick">${esc(label)}</span><b class="${tone || ""}">${esc(value)}</b></div>`;
+
+  host.innerHTML = `
+    <section class="vsec">
+      <div class="vsec-head"><span class="kick">Dashboard</span>
+        ${st.running && !st.ready ? `<span class="srv-boot">starting\u2026</span>` : ""}</div>
+      <div class="srv-stats">
+        ${stat("Status", !st.running ? "Stopped" : st.ready ? "Running" : "Starting", st.ready ? "ok" : "")}
+        ${stat("Players", st.running ? `${st.playerCount}${st.maxPlayers ? ` / ${st.maxPlayers}` : ""}` : "\u2014")}
+        ${stat("TPS", st.tps === null ? "\u2014" : st.tps.toFixed(1), st.tps !== null && st.tps < 18 ? "warn" : "ok")}
+        ${stat("Uptime", st.running ? up(st.uptimeMs) : "\u2014")}
+        ${stat("Memory", st.ramMB ? `${(st.ramMB / 1024).toFixed(1)} GB allocated` : "Default")}
+      </div>
+      ${st.running && st.players.length ? `
+        <div class="srv-players">${st.players.map((p) => `
+          <span class="srv-player"><img class="avatar sm" src="https://mc-heads.net/avatar/${esc(p)}/32" alt="">${esc(p)}</span>`).join("")}</div>` : ""}
+      ${st.running ? `<p class="share-note">Player and TPS figures come from the console. Hit Refresh to run <b>list</b> and <b>tps</b> if they look stale.</p>` : ""}
+    </section>`;
+}
+
+// Whitelist / operators / bans. While the server is running these go through
+// the console so the server stays the owner of the file; offline they are
+// edited directly, which is safe because nothing else holds them.
+async function renderServerAccess(id) {
+  const host = document.getElementById("srv-access");
+  if (!host) return;
+  const a = await API.servers.access(id);
+  const group = (key, label, rows) => `
+    <div class="acc-group">
+      <div class="acc-head"><span class="kick">${esc(label)}</span>
+        <button class="gh gh-sm" data-accadd="${key}">${ico("i-plus")} Add</button></div>
+      ${rows.length ? rows.map((r) => `
+        <div class="acc-row">
+          <img class="avatar sm" src="https://mc-heads.net/avatar/${esc(r.name)}/32" alt="">
+          <span class="acc-name">${esc(r.name)}</span>
+          ${r.reason ? `<span class="acc-reason">${esc(r.reason)}</span>` : ""}
+          <button class="kb-icon" data-accdel="${key}" data-name="${esc(r.name)}" title="Remove">${ico("i-trash")}</button>
+        </div>`).join("") : `<div class="empty-line">Nobody yet.</div>`}
+    </div>`;
+
+  host.innerHTML = `
+    <section class="vsec">
+      <div class="vsec-head"><span class="kick">Access</span>
+        <span class="acc-enforce">${a.whitelistEnforced ? "Whitelist enforced" : "Whitelist not enforced"}</span></div>
+      <div class="acc-groups">
+        ${group("whitelist", "Whitelist", a.whitelist)}
+        ${group("ops", "Operators", a.ops)}
+        ${group("banned", "Banned", a.banned)}
+      </div>
+    </section>`;
+
+  host.querySelectorAll("[data-accadd]").forEach((b) => b.onclick = async () => {
+    const name = prompt("Minecraft name:");
+    if (!name || !name.trim()) return;
+    try { await API.servers.accessChange({ id, list: b.dataset.accadd, verb: "add", name: name.trim() });
+      toast(`Added ${name.trim()}.`); renderServerAccess(id); }
+    catch (e) { toast(e.message); }
+  });
+  host.querySelectorAll("[data-accdel]").forEach((b) => b.onclick = async () => {
+    try { await API.servers.accessChange({ id, list: b.dataset.accdel, verb: "remove", name: b.dataset.name });
+      toast(`Removed ${b.dataset.name}.`); renderServerAccess(id); }
+    catch (e) { toast(e.message); }
+  });
+}
+
+async function renderServerPlugins(id) {
+  const host = document.getElementById("srv-plugins");
+  if (!host) return;
+  const p = await API.servers.plugins(id);
+  if (!p.supported) { host.innerHTML = ""; return; }
+  host.innerHTML = `
+    <section class="vsec">
+      <div class="vsec-head"><span class="kick">Plugins</span>
+        <span class="page-count">${p.plugins.length}</span></div>
+      ${p.plugins.length ? `<div class="mods-list">${p.plugins.map((pl) => `
+        <div class="mod-row${pl.enabled ? "" : " is-off"}">
+          <span class="mod-ico ph">${ico("i-grid")}</span>
+          <span class="mod-meta">
+            <span class="mod-title">${esc(pl.name)}</span>
+            <span class="mod-file">${esc(pl.file)} \u00b7 ${esc(fmtSize(pl.size))}</span>
+          </span>
+          <button class="switch ${pl.enabled ? "on" : ""}" data-plug="${esc(pl.file)}" aria-pressed="${pl.enabled}"><span class="knob"></span></button>
+        </div>`).join("")}</div>`
+        : `<div class="empty-line">No plugins yet. Drop .jar files into the server's plugins folder.</div>`}
+    </section>`;
+  host.querySelectorAll("[data-plug]").forEach((b) => b.onclick = async () => {
+    const on = !b.classList.contains("on");
+    try {
+      const r = await API.servers.pluginToggle({ id, file: b.dataset.plug, enabled: on });
+      toast(r.restartNeeded ? "Saved. Restart the server for it to take effect." : "Saved.");
+      renderServerPlugins(id);
+    } catch (e) { toast(e.message); }
+  });
+}
+
 async function renderServerDetail(id) {
   clearServerSubs();
+  if (serverStatsTimer) { clearInterval(serverStatsTimer); serverStatsTimer = null; }
   serverDetailId = id; serverLogBuffer = [];
   el().innerHTML = `<div class="placeholder">${ico("i-server")}<h2>Loading…</h2></div>`;
   const [servers, props, hosting] = await Promise.all([
@@ -1520,6 +1631,10 @@ async function renderServerDetail(id) {
       </div>
     </div>
 
+    <div id="srv-dashboard"></div>
+    <div id="srv-access"></div>
+    <div id="srv-plugins"></div>
+
     ${hostPanel(hosting)}
 
     <div class="section-head" style="margin-top:26px"><span class="section-title">CONSOLE</span></div>
@@ -1538,6 +1653,16 @@ async function renderServerDetail(id) {
         <button class="btn-accent srv-props-save" style="width:auto;padding:9px 18px">Save properties</button>
       </div>
     </div>`;
+
+  renderServerDashboard(id);
+  renderServerAccess(id);
+  renderServerPlugins(id);
+  // Refresh the dashboard while this page is open; cleared on navigate away.
+  serverStatsTimer = setInterval(() => {
+    if (serverDetailId !== id) { clearInterval(serverStatsTimer); serverStatsTimer = null; return; }
+    renderServerDashboard(id);
+  }, 5000);
+
 
   bindCommon();
   bindServerActions(id);

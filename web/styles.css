@@ -1537,3 +1537,25 @@ textarea.inp, .share-box {
 .wm-name { flex: 1; color: var(--text-secondary); }
 .wm-share { color: var(--voxel-muted); font-size: 11.5px; }
 .wm-more { margin-top: 4px; }
+
+/* ---- Server dashboard / access / plugins ---- */
+.srv-stats { display: flex; gap: 30px; flex-wrap: wrap; padding: 4px 0 2px; }
+.srv-stat { display: flex; flex-direction: column; gap: 4px; }
+.srv-stat b { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+.srv-stat b.ok { color: var(--live); }
+.srv-stat b.warn { color: var(--warn); }
+.srv-boot { font-size: 11.5px; color: var(--warn); }
+.srv-players { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.srv-player { display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px;
+  background: var(--voxel-elev); box-shadow: var(--voxel-bevel); font-size: 12px; }
+.avatar.sm { width: 18px; height: 18px; }
+.acc-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.acc-group { background: var(--voxel-elev); box-shadow: var(--voxel-bevel); padding: 12px 13px; }
+.acc-head { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+.acc-head .gh { margin-left: auto; }
+.acc-row { display: flex; align-items: center; gap: 9px; padding: 6px 0;
+  border-bottom: 1px solid var(--voxel-hair); font-size: 12.5px; }
+.acc-row:last-child { border-bottom: 0; }
+.acc-name { flex: 1; color: var(--text-secondary); }
+.acc-reason { font-size: 11px; color: var(--voxel-muted); }
+.acc-enforce { font-size: 11.5px; color: var(--voxel-muted); }

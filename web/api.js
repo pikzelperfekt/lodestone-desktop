@@ -445,6 +445,27 @@
         return true;
       },
       async command(id, command) { return bridge ? unwrap(await bridge.servers.command(id, command)) : true; },
+      async stats(id) {
+        const idle = { running: false, ready: false, players: [], playerCount: 0, maxPlayers: null, tps: null, uptimeMs: 0, ramMB: null };
+        if (!bridge) return idle;
+        try { return unwrap(await bridge.servers.stats(id)); } catch { return idle; }
+      },
+      async access(id) {
+        if (!bridge) return { whitelist: [], ops: [], banned: [], whitelistEnforced: false };
+        try { return unwrap(await bridge.servers.access(id)); } catch { return { whitelist: [], ops: [], banned: [], whitelistEnforced: false }; }
+      },
+      async accessChange(opts) {
+        if (bridge) return unwrap(await bridge.servers.accessChange(opts));
+        throw new Error("Server access runs in the desktop app.");
+      },
+      async plugins(id) {
+        if (!bridge) return { supported: false, plugins: [] };
+        try { return unwrap(await bridge.servers.plugins(id)); } catch { return { supported: false, plugins: [] }; }
+      },
+      async pluginToggle(opts) {
+        if (bridge) return unwrap(await bridge.servers.pluginToggle(opts));
+        throw new Error("Server plugins run in the desktop app.");
+      },
       async properties(id) { return bridge ? unwrap(await bridge.servers.properties(id)) : { ...(sample.serverProps[id] || {}) }; },
       async setProperties(id, patch) {
         if (bridge) return unwrap(await bridge.servers.setProperties(id, patch));

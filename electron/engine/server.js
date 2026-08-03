@@ -205,6 +205,50 @@ function isRunning(id) { return !!running[id]; }
 // start(id): spawn `<java> -Xmx<ram>M -jar server.jar nogui` in the server dir, track
 // the child, and stream its stdout/stderr line by line via onLog. onState fires with
 // "running" once launched and "stopped" (with the exit code) when the process ends.
+// Live per-server state, rebuilt from the console stream. The server tells us
+// everything we need in plain text, so there is no query protocol to implement
+// and nothing here is guessed: if a figure has not appeared in the log yet, it
+// is reported as unknown rather than filled in.
+const runtime = {};   // id -> { startedAt, ready, players:Set, tps, maxPlayers }
+
+function noteLine(id, line) {
+  const rt = runtime[id];
+  if (!rt) return;
+  // "Done (12.345s)! For help, type "help""
+  if (/\bDone \([\d.]+s\)!/.test(line)) rt.ready = true;
+  let m;
+  if ((m = /: ([A-Za-z0-9_]{3,16}) joined the game/.exec(line))) rt.players.add(m[1]);
+  if ((m = /: ([A-Za-z0-9_]{3,16}) left the game/.exec(line))) rt.players.delete(m[1]);
+  // The authoritative answer, from `list`.
+  if ((m = /There are (\d+) of a max of (\d+) players online:?\s*(.*)$/.exec(line))) {
+    rt.maxPlayers = Number(m[2]);
+    const names = (m[3] || "").split(",").map((x) => x.trim()).filter(Boolean);
+    rt.players = new Set(names);
+  }
+  // Paper's `tps`: "TPS from last 1m, 5m, 15m: 20.0, 19.8, 19.9"
+  if ((m = /TPS from last .*?: \*?([\d.]+)/.exec(line))) rt.tps = Number(m[1]);
+}
+
+function stats(dataDir, id) {
+  const rec = read(dataDir).find((s) => s.id === id);
+  const rt = runtime[id];
+  if (!rec) throw new Error("Server not found.");
+  if (!rt || !running[id]) {
+    return { running: false, ready: false, players: [], playerCount: 0,
+             maxPlayers: null, tps: null, uptimeMs: 0, ramMB: rec.ramMB || null };
+  }
+  return {
+    running: true,
+    ready: rt.ready,
+    players: [...rt.players],
+    playerCount: rt.players.size,
+    maxPlayers: rt.maxPlayers,
+    tps: rt.tps,
+    uptimeMs: Date.now() - rt.startedAt,
+    ramMB: rec.ramMB || null,
+  };
+}
+
 async function start(dataDir, id, { onLog, onState, javaPath } = {}) {
   const rec = read(dataDir).find((s) => s.id === id);
   if (!rec) throw new Error("Server not found.");
@@ -235,13 +279,19 @@ async function start(dataDir, id, { onLog, onState, javaPath } = {}) {
   onLog && onLog(`Starting ${rec.name}…`);
   const child = spawn(javaBinary, args, { cwd: dir });
   running[id] = child;
+  runtime[id] = { startedAt: Date.now(), ready: false, players: new Set(), tps: null, maxPlayers: null };
   onState && onState({ id, status: "running" });
 
-  const stream = (data) => String(data).split(/\r?\n/).forEach((line) => line && onLog && onLog(line));
+  const stream = (data) => String(data).split(/\r?\n/).forEach((line) => {
+    if (!line) return;
+    noteLine(id, line);
+    onLog && onLog(line);
+  });
   child.stdout.on("data", stream);
   child.stderr.on("data", stream);
   child.on("exit", (code) => {
     delete running[id];
+    delete runtime[id];
     onState && onState({ id, status: "stopped", code: code == null ? -1 : code });
   });
   child.on("error", (err) => {
@@ -396,7 +446,90 @@ function remove(dataDir, id) {
   return true;
 }
 
+// ---- Access lists -----------------------------------------------------------
+// whitelist.json / ops.json / banned-players.json are plain JSON the server
+// reads at boot and rewrites as it runs. Editing them while the server is up
+// would be overwritten, so when it IS running we issue the console command
+// instead and let the server own the file.
+const ACCESS_FILES = { whitelist: "whitelist.json", ops: "ops.json", banned: "banned-players.json" };
+
+function accessList(dataDir, id) {
+  const dir = serverDir(dataDir, id);
+  const out = {};
+  for (const [key, file] of Object.entries(ACCESS_FILES)) {
+    let entries = [];
+    try { entries = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8")); } catch { entries = []; }
+    out[key] = Array.isArray(entries)
+      ? entries.map((e) => ({ name: e.name || e.uuid || String(e), uuid: e.uuid || null, reason: e.reason || null }))
+      : [];
+  }
+  const props = properties(dataDir, id);
+  out.whitelistEnforced = String(props["white-list"] || "false") === "true";
+  return out;
+}
+
+// verb: add | remove, list: whitelist | ops | banned
+function accessChange(dataDir, id, { list, verb, name }) {
+  const player = String(name || "").trim();
+  if (!/^[A-Za-z0-9_]{3,16}$/.test(player)) throw new Error("That isn't a valid Minecraft name.");
+  const cmds = {
+    whitelist: { add: `whitelist add ${player}`, remove: `whitelist remove ${player}` },
+    ops:       { add: `op ${player}`,            remove: `deop ${player}` },
+    banned:    { add: `ban ${player}`,           remove: `pardon ${player}` },
+  };
+  const cmd = cmds[list] && cmds[list][verb];
+  if (!cmd) throw new Error("Unknown access change.");
+  if (running[id]) { command(id, cmd); return { applied: "console", cmd }; }
+
+  // Offline: edit the file directly, which is safe because nothing else holds it.
+  const file = path.join(serverDir(dataDir, id), ACCESS_FILES[list]);
+  let entries = [];
+  try { entries = JSON.parse(fs.readFileSync(file, "utf8")); } catch { entries = []; }
+  if (!Array.isArray(entries)) entries = [];
+  if (verb === "add") {
+    if (!entries.some((e) => String(e.name || "").toLowerCase() === player.toLowerCase())) {
+      entries.push(list === "ops" ? { name: player, level: 4, bypassesPlayerLimit: false } : { name: player });
+    }
+  } else {
+    entries = entries.filter((e) => String(e.name || "").toLowerCase() !== player.toLowerCase());
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(entries, null, 2));
+  return { applied: "file", count: entries.length };
+}
+
+// ---- Plugins (Paper) --------------------------------------------------------
+function plugins(dataDir, id) {
+  const rec = read(dataDir).find((s) => s.id === id);
+  if (!rec) throw new Error("Server not found.");
+  if (rec.platform !== "paper") return { supported: false, plugins: [] };
+  const dir = path.join(serverDir(dataDir, id), "plugins");
+  let files = [];
+  try { files = fs.readdirSync(dir); } catch { return { supported: true, plugins: [], dir }; }
+  const rows = files
+    .filter((f) => /\.jar(\.disabled)?$/i.test(f))
+    .map((f) => {
+      const enabled = !/\.disabled$/i.test(f);
+      const base = f.replace(/\.disabled$/i, "");
+      let size = 0;
+      try { size = fs.statSync(path.join(dir, f)).size; } catch { /* vanished */ }
+      return { file: base, name: base.replace(/\.jar$/i, ""), enabled, size };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { supported: true, plugins: rows, dir };
+}
+
+function setPluginEnabled(dataDir, id, { file, enabled }) {
+  const dir = path.join(serverDir(dataDir, id), "plugins");
+  const on = path.join(dir, file);
+  const off = on + ".disabled";
+  if (enabled && fs.existsSync(off)) fs.renameSync(off, on);
+  else if (!enabled && fs.existsSync(on)) fs.renameSync(on, off);
+  return { file, enabled: !!enabled, restartNeeded: !!running[id] };
+}
+
 module.exports = {
+  stats, accessList, accessChange, plugins, setPluginEnabled,
   create, list, get, start, stop, command, properties, setProperties, remove, isRunning,
   hostingInfo, setOnlineMode,
   // exported for tests / reuse

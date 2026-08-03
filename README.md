@@ -1,5 +1,10 @@
 # Lodestone (Windows)
 
+> **Archived 2026-08-03 — parked, not abandoned.** Feature-complete against the
+> Mac app (88/89 views) and shipped at **v0.31.0**; active development is paused.
+> Nothing is deleted and the release/auto-update pipeline still works. See
+> [ARCHIVED.md](ARCHIVED.md) for the exact state, how to resume, and the open threads.
+
 A Mac-native Minecraft launcher, packaged for Windows via Electron. Built on the
 Modrinth + Mojang APIs. Create instances, sign in with Microsoft, and launch Vanilla,
 Fabric, or Quilt.

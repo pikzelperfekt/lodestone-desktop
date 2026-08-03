@@ -303,9 +303,11 @@ async function renderInstanceDetail(id) {
     <!-- [Crash Doctor] filled async by renderInstanceDoctor; slim when the last session was clean. -->
     <div id="doctor-panel"></div>
 
-    <div class="section-head" style="margin-top:26px"><span class="section-title">WORLDS</span></div>
+    <div class="section-head" style="margin-top:26px"><span class="section-title">WORLDS</span>
+      <button class="gh gh-sm" id="world-import">${ico("i-download")} Add world</button>
+      <button class="gh gh-sm" id="world-new">${ico("i-plus")} New world</button></div>
     <div class="worlds-list">
-      ${worlds.length ? worlds.map(worldRow).join("") : `<div class="empty-line">No worlds yet. Play the instance to create one.</div>`}
+      ${worlds.length ? worlds.map(worldRow).join("") : `<div class="empty-line">No worlds yet. Create one, add an existing one, or play the instance.</div>`}
     </div>
     ${backups.length ? `
     <div class="section-head" style="margin-top:26px"><span class="section-title">BACKUPS</span></div>
@@ -377,6 +379,19 @@ async function renderInstanceDetail(id) {
     catch (err) { toast("Delete failed: " + err.message); }
     // [/wave0]
   });
+  // Worlds: create a fresh one, or import a folder / .zip.
+  const wNew = document.getElementById("world-new");
+  if (wNew) wNew.onclick = () => openNewWorldSheet(id, inst);
+  const wImp = document.getElementById("world-import");
+  if (wImp) wImp.onclick = async () => {
+    wImp.disabled = true;
+    try {
+      const r = await API.worldTools.import({ instanceId: id });
+      if (r) { toast(`Imported ${r.folder}.`); renderInstanceDetail(id); }
+      else wImp.disabled = false;
+    } catch (e) { wImp.disabled = false; toast("Couldn't import: " + e.message); }
+  };
+
   // Backups: restore.
   el().querySelectorAll("[data-wrestore]").forEach((b) => b.onclick = async () => {
     const backup = b.dataset.wrestore;
@@ -1357,6 +1372,88 @@ async function renderPinned() {
   });
 }
 
+
+// ---------- New world sheet ----------
+// Mirrors the Mac NewWorldSheet. Custom spawn point is deliberately absent:
+// it conflicts with initialized:0, which is what makes the game pick a spawn
+// and generate terrain in the first place.
+function openNewWorldSheet(instanceId, inst) {
+  showModal(`
+    <div class="share-card">
+      <div class="share-h">${ico("i-globe")} New world</div>
+      <p class="share-sub">Creates a real save in <b>${esc(inst.name)}</b>. Minecraft generates the terrain the first time it opens.</p>
+
+      <div class="np-grid">
+        <label class="np-field"><span>NAME</span><input class="inp" id="nw-name" value="New World" maxlength="64"></label>
+        <label class="np-field"><span>SEED</span><input class="inp" id="nw-seed" placeholder="Leave blank for random"></label>
+      </div>
+      <p class="share-note">A number is used exactly as typed. Any other text is hashed the same way Minecraft does it, so it matches the in-game box.</p>
+
+      <div class="np-grid">
+        <label class="np-field"><span>WORLD TYPE</span>
+          <select class="inp" id="nw-gen">
+            <option value="default">Default</option>
+            <option value="large_biomes">Large Biomes</option>
+            <option value="amplified">Amplified</option>
+            <option value="flat">Superflat</option>
+          </select></label>
+        <label class="np-field"><span>MODE</span>
+          <select class="inp" id="nw-mode">
+            <option value="survival">Survival</option>
+            <option value="creative">Creative</option>
+            <option value="hardcore">Hardcore</option>
+          </select></label>
+        <label class="np-field"><span>DIFFICULTY</span>
+          <select class="inp" id="nw-diff">
+            <option value="peaceful">Peaceful</option>
+            <option value="easy">Easy</option>
+            <option value="normal" selected>Normal</option>
+            <option value="hard">Hard</option>
+          </select></label>
+      </div>
+
+      <div class="nw-toggles">
+        <label class="nw-check"><input type="checkbox" id="nw-structures" checked> Generate structures</label>
+        <label class="nw-check"><input type="checkbox" id="nw-bonus"> Bonus chest</label>
+        <label class="nw-check"><input type="checkbox" id="nw-cheats"> Allow cheats</label>
+      </div>
+
+      <div class="np-actions">
+        <button class="btn-ghost" id="nw-cancel">Cancel</button>
+        <button class="btn-accent share-btn" id="nw-create">${ico("i-plus")} Create world</button>
+      </div>
+    </div>`);
+
+  document.getElementById("nw-cancel").onclick = hideModal;
+  document.getElementById("nw-create").onclick = async (e) => {
+    const btn = e.currentTarget;
+    const mode = document.getElementById("nw-mode").value;
+    btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Creating…`;
+    try {
+      const r = await API.worldTools.create({
+        instanceId,
+        name: document.getElementById("nw-name").value.trim() || "New World",
+        seed: document.getElementById("nw-seed").value,
+        generator: document.getElementById("nw-gen").value,
+        gameMode: mode === "hardcore" ? "survival" : mode,
+        hardcore: mode === "hardcore",
+        difficulty: mode === "hardcore" ? "hard" : document.getElementById("nw-diff").value,
+        difficultyLocked: mode === "hardcore",
+        structures: document.getElementById("nw-structures").checked,
+        bonusChest: document.getElementById("nw-bonus").checked,
+        cheats: document.getElementById("nw-cheats").checked,
+      });
+      hideModal();
+      toast(r.quickPlay
+        ? `Created ${r.folder}. Hit Play to drop straight in.`
+        : `Created ${r.folder}. This version has no Quick Play, so open it from the in-game menu.`);
+      renderInstanceDetail(instanceId);
+    } catch (err) {
+      btn.disabled = false; btn.innerHTML = `${ico("i-plus")} Create world`;
+      toast("Couldn't create: " + err.message);
+    }
+  };
+}
 
 // ---------- SETUP: GAME SETTINGS (global, applied to every instance) ----------
 async function renderGameSettings() {

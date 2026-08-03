@@ -272,6 +272,16 @@
     },
 
     // Global SETUP profiles: Game settings, Keybinds, Skins.
+    worldTools: {
+      async create(opts) {
+        if (bridge) return unwrap(await bridge.worlds.create(opts));
+        throw new Error("World creation runs in the desktop app.");
+      },
+      async import(opts) {
+        if (bridge) return unwrap(await bridge.worlds.import(opts));
+        throw new Error("World import runs in the desktop app.");
+      },
+    },
     setup: {
       async game() {
         if (!bridge) return { fields: [], values: {} };

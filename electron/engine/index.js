@@ -11,6 +11,7 @@ const importer = require("./import");
 const share = require("./share");
 const curseforge = require("./curseforge");
 const worlds = require("./worlds");
+const worldcreate = require("./worldcreate"); // world creation + import (26.1 split format aware)
 const auth = require("./auth");
 const cloud = require("./cloud");
 const sync = require("./sync"); // [Cloud Sync — Vertical A]
@@ -584,6 +585,26 @@ module.exports = {
   cloudProfile, cloudUpdateProfile, cloudLinkMinecraft, cloudSearchProfiles,
   // [Cloud Sync — Vertical A]
   cloudSyncPush, cloudSyncList, cloudSyncPull, cloudSyncRemove, cloudSyncStatus,
+  // ---- Worlds: create + import ----
+  createWorld: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    const p = install.paths(DATA_DIR);
+    return worldcreate.createWorld({
+      ...a,
+      instanceDir: p.instanceDir(inst.id),
+      mcVersion: inst.mcVersion,
+      jarPath: p.versionJar(inst.mcVersion),
+    });
+  },
+  importWorld: (a) => {
+    const inst = readInstances().find((i) => i.id === (a && a.instanceId));
+    if (!inst) throw new Error("Instance not found.");
+    return worldcreate.importWorld({
+      instanceDir: install.paths(DATA_DIR).instanceDir(inst.id),
+      source: a && a.source,
+    });
+  },
   // ---- Global SETUP: Game settings / Keybinds / Skins ----
   gameSettingsGet: () => globalsetup.getGameSettings(),
   gameSettingsSet: (a) => globalsetup.setGameSettings(a),

@@ -139,6 +139,21 @@ handle("setup:keybinds:reset", () => engine.keybindProfileReset());
 handle("setup:skin:profile", () => engine.skinProfile());
 handle("setup:skin:upload", (a) => engine.skinUpload(a));
 handle("setup:skin:reset", () => engine.skinReset());
+// Worlds: create a fresh world, or import a folder / .zip of one.
+handle("worlds:create", (a) => engine.createWorld(a));
+handle("worlds:import", async (a) => {
+  let source = a && a.source;
+  if (!source) {
+    const res = await dialog.showOpenDialog(win, {
+      properties: ["openFile", "openDirectory"],
+      filters: [{ name: "Minecraft world (.zip)", extensions: ["zip"] }],
+      message: "Pick a world folder, or a .zip of one",
+    });
+    if (res.canceled || !res.filePaths.length) return null;
+    source = res.filePaths[0];
+  }
+  return engine.importWorld({ instanceId: a && a.instanceId, source });
+});
 // Friends + Presence (Vertical B — social.js).
 handle("cloud:friends:list", () => engine.friendsList());
 handle("cloud:friends:search", (a) => engine.friendsSearch(a));
